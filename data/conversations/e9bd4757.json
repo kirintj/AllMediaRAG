@@ -1,0 +1,18 @@
+{
+  "id": "e9bd4757",
+  "title": "你好",
+  "created_at": 1780379390.0830476,
+  "updated_at": 1780379390.0830476,
+  "mode": "direct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好"
+    },
+    {
+      "role": "assistant",
+      "content": "你好！很高兴见到你~😊  \n我是MiMo，小米大模型Core团队开发的AI助手，随时准备帮你解答问题或聊聊技术细节！",
+      "sources": []
+    }
+  ]
+}
