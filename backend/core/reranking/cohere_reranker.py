@@ -20,15 +20,17 @@ class CohereReranker(RerankerProvider):
         self.api_key = api_key
         self.model = model
         self._client: Optional[cohere.Client] = None
+        self._initialization_failed = False
 
     @property
     def client(self) -> Optional[cohere.Client]:
         """延迟初始化客户端"""
-        if self._client is None and self.api_key:
+        if self._client is None and self.api_key and not self._initialization_failed:
             try:
                 self._client = cohere.Client(self.api_key)
             except Exception as e:
                 logger.warning("Failed to initialize Cohere client: %s", e)
+                self._initialization_failed = True
         return self._client
 
     def rerank(
@@ -76,6 +78,7 @@ class CohereReranker(RerankerProvider):
                 original_doc["rerank_score"] = result.relevance_score
                 reranked.append(original_doc)
 
+            logger.debug("Cohere rerank completed: %d documents -> %d results", len(texts), len(reranked))
             return reranked
 
         except Exception as e:

@@ -22,8 +22,8 @@ def test_cohere_reranker_rerank():
 
         result = reranker.rerank("测试查询", documents, top_k=2)
 
-        assert len(result) > 0
-        assert "rerank_score" in result[0]
+        assert len(result) == 1
+        assert result[0]["rerank_score"] == 0.95
 
 
 def test_cohere_reranker_is_available():
@@ -59,3 +59,13 @@ def test_cohere_reranker_returns_original_on_failure():
 
         # 失败时返回原始文档
         assert len(result) == 2
+
+
+def test_cohere_reranker_empty_documents():
+    """测试空文档列表"""
+    from core.reranking.cohere_reranker import CohereReranker
+
+    reranker = CohereReranker(api_key="test-key")
+    result = reranker.rerank("测试查询", [], top_k=5)
+
+    assert result == []
