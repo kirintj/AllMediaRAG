@@ -2,9 +2,11 @@ import sys
 import os
 from pathlib import Path
 
-# 添加项目根目录到 Python 路径
+# 添加项目根目录和 backend 目录到 Python 路径
 project_root = Path(__file__).parent.parent
+backend_dir = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(backend_dir))
 
 # 切换工作目录到项目根目录
 os.chdir(project_root)
@@ -13,9 +15,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from core.advanced_config import init_advanced_config
 from api.chat import router as chat_router
 from api.documents import router as documents_router
 from api.conversations import router as conversations_router
+
+# 显式加载 .env 配置
+init_advanced_config()
 
 app = FastAPI(title="Python 文档智能问答助手 API")
 
