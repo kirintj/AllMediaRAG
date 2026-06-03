@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+from .base import RerankerProvider
 from .cohere_reranker import CohereReranker
 from .bge_reranker import BGEReranker
 
@@ -63,7 +64,7 @@ class RerankManager:
         # 执行重排序
         return reranker.rerank(query, documents, top_k)
 
-    def _select_reranker(self):
+    def _select_reranker(self) -> Optional[RerankerProvider]:
         """根据策略选择重排序器"""
         if self.strategy == "cohere":
             # 优先使用Cohere
@@ -97,7 +98,7 @@ class RerankManager:
         return None
 
 
-class HybridReranker:
+class HybridReranker(RerankerProvider):
     """混合重排序器：结合Cohere和BGE分数"""
 
     def __init__(self, cohere_reranker, bge_reranker,
@@ -108,7 +109,14 @@ class HybridReranker:
             bge_reranker: BGE重排序器实例
             cohere_weight: Cohere分数权重
             bge_weight: BGE分数权重
+
+        Raises:
+            ValueError: 如果权重之和不接近1.0
         """
+        if abs(cohere_weight + bge_weight - 1.0) > 1e-6:
+            raise ValueError(
+                f"Weights must sum to 1.0, got {cohere_weight + bge_weight}"
+            )
         self.cohere = cohere_reranker
         self.bge = bge_reranker
         self.cohere_weight = cohere_weight
@@ -116,43 +124,43 @@ class HybridReranker:
 
     def rerank(self, query: str, documents: list[dict], top_k: int = 5) -> list[dict]:
         """混合重排序"""
-        # 分别使用两个重排序器
+        # 分别使用两个重排序器，传入副本避免修改原始列表
         cohere_results = self.cohere.rerank(query, documents.copy(), top_k=len(documents))
         bge_results = self.bge.rerank(query, documents.copy(), top_k=len(documents))
 
-        # 合并分数
-        score_map = {}
+        # 使用文本内容作为键，避免id()在浅拷贝后失效的问题
+        score_map: dict[str, dict] = {}
 
         for doc in cohere_results:
-            doc_id = id(doc["text"])
-            score_map[doc_id] = {
+            key = doc["text"]
+            score_map[key] = {
                 "doc": doc,
-                "cohere_score": doc.get("rerank_score", 0.0)
+                "cohere_score": doc.get("rerank_score", 0.0),
             }
 
         for doc in bge_results:
-            doc_id = id(doc["text"])
-            if doc_id in score_map:
-                score_map[doc_id]["bge_score"] = doc.get("rerank_score", 0.0)
+            key = doc["text"]
+            if key in score_map:
+                score_map[key]["bge_score"] = doc.get("rerank_score", 0.0)
             else:
-                score_map[doc_id] = {
+                score_map[key] = {
                     "doc": doc,
-                    "bge_score": doc.get("rerank_score", 0.0)
+                    "bge_score": doc.get("rerank_score", 0.0),
                 }
 
-        # 计算混合分数
-        for doc_id, data in score_map.items():
+        # 计算混合分数（创建新字典而非修改原字典）
+        reranked = []
+        for data in score_map.values():
             cohere_score = data.get("cohere_score", 0.0)
             bge_score = data.get("bge_score", 0.0)
-            data["doc"]["rerank_score"] = (
+            new_doc = data["doc"].copy()
+            new_doc["rerank_score"] = (
                 self.cohere_weight * cohere_score +
                 self.bge_weight * bge_score
             )
+            reranked.append(new_doc)
 
-        # 按混合分数排序
-        reranked = [data["doc"] for data in score_map.values()]
         reranked.sort(key=lambda x: x["rerank_score"], reverse=True)
-
         return reranked[:top_k]
 
     def is_available(self) -> bool:
