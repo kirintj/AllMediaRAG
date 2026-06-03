@@ -874,17 +874,20 @@ class AdvancedRAGConfig(Config):
     MULTI_QUERY_COUNT: int = 3
     
     # 重排序配置
+    # Cohere API Key：从 https://cohere.com/ 申请
     RERANK_STRATEGY: str = "cohere"  # "cohere", "bge", "hybrid"
     COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
-    BGE_RERANKER_PATH: str = "BAAI/bge-reranker-base"
+    # BGE Reranker路径：本地模型路径或HuggingFace模型ID
+    BGE_RERANKER_PATH: str = os.getenv("BGE_RERANKER_PATH", "BAAI/bge-reranker-base")
     RERANK_TOP_K: int = 20
     RERANK_TIMEOUT_MS: int = 250
     
     # 缓存配置
+    # 使用场景：单机部署可只用L1缓存；多实例部署或需要持久化时启用Redis
     USE_CACHE: bool = True
     CACHE_L1_MAX_SIZE: int = 1000
     CACHE_L1_TTL: int = 300
-    USE_REDIS: bool = False
+    USE_REDIS: bool = False  # 启用Redis用于分布式缓存或缓存持久化
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     SEMANTIC_CACHE_ENABLED: bool = True
@@ -1223,5 +1226,4 @@ services:
 ---
 
 **文档状态**：已批准  
-**批准人**：[待填写]  
 **批准日期**：2026-06-03
