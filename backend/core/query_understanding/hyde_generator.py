@@ -1,4 +1,7 @@
+import logging
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 
 class HyDEGenerator:
@@ -49,6 +52,6 @@ class HyDEGenerator:
                 return hypothetical_doc.strip()
             return None
 
-        except Exception:
-            # 生成失败时返回None
+        except Exception as e:
+            logger.debug("HyDE generation failed: %s", e)
             return None
