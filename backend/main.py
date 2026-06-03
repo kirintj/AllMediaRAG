@@ -1,5 +1,6 @@
 import sys
 import os
+import logging
 from pathlib import Path
 
 # 添加项目根目录和 backend 目录到 Python 路径
@@ -16,12 +17,23 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core.advanced_config import init_advanced_config
-from api.chat import router as chat_router
-from api.documents import router as documents_router
+from core.config import config
+from core.rag_engine import RAGEngine
+from api.chat import router as chat_router, set_engine as set_chat_engine
+from api.documents import router as documents_router, set_engine as set_docs_engine
 from api.conversations import router as conversations_router
 
 # 显式加载 .env 配置
 init_advanced_config()
+
+# 启动时校验关键配置
+if not config.MIMO_API_KEY:
+    logging.warning("MIMO_API_KEY 未配置，LLM 相关功能将不可用")
+
+# 创建共享的 RAG 引擎实例
+rag_engine = RAGEngine(config)
+set_chat_engine(rag_engine)
+set_docs_engine(rag_engine, config)
 
 app = FastAPI(title="Python 文档智能问答助手 API")
 

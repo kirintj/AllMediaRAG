@@ -1,7 +1,10 @@
 import os
 import json
 import time
-from fastapi import APIRouter
+import logging
+from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -10,7 +13,7 @@ _conversations_dir = None
 def get_conversations_dir():
     global _conversations_dir
     if _conversations_dir is None:
-        from config import config
+        from core.config import config
         _conversations_dir = os.path.join(os.path.dirname(config.DATA_DIR), "conversations")
     os.makedirs(_conversations_dir, exist_ok=True)
     return _conversations_dir
@@ -77,7 +80,7 @@ async def get_conversation(conv_id: str):
     conv_dir = get_conversations_dir()
     path = os.path.join(conv_dir, f"{conv_id}.json")
     if not os.path.exists(path):
-        return {"error": "对话不存在"}
+        raise HTTPException(status_code=404, detail="对话不存在")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -90,4 +93,4 @@ async def delete_conversation(conv_id: str):
     if os.path.exists(path):
         os.remove(path)
         return {"message": "已删除对话"}
-    return {"error": "对话不存在"}
+    raise HTTPException(status_code=404, detail="对话不存在")

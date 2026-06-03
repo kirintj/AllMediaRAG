@@ -16,6 +16,11 @@ venv/
 # Data (generated at runtime)
 chroma_db/
 models/
+data/conversations/
+*.log
+
+# Claude Code
+.claude/
 
 # Node
 node_modules/

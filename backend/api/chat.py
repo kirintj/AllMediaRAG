@@ -1,28 +1,32 @@
 import json
 import asyncio
 import uuid
-import time
+import logging
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
-# 延迟导入 RAG 引擎
-engine = None
+# 共享引擎实例（由 main.py 注入）
+_engine = None
 _executor = ThreadPoolExecutor(max_workers=4)
 
 _SENTINEL = "__STREAM_END__"
 
+def set_engine(engine):
+    """由 main.py 调用，注入共享引擎实例"""
+    global _engine
+    _engine = engine
+
 def get_engine():
-    global engine
-    if engine is None:
-        from config import config
-        from rag_engine import RAGEngine
-        engine = RAGEngine(config)
-    return engine
+    if _engine is None:
+        raise RuntimeError("RAG engine not initialized. Call set_engine() first.")
+    return _engine
 
 class ChatRequest(BaseModel):
     message: str
@@ -36,7 +40,7 @@ async def chat(request: ChatRequest):
 
     # 使用队列在线程和异步之间传递数据
     queue = asyncio.Queue()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def generate_in_thread(prompt):
         """在线程池中运行的同步生成器，将结果放入队列"""
@@ -117,7 +121,8 @@ async def chat(request: ChatRequest):
             yield f"data: {done_data}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e), 'done': True}, ensure_ascii=False)}\n\n"
+            logger.exception("SSE流式生成失败")
+            yield f"event: error\ndata: {json.dumps({'error': str(e), 'done': True}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         generate(),

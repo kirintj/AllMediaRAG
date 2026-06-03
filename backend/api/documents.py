@@ -1,21 +1,28 @@
 import os
+import logging
 import shutil
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# 延迟导入
-engine = None
-config = None
+# 共享引擎实例（由 main.py 注入）
+_engine = None
+_config = None
+
+
+def set_engine(engine, config):
+    """由 main.py 调用，注入共享引擎实例"""
+    global _engine, _config
+    _engine = engine
+    _config = config
+
 
 def get_engine_and_config():
-    global engine, config
-    if engine is None:
-        from config import config as cfg
-        from rag_engine import RAGEngine
-        config = cfg
-        engine = RAGEngine(config)
-    return engine, config
+    if _engine is None:
+        raise RuntimeError("RAG engine not initialized. Call set_engine() first.")
+    return _engine, _config
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -23,17 +30,22 @@ async def upload_document(file: UploadFile = File(...)):
     engine, config = get_engine_and_config()
 
     supported_types = [".html", ".htm", ".txt", ".md", ".pdf", ".docx"]
-    ext = os.path.splitext(file.filename)[1].lower()
+    # 防止路径遍历：只取文件名，丢弃路径分隔符
+    safe_name = os.path.basename(file.filename)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="文件名为空")
+
+    ext = os.path.splitext(safe_name)[1].lower()
 
     if ext not in supported_types:
-        return {"error": f"不支持的文件格式，支持: {', '.join(supported_types)}"}
+        raise HTTPException(status_code=400, detail=f"不支持的文件格式，支持: {', '.join(supported_types)}")
 
     try:
         os.makedirs(config.DATA_DIR, exist_ok=True)
-        file_path = os.path.join(config.DATA_DIR, file.filename)
+        file_path = os.path.join(config.DATA_DIR, safe_name)
 
         # 同名文件去重：先删除旧向量
-        engine.vector_store.delete_by_source(file.filename)
+        engine.delete_by_source(safe_name)
 
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -43,12 +55,13 @@ async def upload_document(file: UploadFile = File(...)):
 
         return {
             "message": "上传成功",
-            "filename": file.filename,
+            "filename": safe_name,
             "chunks": chunks
         }
 
     except Exception as e:
-        return {"error": f"上传失败: {str(e)}"}
+        logger.exception("文档上传失败")
+        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 @router.get("/documents")
 async def get_documents():
@@ -63,7 +76,7 @@ async def delete_document(source: str):
     engine, config = get_engine_and_config()
 
     try:
-        engine.vector_store.delete_by_source(source)
+        engine.delete_by_source(source)
 
         # 同时删除磁盘文件
         file_path = os.path.join(config.DATA_DIR, source)
@@ -72,7 +85,8 @@ async def delete_document(source: str):
 
         return {"message": f"已删除文档: {source}"}
     except Exception as e:
-        return {"error": f"删除失败: {str(e)}"}
+        logger.exception("删除文档失败: %s", source)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 @router.delete("/documents")
 async def clear_all_documents():
@@ -80,7 +94,7 @@ async def clear_all_documents():
     engine, config = get_engine_and_config()
 
     try:
-        engine.vector_store.delete_all()
+        engine.delete_all()
 
         # 清空数据目录
         if os.path.exists(config.DATA_DIR):
@@ -89,7 +103,8 @@ async def clear_all_documents():
 
         return {"message": "已清空所有文档"}
     except Exception as e:
-        return {"error": f"清空失败: {str(e)}"}
+        logger.exception("清空文档失败")
+        raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
 
 @router.post("/documents/load")
 async def load_documents():
@@ -97,12 +112,12 @@ async def load_documents():
     engine, config = get_engine_and_config()
 
     if not os.path.exists(config.DATA_DIR):
-        return {"error": "数据目录不存在"}
+        raise HTTPException(status_code=404, detail="数据目录不存在")
 
     files = [f for f in os.listdir(config.DATA_DIR) if f.endswith((".html", ".htm", ".txt", ".md", ".pdf", ".docx"))]
 
     if not files:
-        return {"error": "未找到可处理的文档"}
+        raise HTTPException(status_code=404, detail="未找到可处理的文档")
 
     total_chunks = 0
     loaded_files = []
