@@ -68,7 +68,7 @@ class QueryClassifier:
             result["intent_type"] = self._validate_intent_type(result.get("intent_type", "factoid"))
             result["confidence"] = max(0.0, min(1.0, float(result.get("confidence", 0.5))))
             result["complexity"] = self._validate_complexity(result.get("complexity", "medium"))
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError):
             # 解析失败时返回默认值
             result = {
                 "intent_type": "factoid",
