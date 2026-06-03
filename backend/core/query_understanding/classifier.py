@@ -1,5 +1,6 @@
 import json
-from typing import Optional
+from collections import OrderedDict
+from typing import Any
 
 
 class QueryClassifier:
@@ -25,14 +26,14 @@ class QueryClassifier:
 
 只返回JSON，不要其他内容。"""
 
-    def __init__(self, llm_client, cache_size: int = 1000):
+    def __init__(self, llm_client: Any, cache_size: int = 1000):
         """
         Args:
             llm_client: LLM客户端
-            cache_size: 缓存大小
+            cache_size: 缓存大小，设为0时禁用缓存
         """
         self.llm_client = llm_client
-        self.cache: dict[str, dict] = {}
+        self.cache: OrderedDict[str, dict] = OrderedDict()
         self.cache_size = cache_size
 
     def classify(self, query: str) -> dict:
@@ -51,6 +52,7 @@ class QueryClassifier:
         """
         # 检查缓存
         if query in self.cache:
+            self.cache.move_to_end(query)
             return self.cache[query]
 
         # 生成分类prompt
@@ -66,7 +68,7 @@ class QueryClassifier:
             result["intent_type"] = self._validate_intent_type(result.get("intent_type", "factoid"))
             result["confidence"] = max(0.0, min(1.0, float(result.get("confidence", 0.5))))
             result["complexity"] = self._validate_complexity(result.get("complexity", "medium"))
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             # 解析失败时返回默认值
             result = {
                 "intent_type": "factoid",
@@ -75,12 +77,10 @@ class QueryClassifier:
             }
 
         # 更新缓存
-        if len(self.cache) >= self.cache_size:
-            # 简单的缓存淘汰：删除第一个
-            first_key = next(iter(self.cache))
-            del self.cache[first_key]
-
-        self.cache[query] = result
+        if self.cache_size > 0:
+            if len(self.cache) >= self.cache_size:
+                self.cache.popitem(last=False)
+            self.cache[query] = result
 
         return result
 
