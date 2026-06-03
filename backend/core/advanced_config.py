@@ -2,6 +2,9 @@ import math
 import os
 from dotenv import load_dotenv
 
+# 在类定义前加载.env，确保类属性能读取到环境变量
+load_dotenv()
+
 
 def _int_env(key: str, default: int) -> int:
     """从环境变量读取整数值，解析失败时返回默认值。"""

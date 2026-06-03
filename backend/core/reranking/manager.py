@@ -128,22 +128,20 @@ class HybridReranker(RerankerProvider):
         cohere_results = self.cohere.rerank(query, documents.copy(), top_k=len(documents))
         bge_results = self.bge.rerank(query, documents.copy(), top_k=len(documents))
 
-        # 使用文本内容作为键，避免id()在浅拷贝后失效的问题
-        score_map: dict[str, dict] = {}
+        # 使用索引作为键，避免相同文本的文档互相覆盖
+        score_map: dict[int, dict] = {}
 
-        for doc in cohere_results:
-            key = doc["text"]
-            score_map[key] = {
+        for i, doc in enumerate(cohere_results):
+            score_map[i] = {
                 "doc": doc,
                 "cohere_score": doc.get("rerank_score", 0.0),
             }
 
-        for doc in bge_results:
-            key = doc["text"]
-            if key in score_map:
-                score_map[key]["bge_score"] = doc.get("rerank_score", 0.0)
+        for i, doc in enumerate(bge_results):
+            if i in score_map:
+                score_map[i]["bge_score"] = doc.get("rerank_score", 0.0)
             else:
-                score_map[key] = {
+                score_map[i] = {
                     "doc": doc,
                     "bge_score": doc.get("rerank_score", 0.0),
                 }

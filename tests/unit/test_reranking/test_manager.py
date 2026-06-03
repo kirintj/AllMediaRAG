@@ -222,7 +222,7 @@ def test_hybrid_reranker_score_blending():
 
 
 def test_hybrid_reranker_deduplication():
-    """测试文本相同的文档被去重"""
+    """测试文本相同的文档不会互相覆盖（使用索引作为键）"""
     from core.reranking.manager import HybridReranker
 
     mock_cohere = Mock()
@@ -233,14 +233,21 @@ def test_hybrid_reranker_deduplication():
 
     mock_bge = Mock()
     mock_bge.rerank.return_value = [
-        {"text": "same_text", "metadata": {}, "rerank_score": 0.8}
+        {"text": "same_text", "metadata": {}, "rerank_score": 0.8},
+        {"text": "same_text", "metadata": {}, "rerank_score": 0.5}
     ]
 
     hybrid = HybridReranker(mock_cohere, mock_bge, cohere_weight=0.6, bge_weight=0.4)
     result = hybrid.rerank("query", [{"text": "same_text"}, {"text": "same_text"}], top_k=5)
 
-    # 文本相同的文档应该被合并
-    assert len(result) == 1
+    # 文本相同的文档应保留为独立条目，不互相覆盖
+    assert len(result) == 2
+    # doc0: 0.6*0.9 + 0.4*0.8 = 0.86
+    assert abs(result[0]["rerank_score"] - 0.86) < 0.001
+    assert result[0]["metadata"] == {"source": "a"}
+    # doc1: 0.6*0.7 + 0.4*0.5 = 0.62
+    assert abs(result[1]["rerank_score"] - 0.62) < 0.001
+    assert result[1]["metadata"] == {"source": "b"}
 
 
 def test_hybrid_reranker_is_available():
