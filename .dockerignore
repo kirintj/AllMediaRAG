@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# 环境变量（由 docker-compose env_file 注入）
+.env
+.env.local
+
+# Python 缓存
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+*.egg-info
+venv
+.venv
+
+# 前端构建产物和依赖
+frontend/node_modules
+frontend/dist
+
+# 模型文件（通过 volume mount 挂载，不打包进镜像）
+models/
+
+# 运行时数据（通过 volume mount 持久化）
+chroma_db/
+data/conversations/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Docker 自身
+Dockerfile
+frontend/Dockerfile
+docker-compose.yml
+.dockerignore

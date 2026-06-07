@@ -1,9 +1,24 @@
 import os
+import re
 import logging
 import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
+from core.rate_limit import limiter, RATE_LIMIT_UPLOAD
+from core.auth import get_current_user
 
 logger = logging.getLogger(__name__)
+
+# 文件上传限制
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILENAME_LENGTH = 200
+ALLOWED_MIME_TYPES = {
+    ".html": ["text/html", "application/xhtml+xml"],
+    ".htm": ["text/html", "application/xhtml+xml"],
+    ".txt": ["text/plain"],
+    ".md": ["text/markdown", "text/plain", "application/octet-stream"],
+    ".pdf": ["application/pdf"],
+    ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+}
 
 router = APIRouter()
 
@@ -25,7 +40,12 @@ def get_engine_and_config():
     return _engine, _config
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+@limiter.limit(RATE_LIMIT_UPLOAD)
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
     """上传文档（同名文件自动去重）"""
     engine, config = get_engine_and_config()
 
@@ -35,10 +55,20 @@ async def upload_document(file: UploadFile = File(...)):
     if not safe_name:
         raise HTTPException(status_code=400, detail="文件名为空")
 
+    if len(safe_name) > MAX_FILENAME_LENGTH:
+        raise HTTPException(status_code=400, detail=f"文件名过长，最大 {MAX_FILENAME_LENGTH} 字符")
+
     ext = os.path.splitext(safe_name)[1].lower()
 
     if ext not in supported_types:
         raise HTTPException(status_code=400, detail=f"不支持的文件格式，支持: {', '.join(supported_types)}")
+
+    # MIME type 校验（与扩展名双重验证）
+    if file.content_type:
+        allowed_mimes = ALLOWED_MIME_TYPES.get(ext, [])
+        if allowed_mimes and file.content_type not in allowed_mimes:
+            logger.warning("MIME 类型不匹配: filename=%s, content_type=%s, ext=%s", safe_name, file.content_type, ext)
+            raise HTTPException(status_code=400, detail=f"文件类型不匹配，期望 {ext} 格式")
 
     try:
         os.makedirs(config.DATA_DIR, exist_ok=True)
@@ -47,8 +77,13 @@ async def upload_document(file: UploadFile = File(...)):
         # 同名文件去重：先删除旧向量
         engine.delete_by_source(safe_name)
 
+        content = await file.read()
+
+        # 文件大小校验
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024*1024)}MB")
+
         with open(file_path, "wb") as f:
-            content = await file.read()
             f.write(content)
 
         chunks = engine.ingest_document(file_path)
@@ -59,37 +94,44 @@ async def upload_document(file: UploadFile = File(...)):
             "chunks": chunks
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("文档上传失败")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 @router.get("/documents")
-async def get_documents():
+async def get_documents(current_user: dict = Depends(get_current_user)):
     """获取文档列表"""
     engine, _ = get_engine_and_config()
     sources = engine.vector_store.get_all_sources()
     return {"documents": sources}
 
 @router.delete("/documents/{source}")
-async def delete_document(source: str):
+async def delete_document(source: str, current_user: dict = Depends(get_current_user)):
     """删除单个文档及其向量"""
     engine, config = get_engine_and_config()
 
+    # 防止路径穿越：只取文件名，丢弃路径分隔符
+    safe_source = os.path.basename(source)
+    if not safe_source:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
     try:
-        engine.delete_by_source(source)
+        engine.delete_by_source(safe_source)
 
         # 同时删除磁盘文件
-        file_path = os.path.join(config.DATA_DIR, source)
+        file_path = os.path.join(config.DATA_DIR, safe_source)
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        return {"message": f"已删除文档: {source}"}
+        return {"message": f"已删除文档: {safe_source}"}
     except Exception as e:
         logger.exception("删除文档失败: %s", source)
         raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 @router.delete("/documents")
-async def clear_all_documents():
+async def clear_all_documents(current_user: dict = Depends(get_current_user)):
     """清空所有文档和向量"""
     engine, config = get_engine_and_config()
 
@@ -107,7 +149,7 @@ async def clear_all_documents():
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
 
 @router.post("/documents/load")
-async def load_documents():
+async def load_documents(current_user: dict = Depends(get_current_user)):
     """批量加载本地文档"""
     engine, config = get_engine_and_config()
 
@@ -135,7 +177,7 @@ async def load_documents():
     }
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(current_user: dict = Depends(get_current_user)):
     """获取统计信息"""
     engine, _ = get_engine_and_config()
     doc_count = engine.vector_store.get_document_count()

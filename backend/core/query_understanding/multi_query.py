@@ -50,7 +50,7 @@ class MultiQueryGenerator:
             return [original_query] + variants
 
         except Exception as e:
-            logger.debug("Multi-query generation failed: %s", e)
+            logger.warning("Multi-query generation failed: %s", e)
             # 失败时只返回原始查询
             return [original_query]
 
@@ -76,7 +76,7 @@ class MultiQueryGenerator:
                 continue
 
             # 移除编号（如 "1. ", "2. "等）
-            if line[0].isdigit() and '. ' in line:
+            if len(line) > 2 and line[0].isdigit() and '. ' in line:
                 line = line.split('. ', 1)[1]
 
             if line:

@@ -41,12 +41,12 @@
             <path d="M43 42h6M46 39v6" stroke="var(--hm-brand)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        <h3>开始你的 Python 问答之旅</h3>
-        <p class="empty-sub">基于 RAG 检索增强，精准回答 Python 技术问题</p>
+        <h3>开始你的智能问答之旅</h3>
+        <p class="empty-sub">基于 RAG 检索增强，精准回答知识库问题</p>
         <div class="empty-suggestions">
-          <button class="suggestion-chip" @click="quickAsk('Python 装饰器是什么？')">装饰器是什么？</button>
-          <button class="suggestion-chip" @click="quickAsk('如何使用生成器？')">如何使用生成器？</button>
-          <button class="suggestion-chip" @click="quickAsk('GIL 是什么？')">GIL 是什么？</button>
+          <button class="suggestion-chip" @click="quickAsk('什么是 RAG？')">什么是 RAG？</button>
+          <button class="suggestion-chip" @click="quickAsk('如何使用向量数据库？')">如何使用向量数据库？</button>
+          <button class="suggestion-chip" @click="quickAsk('如何优化检索效果？')">如何优化检索效果？</button>
         </div>
       </div>
 
@@ -86,7 +86,7 @@
         </button>
       </div>
       <div class="input-footer">
-        <button class="hm-action-btn footer-btn" @click="store.clearMessages()">清空对话</button>
+        <button class="hm-action-btn footer-btn" @click="store.clearChatHistory()">清空对话</button>
         <button class="hm-action-btn footer-btn" @click="store.clearChatHistory()">清空历史</button>
         <span class="mode-hint">
           {{ store.mode === 'rag' ? 'RAG 检索增强模式' : '直接对话模式' }}

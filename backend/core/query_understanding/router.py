@@ -11,21 +11,21 @@ class QueryRouter:
         # (intent_type, complexity) -> config
         ("factoid", "simple"): {
             "use_hyde": False,
-            "num_queries": 1,
-            "rerank_top_k": 10,
-            "weights": {"vector": 0.7, "bm25": 0.3}
-        },
-        ("factoid", "medium"): {
-            "use_hyde": False,
             "num_queries": 2,
             "rerank_top_k": 15,
-            "weights": {"vector": 0.7, "bm25": 0.3}
+            "weights": {"vector": 0.6, "bm25": 0.4}
         },
-        ("factoid", "complex"): {
-            "use_hyde": False,
-            "num_queries": 3,
+        ("factoid", "medium"): {
+            "use_hyde": True,
+            "num_queries": 2,
             "rerank_top_k": 15,
             "weights": {"vector": 0.6, "bm25": 0.4}
+        },
+        ("factoid", "complex"): {
+            "use_hyde": True,
+            "num_queries": 3,
+            "rerank_top_k": 15,
+            "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("analytical", "simple"): {
             "use_hyde": False,

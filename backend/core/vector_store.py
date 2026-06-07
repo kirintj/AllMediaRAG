@@ -99,3 +99,19 @@ class VectorStore:
     def close(self):
         """关闭客户端，释放资源"""
         self.client.close()
+
+    def get_all_documents(self) -> list[dict]:
+        """获取所有文档（用于重建 BM25 索引）
+
+        Returns:
+            [{"id": str, "text": str, "metadata": dict}, ...]
+        """
+        results = self.collection.get(include=["documents", "metadatas"])
+        docs = []
+        for doc_id, text, meta in zip(results["ids"], results["documents"], results["metadatas"]):
+            docs.append({
+                "id": doc_id,
+                "text": text,
+                "metadata": meta or {},
+            })
+        return docs

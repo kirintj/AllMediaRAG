@@ -1,0 +1,182 @@
+[
+  {
+    "id": 1,
+    "question": "什么是 Agent？它和普通聊天机器人有什么区别？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["目标", "状态", "工具", "持续推进"],
+    "reference_answer": "Agent 是围绕目标持续推进任务的系统，具备接收目标、保留状态、根据中间结果改变动作、调用外部工具的能力。与普通聊天机器人的区别在于 Agent 能持续追踪任务状态并主动规划。"
+  },
+  {
+    "id": 2,
+    "question": "LangGraph 解决了什么问题？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["05-LangGraph核心概念.md"],
+    "expected_keywords": ["有向图", "状态", "条件分支", "循环"],
+    "reference_answer": "LangGraph 解决了链式调用的三大局限：没有条件分支、没有循环和重试、状态管理混乱。它将执行流程描述为有向图，用节点、边和状态三个核心要素构建可维护的 Agent 系统。"
+  },
+  {
+    "id": 3,
+    "question": "Claude Code 的 Agent 架构是怎样的？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["02-Claude_Code_Agent架构深度解析.md"],
+    "expected_keywords": ["Claude", "工具", "循环", "上下文"],
+    "reference_answer": "Claude Code 的 Agent 架构基于工具调用循环：LLM 接收用户请求，决定是否调用工具，执行工具后将结果反馈给 LLM，循环直到任务完成。"
+  },
+  {
+    "id": 4,
+    "question": "Agent 的记忆系统怎么设计？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["06-OpenClaw_Agent架构与记忆系统.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["短期记忆", "长期记忆", "上下文窗口", "向量数据库"],
+    "reference_answer": "Agent 记忆系统通常分为短期记忆（上下文窗口内的对话历史）和长期记忆（持久化存储，如向量数据库）。需要考虑记忆的写入、检索、压缩和淘汰策略。"
+  },
+  {
+    "id": 5,
+    "question": "RAG 系统有哪些常见的评估指标？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["召回率", "准确率", "Faithfulness", "检索"],
+    "reference_answer": "RAG 系统的评估指标包括检索质量（Recall@K、MRR、Precision）和生成质量（Faithfulness 忠实度、Answer Relevancy 相关性）。还需要关注幻觉率和关键词覆盖率。"
+  },
+  {
+    "id": 6,
+    "question": "如何选择合适的 Agent 框架？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["09-Agent框架详细对比与选型.md"],
+    "expected_keywords": ["LangChain", "LangGraph", "CrewAI", "选型"],
+    "reference_answer": "选择Agent框架需要考虑：1)任务复杂度；2)是否需要多Agent协作；3)状态管理需求；4)工具集成需求。LangChain适合简单场景，LangGraph适合复杂流程，CrewAI适合多Agent协作。"
+  },
+  {
+    "id": 7,
+    "question": "什么是提示工程（Prompt Engineering）？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["07-Prompt-Engineering-理论基础.md"],
+    "expected_keywords": ["提示", "指令", "上下文", "优化"],
+    "reference_answer": "提示工程是设计和优化输入给大语言模型的提示（Prompt）的技术，目的是引导模型产生期望的输出。包括指令设计、上下文提供、示例选择等技巧。"
+  },
+  {
+    "id": 8,
+    "question": "Fine-tuning 和 RAG 应该怎么选择？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["Fine-tuning", "RAG", "微调", "检索增强"],
+    "reference_answer": "选择依据：1)数据更新频率：频繁更新用RAG，稳定用Fine-tuning；2)领域特异性：高度专业化用Fine-tuning，通用增强用RAG；3)成本考虑：RAG成本更低，Fine-tuning需要更多计算资源。"
+  },
+  {
+    "id": 9,
+    "question": "如何实现多 Agent 协作？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["04-三大AI_SDK横向对比与选型.md"],
+    "expected_keywords": ["多Agent", "协作", "通信", "协调"],
+    "reference_answer": "多Agent协作的实现方式：1)主从模式：一个主Agent协调多个子Agent；2)对等模式：Agent之间平等协作；3)分层模式：按职责分层。需要解决通信、任务分配、结果整合等问题。"
+  },
+  {
+    "id": 10,
+    "question": "什么是向量数据库？在 RAG 中起什么作用？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["向量数据库", "Embedding", "相似度", "检索"],
+    "reference_answer": "向量数据库是专门存储和检索向量的数据库。在RAG中，它将文档转换为向量表示，通过相似度检索找到与查询最相关的文档片段。常见有ChromaDB、Pinecone、Milvus等。"
+  },
+  {
+    "id": 11,
+    "question": "如何评估 RAG 系统的检索质量？",
+    "query_type": "procedural",
+    "difficulty": "medium",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["Recall", "MRR", "Precision", "评估"],
+    "reference_answer": "评估RAG检索质量的指标：1)Recall@K：前K个结果中包含相关文档的比例；2)MRR：第一个相关结果的排名倒数；3)Precision@K：前K个结果中相关文档的比例。"
+  },
+  {
+    "id": 12,
+    "question": "Agent 中的工具调用机制是怎样的？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["工具调用", "Function Calling", "API", "执行"],
+    "reference_answer": "Agent的工具调用机制：LLM根据用户请求决定是否调用工具，生成工具调用指令（包括工具名和参数），执行工具并获取结果，将结果反馈给LLM继续推理。"
+  },
+  {
+    "id": 13,
+    "question": "如何设计一个好的 RAG 系统？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["分块", "向量化", "检索", "生成"],
+    "reference_answer": "设计好的RAG系统需要考虑：1)文档分块策略；2)向量化模型选择；3)检索方式（向量+关键词）；4)重排序机制；5)上下文组装；6)提示工程；7)评估和优化。"
+  },
+  {
+    "id": 14,
+    "question": "什么是 LangChain？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["09-Agent框架详细对比与选型.md"],
+    "expected_keywords": ["LangChain", "框架", "LLM", "集成"],
+    "reference_answer": "LangChain是一个用于构建LLM应用的开源框架，提供组件化的工具链，包括模型集成、提示管理、链式调用、工具使用、内存管理等功能。"
+  },
+  {
+    "id": 15,
+    "question": "Agent 的状态管理有哪些方案？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["05-LangGraph核心概念.md"],
+    "expected_keywords": ["状态", "状态机", "持久化", "管理"],
+    "reference_answer": "Agent状态管理方案：1)简单内存状态：适用于短期任务；2)数据库持久化：支持长期运行；3)状态机模式：如LangGraph的有向图；4)事件溯源：记录所有状态变更。"
+  },
+  {
+    "id": 16,
+    "question": "如何处理 RAG 中的幻觉问题？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["幻觉", "忠实度", "事实核查", "接地"],
+    "reference_answer": "处理RAG幻觉的方法：1)增强检索质量；2)优化提示工程；3)引入事实核查机制；4)使用Faithfulness评估；5)限制生成长度；6)人工审核关键内容。"
+  },
+  {
+    "id": 17,
+    "question": "什么是 Embedding？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["08-Prompt-Engineering-应用技术.md"],
+    "expected_keywords": ["Embedding", "向量", "表示", "语义"],
+    "reference_answer": "Embedding是将文本、图片等数据转换为固定长度的向量表示的技术。好的Embedding能捕获语义信息，相似的内容在向量空间中距离更近。"
+  },
+  {
+    "id": 18,
+    "question": "Agent 如何处理错误和异常？",
+    "query_type": "procedural",
+    "difficulty": "medium",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["错误处理", "重试", "降级", "恢复"],
+    "reference_answer": "Agent错误处理策略：1)重试机制：可恢复错误自动重试；2)降级处理：提供备选方案；3)错误反馈：将错误信息反馈给LLM重新规划；4)人工干预：关键错误请求人工协助。"
+  },
+  {
+    "id": 19,
+    "question": "如何优化 RAG 系统的性能？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["缓存", "索引", "并行", "优化"],
+    "reference_answer": "RAG性能优化：1)建立向量索引；2)引入缓存机制；3)并行化检索和生成；4)优化分块策略；5)使用更快的Embedding模型；6)实施重排序减少处理量。"
+  },
+  {
+    "id": 20,
+    "question": "什么是 AI Agent 的规划能力？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["规划", "任务分解", "子目标", "执行计划"],
+    "reference_answer": "Agent的规划能力指将复杂任务分解为可执行的子任务序列的能力。包括目标分解、任务排序、资源分配、执行监控等环节。"
+  }
+]

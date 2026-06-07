@@ -1,0 +1,32 @@
+[
+  {
+    "question": "什么是 Agent？它和普通聊天机器人有什么区别？",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["目标", "状态", "工具", "持续推进"],
+    "reference_answer": "Agent 是围绕目标持续推进任务的系统，具备接收目标、保留状态、根据中间结果改变动作、调用外部工具的能力。与普通聊天机器人的区别在于 Agent 能持续追踪任务状态并主动规划。"
+  },
+  {
+    "question": "LangGraph 解决了什么问题？",
+    "expected_sources": ["05-LangGraph核心概念.md"],
+    "expected_keywords": ["有向图", "状态", "条件分支", "循环"],
+    "reference_answer": "LangGraph 解决了链式调用的三大局限：没有条件分支、没有循环和重试、状态管理混乱。它将执行流程描述为有向图，用节点、边和状态三个核心要素构建可维护的 Agent 系统。"
+  },
+  {
+    "question": "Claude Code 的 Agent 架构是怎样的？",
+    "expected_sources": ["02-Claude_Code_Agent架构深度解析.md"],
+    "expected_keywords": ["Claude", "工具", "循环", "上下文"],
+    "reference_answer": "Claude Code 的 Agent 架构基于工具调用循环：LLM 接收用户请求，决定是否调用工具，执行工具后将结果反馈给 LLM，循环直到任务完成。"
+  },
+  {
+    "question": "Agent 的记忆系统怎么设计？",
+    "expected_sources": ["06-OpenClaw_Agent架构与记忆系统.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["短期记忆", "长期记忆", "上下文窗口", "向量数据库"],
+    "reference_answer": "Agent 记忆系统通常分为短期记忆（上下文窗口内的对话历史）和长期记忆（持久化存储，如向量数据库）。需要考虑记忆的写入、检索、压缩和淘汰策略。"
+  },
+  {
+    "question": "RAG 系统有哪些常见的评估指标？",
+    "expected_sources": ["Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["召回率", "准确率", "Faithfulness", "检索"],
+    "reference_answer": "RAG 系统的评估指标包括检索质量（Recall@K、MRR、Precision）和生成质量（Faithfulness 忠实度、Answer Relevancy 相关性）。还需要关注幻觉率和关键词覆盖率。"
+  }
+]

@@ -91,6 +91,9 @@ class CacheManager:
         Returns:
             是否成功
         """
+        if not self.enabled:
+            return False
+
         result = self.l1_cache.delete(key)
 
         if self.l2_cache:

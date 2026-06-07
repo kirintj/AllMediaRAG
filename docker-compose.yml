@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  # ---------- 后端 ----------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - CORS_ORIGINS=http://localhost,http://localhost:3000
+    volumes:
+      # 持久化：模型文件（只读）、向量数据库、数据目录、对话记录
+      - ./models:/app/models:ro
+      - chroma_data:/app/chroma_db
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------- 前端 + Nginx 反向代理 ----------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: rag-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  chroma_data:
+    driver: local

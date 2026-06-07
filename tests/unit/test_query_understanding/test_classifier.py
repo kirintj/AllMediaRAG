@@ -1,14 +1,11 @@
 import pytest
-from unittest.mock import Mock
 
-def test_classifier_returns_intent_type():
-    """测试分类器返回意图类型"""
+
+def test_classifier_returns_valid_structure():
+    """测试分类器返回完整的结构"""
     from core.query_understanding.classifier import QueryClassifier
 
-    mock_llm = Mock()
-    mock_llm.generate.return_value = '{"intent_type": "factoid", "confidence": 0.95, "complexity": "simple"}'
-
-    classifier = QueryClassifier(llm_client=mock_llm)
+    classifier = QueryClassifier()
     result = classifier.classify("Python装饰器怎么用？")
 
     assert "intent_type" in result
@@ -18,69 +15,61 @@ def test_classifier_returns_intent_type():
     assert "complexity" in result
     assert result["complexity"] in ["simple", "medium", "complex"]
 
-def test_classifier_caches_results():
-    """测试分类器缓存结果"""
+
+def test_classifier_factoid():
+    """测试事实型查询识别"""
     from core.query_understanding.classifier import QueryClassifier
 
-    mock_llm = Mock()
-    mock_llm.generate.return_value = '{"intent_type": "factoid", "confidence": 0.95, "complexity": "simple"}'
-
-    classifier = QueryClassifier(llm_client=mock_llm)
-
-    # 第一次调用
-    result1 = classifier.classify("Python装饰器怎么用？")
-    # 第二次调用相同查询
-    result2 = classifier.classify("Python装饰器怎么用？")
-
-    # LLM应该只被调用一次
-    assert mock_llm.generate.call_count == 1
-    assert result1 == result2
+    classifier = QueryClassifier()
+    assert classifier.classify("什么是装饰器")["intent_type"] == "factoid"
+    assert classifier.classify("Python有哪些数据类型")["intent_type"] == "factoid"
 
 
-def test_classifier_handles_invalid_json():
-    """测试处理非法JSON响应"""
+def test_classifier_procedural():
+    """测试步骤型查询识别"""
     from core.query_understanding.classifier import QueryClassifier
 
-    mock_llm = Mock()
-    mock_llm.generate.return_value = "这不是JSON"
-
-    classifier = QueryClassifier(llm_client=mock_llm)
-    result = classifier.classify("测试查询")
-
-    assert result["intent_type"] == "factoid"
-    assert result["confidence"] == 0.5
-    assert result["complexity"] == "medium"
+    classifier = QueryClassifier()
+    assert classifier.classify("如何实现装饰器")["intent_type"] == "procedural"
+    assert classifier.classify("怎么配置Flask路由")["intent_type"] == "procedural"
 
 
-def test_classifier_handles_none_response():
-    """测试处理None响应"""
+def test_classifier_analytical():
+    """测试分析型查询识别"""
     from core.query_understanding.classifier import QueryClassifier
 
-    mock_llm = Mock()
-    mock_llm.generate.return_value = None
-
-    classifier = QueryClassifier(llm_client=mock_llm)
-    result = classifier.classify("测试查询")
-
-    assert result["intent_type"] == "factoid"
-    assert result["confidence"] == 0.5
-    assert result["complexity"] == "medium"
+    classifier = QueryClassifier()
+    assert classifier.classify("Flask和Django的区别")["intent_type"] == "analytical"
+    assert classifier.classify("为什么Python有GIL")["intent_type"] == "analytical"
 
 
-def test_classifier_cache_eviction():
-    """测试缓存淘汰机制"""
+def test_classifier_exploratory():
+    """测试探索型查询识别"""
     from core.query_understanding.classifier import QueryClassifier
 
-    mock_llm = Mock()
-    mock_llm.generate.return_value = '{"intent_type": "factoid", "confidence": 0.9, "complexity": "simple"}'
+    classifier = QueryClassifier()
+    assert classifier.classify("深入分析Python内存管理")["intent_type"] == "exploratory"
+    assert classifier.classify("全面梳理Python异步编程")["intent_type"] == "exploratory"
 
-    classifier = QueryClassifier(llm_client=mock_llm, cache_size=2)
 
-    classifier.classify("查询1")
-    classifier.classify("查询2")
-    classifier.classify("查询3")  # 应该淘汰查询1
+def test_classifier_complexity():
+    """测试复杂度分类"""
+    from core.query_understanding.classifier import QueryClassifier
 
-    assert len(classifier.cache) == 2
-    assert "查询1" not in classifier.cache
-    assert "查询2" in classifier.cache
-    assert "查询3" in classifier.cache
+    classifier = QueryClassifier()
+    assert classifier.classify("装饰器")["complexity"] == "simple"
+    assert classifier.classify("如何实现一个带参数的Python装饰器")["complexity"] == "medium"
+    assert classifier.classify("请详细全面深入地对比React和Vue框架的优缺点，分析底层机制并给出完整的选择建议方案")["complexity"] == "complex"
+
+
+def test_classifier_speed():
+    """测试分类器速度（应 <1ms/次）"""
+    import time
+    from core.query_understanding.classifier import QueryClassifier
+
+    classifier = QueryClassifier()
+    t0 = time.time()
+    for _ in range(1000):
+        classifier.classify("Python装饰器怎么用？")
+    elapsed_ms = (time.time() - t0) * 1000
+    assert elapsed_ms < 100, f"1000 classifications took {elapsed_ms:.0f}ms, expected <100ms"

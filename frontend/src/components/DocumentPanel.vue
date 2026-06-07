@@ -57,7 +57,7 @@
           <p class="upload-hint">支持多选 · HTML / TXT / MD / PDF / DOCX</p>
         </div>
       </el-upload>
-      <div v-if="uploadStatus" class="status-msg" :class="{ error: uploadStatus.includes('失败') }">
+      <div v-if="uploadStatus" class="status-msg" :class="uploadStatusType">
         {{ uploadStatus }}
       </div>
     </div>
@@ -76,7 +76,7 @@
       </template>
       {{ loading ? '加载中...' : '加载本地文档' }}
     </button>
-    <div v-if="loadStatus" class="status-msg" :class="{ error: loadStatus.includes('失败') }">
+    <div v-if="loadStatus" class="status-msg" :class="loadStatusType">
       {{ loadStatus }}
     </div>
 
@@ -140,45 +140,57 @@ import { uploadDocument } from '../api'
 const store = useChatStore()
 const loading = ref(false)
 const uploadStatus = ref('')
+const uploadStatusType = ref('') // 'uploading' | 'success' | 'error' | ''
 const loadStatus = ref('')
+const loadStatusType = ref('') // 'success' | 'error' | ''
 
 const uploadCount = ref({ done: 0, total: 0, success: 0, fail: 0 })
 
 async function handleUpload(file) {
   uploadCount.value.total++
   const idx = uploadCount.value.total
+  uploadStatusType.value = 'uploading'
   uploadStatus.value = `正在上传 (${idx}/${idx})...`
 
   try {
     const result = await uploadDocument(file.raw)
     if (result.error) {
       uploadCount.value.fail++
+      uploadStatusType.value = 'error'
       uploadStatus.value = `「${file.name}」: ${result.error}`
     } else {
       uploadCount.value.success++
+      uploadStatusType.value = 'success'
       uploadStatus.value = `上传成功 · ${uploadCount.value.success} 个成功 / ${uploadCount.value.fail} 个失败`
       await refresh()
     }
   } catch (error) {
     uploadCount.value.fail++
+    uploadStatusType.value = 'error'
     uploadStatus.value = `「${file.name}」上传失败: ${error.message}`
   }
 
   uploadCount.value.done++
   // 全部完成后重置计数
   if (uploadCount.value.done >= uploadCount.value.total) {
-    setTimeout(() => { uploadCount.value = { done: 0, total: 0, success: 0, fail: 0 } }, 3000)
+    setTimeout(() => {
+      uploadCount.value = { done: 0, total: 0, success: 0, fail: 0 }
+      uploadStatusType.value = ''
+    }, 3000)
   }
 }
 
 async function handleLoadAll() {
   loading.value = true
+  loadStatusType.value = 'uploading'
   loadStatus.value = '加载中...'
 
   try {
     const result = await store.loadAllDocuments()
+    loadStatusType.value = 'success'
     loadStatus.value = result.message
   } catch (error) {
+    loadStatusType.value = 'error'
     loadStatus.value = `加载失败: ${error.message}`
   } finally {
     loading.value = false
@@ -348,12 +360,28 @@ onMounted(() => {
 /* ── 状态消息 ── */
 .status-msg {
   font-size: 12px;
-  color: var(--hm-success);
+  color: var(--hm-font-secondary);
   text-align: center;
+  padding: 6px 0;
+  transition: color 0.3s ease;
+}
+
+.status-msg.uploading {
+  color: #e89a3c;
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+.status-msg.success {
+  color: #64bb5c;
 }
 
 .status-msg.error {
   color: var(--hm-error);
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* ── 分割线 ── */

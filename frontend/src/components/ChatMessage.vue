@@ -19,7 +19,12 @@
     <!-- 消息内容 -->
     <div class="message-body">
       <div class="message-bubble" :class="message.role">
-        <div class="message-text" v-html="formattedContent"></div>
+        <div v-if="message.role === 'assistant' && message.loading && !message.content" class="thinking-indicator">
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+          <span class="thinking-dot"></span>
+        </div>
+        <div v-else class="message-text" v-html="formattedContent"></div>
       </div>
 
       <!-- 参考来源 -->
@@ -40,6 +45,15 @@
           </span>
         </div>
       </div>
+
+      <!-- 耗时 -->
+      <div v-if="message.role === 'assistant' && message.elapsed != null" class="message-timing">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+          <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>{{ formattedElapsed }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -59,9 +73,16 @@ const formattedContent = computed(() => {
 
   let text = props.message.content
 
-  // 代码块
-  text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`
+  // 先转义所有 HTML 特殊字符，防止 XSS
+  text = text.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+  // 代码块（转义后的文本中 <pre><code> 标签尚未存在，可以安全匹配）
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre><code>${code}</code></pre>`
   })
 
   // 行内代码
@@ -74,6 +95,13 @@ const formattedContent = computed(() => {
   text = text.replace(/\n/g, '<br>')
 
   return text
+})
+
+const formattedElapsed = computed(() => {
+  const ms = props.message.elapsed
+  if (ms == null) return ''
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 })
 </script>
 
@@ -229,4 +257,39 @@ const formattedContent = computed(() => {
 .source-chip:hover {
   transform: none;
 }
+
+/* ── 耗时 ── */
+.message-timing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--hm-font-tertiary);
+  opacity: 0.7;
+}
+
+.message.user .message-timing {
+  justify-content: flex-end;
+}
+
+/* ── 思考动画 ── */
+.thinking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.thinking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hm-brand);
+  opacity: 0.6;
+  animation: hm-pulse-dot 1.4s ease-in-out infinite;
+}
+
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
 </style>

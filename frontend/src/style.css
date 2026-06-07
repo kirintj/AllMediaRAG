@@ -445,3 +445,38 @@ html.dark {
   --el-fill-color-blank: rgba(30, 30, 30, 0.72);
   --el-fill-color-light: rgba(42, 42, 42, 0.72);
 }
+
+/* ── Element Plus 确认弹窗美化 ── */
+.delete-confirm-box {
+  border-radius: var(--hm-radius-lg) !important;
+  border: 1px solid var(--hm-border-glass) !important;
+  box-shadow: var(--hm-shadow-layered-hover) !important;
+  backdrop-filter: blur(20px);
+  padding: 24px 28px 16px !important;
+}
+
+.delete-confirm-box .el-message-box__header {
+  padding-bottom: 8px !important;
+}
+
+.delete-confirm-box .el-message-box__title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.delete-confirm-box .el-message-box__content {
+  padding: 8px 0 16px !important;
+  font-size: 14px !important;
+  color: var(--hm-font-secondary) !important;
+}
+
+.delete-confirm-box .el-message-box__btns {
+  padding-top: 8px !important;
+  gap: 8px;
+}
+
+.delete-confirm-box .el-button {
+  border-radius: var(--hm-radius-sm) !important;
+  font-weight: 500 !important;
+  padding: 8px 20px !important;
+}

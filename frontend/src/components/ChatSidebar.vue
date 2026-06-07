@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-sidebar cus-scroll">
+  <div class="chat-sidebar">
     <!-- 品牌标题 -->
     <div class="sidebar-header">
       <div class="brand-area">
@@ -16,7 +16,7 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h2>Python 文档助手</h2>
+          <h2>知识库助手</h2>
           <span class="brand-subtitle">RAG 智能问答</span>
         </div>
       </div>
@@ -28,16 +28,19 @@
       </button>
     </div>
 
-    <!-- 功能标签 -->
-    <div class="feature-tags">
-      <span class="hm-filter-chip">Python 官方文档</span>
-      <span class="hm-filter-chip">RAG 检索增强</span>
-      <span class="hm-filter-chip">流式对话</span>
-    </div>
-
     <!-- 历史对话 -->
-    <div class="conversation-list">
-      <div class="list-title">历史对话</div>
+    <div class="conversation-list" ref="listRef">
+      <div class="list-header">
+        <div class="list-title">历史对话</div>
+        <button
+          v-if="store.conversations.length > 0"
+          class="clear-all-btn"
+          @click="handleClearAll"
+          title="清空全部"
+        >
+          清空全部
+        </button>
+      </div>
       <div v-if="store.conversations.length === 0" class="list-empty">
         <div class="empty-icon">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -63,7 +66,7 @@
           <span class="conv-count">{{ conv.message_count }}条</span>
           <button
             class="conv-delete"
-            @click.stop="handleDelete(conv.id)"
+            @click.stop="handleDelete(conv)"
             title="删除"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -77,18 +80,58 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { onMounted } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { useChatStore } from '../stores/chat'
 
 const store = useChatStore()
+const listRef = ref(null)
 
 function newChat() {
-  store.clearMessages()
+  store.clearChatHistory()
 }
 
-async function handleDelete(convId) {
-  if (confirm('确定删除这条对话？')) {
-    await store.removeConversation(convId)
+async function handleDelete(conv) {
+  try {
+    await ElMessageBox.confirm(
+      `删除后不可恢复，确定删除「${conv.title}」？`,
+      '删除对话',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        customClass: 'delete-confirm-box',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+    await store.removeConversation(conv.id)
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      console.error('删除对话失败:', e)
+    }
+  }
+}
+
+async function handleClearAll() {
+  const count = store.conversations.length
+  try {
+    await ElMessageBox.confirm(
+      `将删除全部 ${count} 条对话记录，删除后不可恢复。`,
+      '清空全部对话',
+      {
+        confirmButtonText: '全部清空',
+        cancelButtonText: '取消',
+        type: 'warning',
+        customClass: 'delete-confirm-box',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+    await store.removeAllConversations()
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      console.error('清空对话失败:', e)
+    }
   }
 }
 
@@ -141,7 +184,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 12px 20px;
+  padding: 8px 16px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -163,18 +206,52 @@ onMounted(() => {
   font-weight: 300;
 }
 
-.feature-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 /* ── 对话列表 ── */
 .conversation-list {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  padding-right: 2px;
+  scroll-behavior: smooth;
+}
+
+/* 侧边栏专用滚动条：更细、更精致 */
+.conversation-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.conversation-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.conversation-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+
+.conversation-list:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.conversation-list:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+html.dark .conversation-list:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
 .list-title {
@@ -183,7 +260,22 @@ onMounted(() => {
   color: var(--hm-font-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 12px;
+}
+
+.clear-all-btn {
+  font-size: 12px;
+  color: var(--hm-font-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.clear-all-btn:hover {
+  color: var(--hm-error);
+  background: var(--hm-danger-hover-bg);
 }
 
 .list-empty {

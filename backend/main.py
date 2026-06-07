@@ -14,14 +14,19 @@ os.chdir(project_root)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 import uvicorn
 
 from core.advanced_config import init_advanced_config
 from core.config import config
+from core.rate_limit import limiter
 from core.rag_engine import RAGEngine
 from api.chat import router as chat_router, set_engine as set_chat_engine
 from api.documents import router as documents_router, set_engine as set_docs_engine
 from api.conversations import router as conversations_router
+from api.auth import router as auth_router
 
 # 显式加载 .env 配置
 init_advanced_config()
@@ -35,25 +40,36 @@ rag_engine = RAGEngine(config)
 set_chat_engine(rag_engine)
 set_docs_engine(rag_engine, config)
 
-app = FastAPI(title="Python 文档智能问答助手 API")
+app = FastAPI(title="知识库智能问答助手 API")
 
-# CORS 配置
+# 速率限制
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS 配置（生产环境应通过 CORS_ORIGINS 环境变量配置）
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
-# 注册路由
+# 注册路由（auth 路由无需认证）
+app.include_router(auth_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(conversations_router, prefix="/api")
 
 @app.get("/")
 async def root():
-    return {"message": "Python 文档智能问答助手 API"}
+    return {"message": "知识库智能问答助手 API"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    reload = os.getenv("DEV_RELOAD", "true").lower() in ("true", "1", "yes")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)

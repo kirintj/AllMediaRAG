@@ -41,8 +41,8 @@ def test_router_simple_factoid():
     config = router.route("Python的创始人是谁？", intent)
 
     assert config["use_hyde"] is False
-    assert config["num_queries"] == 1
-    assert config["rerank_top_k"] == 10
+    assert config["num_queries"] == 2
+    assert config["rerank_top_k"] == 15
 
 
 def test_router_analytical_complex():

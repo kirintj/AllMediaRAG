@@ -14,8 +14,8 @@ class HyDEGenerator:
 
 请生成一段详细的假设性文档（200-500字）："""
 
-    # 不使用HyDE的意图类型
-    SKIP_INTENTS = {"factoid"}
+    # 不使用HyDE的意图类型（保留空集，由路由器控制是否启用）
+    SKIP_INTENTS: set = set()
 
     def __init__(self, llm_client: Any):
         """

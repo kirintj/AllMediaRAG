@@ -21,17 +21,19 @@ def test_hyde_generates_hypothetical_document(mock_llm):
 
 
 def test_hyde_returns_none_for_factoid(mock_llm):
-    """测试事实型查询不使用HyDE"""
+    """测试HyDE支持factoid类型（由路由器控制是否启用）"""
+    mock_llm.generate.return_value = "Python的创始人是Guido van Rossum..."
+
     generator = HyDEGenerator(llm_client=mock_llm)
 
-    # 事实型查询不应该生成HyDE
+    # factoid 不再被硬编码跳过，由路由器决定是否调用
     result = generator.generate_hypothetical_document(
         "Python的创始人是谁？",
         intent_type="factoid"
     )
 
-    assert result is None
-    mock_llm.generate.assert_not_called()
+    assert result is not None
+    mock_llm.generate.assert_called_once()
 
 
 def test_hyde_generates_for_analytical(mock_llm):

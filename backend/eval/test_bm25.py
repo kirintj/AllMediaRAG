@@ -47,7 +47,7 @@ def test_bm25_retrieval():
     print("=" * 60)
 
     # 加载文档
-    data_dir = './data/python-docs'
+    data_dir = './data/knowledge-base'
     print(f"\n[1] 加载文档: {data_dir}")
 
     docs = load_documents(data_dir, max_docs=5)

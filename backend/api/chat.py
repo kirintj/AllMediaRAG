@@ -3,10 +3,12 @@ import asyncio
 import uuid
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
+from core.rate_limit import limiter, RATE_LIMIT_CHAT
+from core.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +30,24 @@ def get_engine():
         raise RuntimeError("RAG engine not initialized. Call set_engine() first.")
     return _engine
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., max_length=10000)
+
 class ChatRequest(BaseModel):
-    message: str
-    mode: str = "rag"  # "rag" or "direct"
-    conversation_id: Optional[str] = None
+    message: str = Field(..., min_length=1, max_length=5000, description="用户消息")
+    mode: Literal["rag", "direct"] = Field("rag", description="对话模式")
+    conversation_id: Optional[str] = Field(None, max_length=64, pattern=r"^[a-zA-Z0-9_-]*$")
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20, description="最近对话上下文")
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+@limiter.limit(RATE_LIMIT_CHAT)
+async def chat(request: Request, body: ChatRequest, current_user: dict = Depends(get_current_user)):
     """流式对话接口"""
     engine = get_engine()
+
+    # 将前端传来的 history 转为 build_prompt 需要的格式
+    history_dicts = [{"role": m.role, "content": m.content} for m in body.history]
 
     # 使用队列在线程和异步之间传递数据
     queue = asyncio.Queue()
@@ -61,22 +72,23 @@ async def chat(request: ChatRequest):
     async def generate():
         sources = []
         try:
-            if request.mode == "rag":
-                contexts = engine.retrieve(request.message)
-                if contexts["documents"]:
-                    for meta in contexts["metadatas"]:
+            if body.mode == "rag":
+                # 使用完整检索管线（异步版本，查询理解并行化）
+                contexts_data = await engine.full_retrieve_async(body.message)
+                if contexts_data["documents"]:
+                    for meta in contexts_data["metadatas"]:
                         sources.append({
                             "source": meta["source"],
                             "section": meta["section"]
                         })
                     context_list = []
-                    for doc, meta in zip(contexts["documents"], contexts["metadatas"]):
+                    for doc, meta in zip(contexts_data["documents"], contexts_data["metadatas"]):
                         context_list.append({"text": doc, "metadata": meta})
-                    prompt = engine.build_prompt(request.message, context_list)
+                    prompt = engine.build_prompt(body.message, context_list, history=history_dicts)
                 else:
-                    prompt = f"你是一个 Python 技术专家。请简洁明了地回答以下问题：\n\n{request.message}"
+                    prompt = f"你是一个知识库问答助手。请简洁明了地回答以下问题：\n\n{body.message}"
             else:
-                prompt = f"你是一个 Python 技术专家。请简洁明了地回答以下问题：\n\n{request.message}"
+                prompt = f"你是一个知识库问答助手。请简洁明了地回答以下问题：\n\n{body.message}"
 
             # 在线程池中启动流式生成
             loop.run_in_executor(_executor, generate_in_thread, prompt)
@@ -99,17 +111,24 @@ async def chat(request: ChatRequest):
                 }, ensure_ascii=False)
                 yield f"data: {data}\n\n"
 
-            # 更新引擎历史
-            engine.update_history(request.message, full_answer)
+            # 持久化对话（合并历史 + 本轮消息）
+            conv_id = body.conversation_id or str(uuid.uuid4())[:8]
+            title = body.history[0].content[:30] if body.history else body.message[:30]
+            if len(title) > 30:
+                title = title[:30] + "..."
+            username = current_user["username"]
 
-            # 持久化对话
-            conv_id = request.conversation_id or str(uuid.uuid4())[:8]
-            title = request.message[:30] + ("..." if len(request.message) > 30 else "")
+            # 合并前端传来的历史 + 本轮新消息
+            all_messages = [
+                {"role": m.role, "content": m.content} for m in body.history
+            ]
+            all_messages.append({"role": "user", "content": body.message})
+            all_messages.append({"role": "assistant", "content": full_answer, "sources": sources})
+
             from api.conversations import save_conversation as _save
-            _save(conv_id, title, [
-                {"role": "user", "content": request.message},
-                {"role": "assistant", "content": full_answer, "sources": sources},
-            ], request.mode)
+            await asyncio.to_thread(
+                _save, conv_id, username, title, all_messages, body.mode
+            )
 
             # 发送完成标记
             done_data = json.dumps({
@@ -133,10 +152,3 @@ async def chat(request: ChatRequest):
             "X-Accel-Buffering": "no",
         }
     )
-
-@router.delete("/history")
-async def clear_history():
-    """清空对话历史"""
-    engine = get_engine()
-    engine.clear_history()
-    return {"message": "对话历史已清空"}
