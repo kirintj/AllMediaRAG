@@ -1,9 +1,10 @@
-"""RAG 评估入口脚本（支持指定数据集）
+"""RAG 评估入口脚本（支持指定数据集 + 多框架）
 
 运行方式：
     cd backend && python eval/run_eval.py --dataset extended
     cd backend && python eval/run_eval.py --dataset original
     cd backend && python eval/run_eval.py --dataset custom --path path/to/dataset.json
+    cd backend && python eval/run_eval.py --dataset extended --framework ragas
 """
 
 import sys
@@ -27,50 +28,81 @@ from eval.evaluator import RAGEvaluator
 
 
 def print_report(report: dict, verbose: bool = False):
-    """终端打印评估报告"""
+    """终端打印评估报告（支持自研和 RAGAS 两种格式）"""
+    framework = report.get("framework", "custom")
+
     print("\n" + "=" * 50)
-    print("    RAG 评估报告")
+    if framework == "ragas":
+        print("    RAG 评估报告 (RAGAS)")
+    else:
+        print("    RAG 评估报告")
     print("=" * 50)
     print(f"样本数: {report['total_samples']}")
     print()
 
+    # 错误信息
+    if "error" in report:
+        print(f"[错误] {report['error']}")
+        print("=" * 50)
+        return
+
     # 检索指标
     retrieval = report["retrieval"]
     print("检索指标:")
-    if retrieval["recall_at_k"] is not None:
-        print(f"  Recall@K:   {retrieval['recall_at_k']:.2f}")
-        print(f"  MRR:        {retrieval['mrr']:.2f}")
-        print(f"  Precision:  {retrieval['precision']:.2f}")
+    if framework == "ragas":
+        if retrieval.get("context_precision") is not None:
+            print(f"  Context Precision: {retrieval['context_precision']:.4f}")
+        if retrieval.get("context_recall") is not None:
+            print(f"  Context Recall:    {retrieval['context_recall']:.4f}")
     else:
-        print("  (数据集无 expected_sources，跳过)")
+        if retrieval.get("recall_at_k") is not None:
+            print(f"  Recall@K:   {retrieval['recall_at_k']:.2f}")
+            print(f"  MRR:        {retrieval['mrr']:.2f}")
+            print(f"  Precision:  {retrieval['precision']:.2f}")
+        else:
+            print("  (数据集无 expected_sources，跳过)")
     print()
 
     # 生成指标
     generation = report["generation"]
-    print("生成指标 (LLM-as-Judge):")
-    if generation["faithfulness"] is not None:
-        print(f"  Faithfulness:    {generation['faithfulness']:.1f}/5")
-        print(f"  Answer Relevancy: {generation['relevancy']:.1f}/5")
+    print("生成指标:")
+    if framework == "ragas":
+        if generation.get("faithfulness") is not None:
+            print(f"  Faithfulness:      {generation['faithfulness']:.4f}")
+        if generation.get("answer_relevancy") is not None:
+            print(f"  Answer Relevancy:  {generation['answer_relevancy']:.4f}")
     else:
-        print("  (评估失败)")
+        if generation.get("faithfulness") is not None:
+            print(f"  Faithfulness:    {generation['faithfulness']:.1f}/5")
+            print(f"  Answer Relevancy: {generation['relevancy']:.1f}/5")
+        else:
+            print("  (评估失败)")
     print()
 
-    # 关键词覆盖率
-    if report["keyword_coverage"] is not None:
+    # 关键词覆盖率（仅自研框架）
+    if report.get("keyword_coverage") is not None:
         print(f"关键词覆盖率: {report['keyword_coverage']:.2f}")
         print()
 
     # 分类统计
     if verbose and "details" in report:
         print("\n分类统计:")
-        by_type = {}
-        by_difficulty = {}
+        if framework == "ragas":
+            for i, detail in enumerate(report["details"]):
+                metrics_str = ", ".join(
+                    f"{k}={v:.4f}" for k, v in detail.items()
+                    if v is not None
+                )
+                print(f"  样本 {i+1}: {metrics_str}")
+        else:
+            by_type = {}
+            by_difficulty = {}
 
-        for detail in report["details"]:
-            # 假设数据集中有 query_type 和 difficulty 字段
-            q = detail["question"]
-            # 这里简化处理，实际可以从数据集读取
-            pass
+            for detail in report["details"]:
+                # 假设数据集中有 query_type 和 difficulty 字段
+                q = detail["question"]
+                # 这里简化处理，实际可以从数据集读取
+                pass
 
     print("=" * 50)
 
@@ -98,6 +130,12 @@ def main():
         "--output",
         type=str,
         help="输出报告路径 (default: eval/report.json)"
+    )
+    parser.add_argument(
+        "--framework",
+        choices=["custom", "ragas"],
+        default="custom",
+        help="评估框架: custom (自研) 或 ragas (RAGAS 标准) (default: custom)"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -133,21 +171,60 @@ def main():
 
     print(f"数据集: {dataset_path}")
     print(f"Top-K: {args.top_k}")
+    print(f"框架: {args.framework}")
     print()
 
-    print("正在初始化 RAG 引擎...")
-    engine = RAGEngine(config)
+    # 加载数据集（两种框架都需要）
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        dataset = json.load(f)
 
-    llm_client = LLMClient(
-        config.MIMO_API_KEY,
-        config.MIMO_API_BASE,
-        config.MIMO_MODEL,
-    )
+    if args.framework == "ragas":
+        # ── RAGAS 标准评估 ──────────────────────────────────────
+        from eval.ragas_evaluator import RAGASEvaluator
 
-    evaluator = RAGEvaluator(engine, llm_client)
+        # RAGAS 需要 contexts 字段；如果数据集没有，用引擎预填充
+        needs_prefill = any("contexts" not in s for s in dataset)
+        if needs_prefill:
+            print("正在初始化 RAG 引擎（为 RAGAS 预填充 contexts）...")
+            engine = RAGEngine(config)
+            llm_client = LLMClient(
+                config.MIMO_API_KEY,
+                config.MIMO_API_BASE,
+                config.MIMO_MODEL,
+            )
+            for sample in dataset:
+                if "contexts" not in sample:
+                    rag_result = engine.full_retrieve(sample["question"])
+                    sample["contexts"] = rag_result["documents"]
+                if "answer" not in sample or not sample["answer"]:
+                    prompt = engine.build_prompt(sample["question"], [
+                        {"text": ctx, "metadata": {}}
+                        for ctx in sample.get("contexts", [])
+                    ])
+                    sample["answer"] = llm_client.generate(prompt)
+                # RAGAS 使用 ground_truth 字段
+                if "ground_truth" not in sample:
+                    sample["ground_truth"] = sample.get("reference_answer", "")
 
-    print(f"正在运行评估...")
-    report = evaluator.run(str(dataset_path), top_k=args.top_k)
+        print("正在运行 RAGAS 评估...")
+        ragas_evaluator = RAGASEvaluator()
+        report = ragas_evaluator.evaluate(dataset)
+
+    else:
+        # ── 自研评估器（原有流程，保持不变）──────────────────────
+        print("正在初始化 RAG 引擎...")
+        engine = RAGEngine(config)
+
+        llm_client = LLMClient(
+            config.MIMO_API_KEY,
+            config.MIMO_API_BASE,
+            config.MIMO_MODEL,
+        )
+
+        evaluator = RAGEvaluator(engine, llm_client)
+
+        print("正在运行评估...")
+        report = evaluator.run(str(dataset_path), top_k=args.top_k)
 
     # 保存详细报告
     with open(report_path, "w", encoding="utf-8") as f:

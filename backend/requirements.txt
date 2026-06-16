@@ -38,6 +38,9 @@ cohere>=5.0.0
 # === 配置管理 ===
 python-dotenv>=1.0.0
 
+# === 评估框架 ===
+ragas>=0.2.0
+
 # === 认证 ===
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
