@@ -1,6 +1,8 @@
 import json
 import numpy as np
 
+from eval.metrics import hit_rate as calc_hit_rate
+
 
 class RAGEvaluator:
     """RAG 系统评估器"""
@@ -33,6 +35,7 @@ class RAGEvaluator:
                 "recall": None,
                 "mrr": None,
                 "precision": None,
+                "hit_rate": None,
                 "retrieved_sources": retrieved_sources,
             }
 
@@ -56,6 +59,7 @@ class RAGEvaluator:
             "recall": recall,
             "mrr": mrr,
             "precision": precision,
+            "hit_rate": calc_hit_rate(retrieved_sources, expected_set),
             "retrieved_sources": retrieved_sources,
         }
 
@@ -171,6 +175,7 @@ class RAGEvaluator:
         recalls = [r["retrieval"]["recall"] for r in results if r["retrieval"]["recall"] is not None]
         mrrs = [r["retrieval"]["mrr"] for r in results if r["retrieval"]["mrr"] is not None]
         precisions = [r["retrieval"]["precision"] for r in results if r["retrieval"]["precision"] is not None]
+        hit_rates = [r["retrieval"]["hit_rate"] for r in results if r["retrieval"].get("hit_rate") is not None]
 
         # 生成指标
         faithfulness_scores = [r["generation"]["faithfulness"] for r in results if r["generation"]["faithfulness"] > 0]
@@ -185,6 +190,7 @@ class RAGEvaluator:
                 "recall_at_k": float(np.mean(recalls)) if recalls else None,
                 "mrr": float(np.mean(mrrs)) if mrrs else None,
                 "precision": float(np.mean(precisions)) if precisions else None,
+                "hit_rate": float(np.mean(hit_rates)) if hit_rates else None,
             },
             "generation": {
                 "faithfulness": float(np.mean(faithfulness_scores)) if faithfulness_scores else None,
