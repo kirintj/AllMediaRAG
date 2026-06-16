@@ -19,6 +19,7 @@ from core.query_understanding.classifier import QueryClassifier
 from core.query_understanding.router import QueryRouter
 from core.query_understanding.hyde_generator import HyDEGenerator
 from core.query_understanding.multi_query import MultiQueryGenerator
+from core.query_understanding.rewriters import HyDERewriter, MultiQueryRewriter
 from core.reranking.manager import RerankManager
 from core.performance.cache.manager import CacheManager
 from core.ocr.paddle_provider import PaddleOCRProvider
@@ -96,6 +97,15 @@ class RAGEngine:
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
+
+        # 查询改写器注册表
+        self.rewriters: dict = {}
+        if config.USE_HYDE:
+            self.rewriters["hyde"] = HyDERewriter(self.llm_client)
+        if config.MULTI_QUERY_ENABLED:
+            self.rewriters["multi_query"] = MultiQueryRewriter(
+                self.llm_client, num_queries=config.MULTI_QUERY_COUNT
+            )
 
         # 重排序层
         self.rerank_manager = RerankManager(config)
@@ -183,6 +193,15 @@ class RAGEngine:
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
+
+        # 查询改写器注册表
+        self.rewriters: dict = {}
+        if config.USE_HYDE:
+            self.rewriters["hyde"] = HyDERewriter(self.llm_client)
+        if config.MULTI_QUERY_ENABLED:
+            self.rewriters["multi_query"] = MultiQueryRewriter(
+                self.llm_client, num_queries=config.MULTI_QUERY_COUNT
+            )
 
         # 重排序层
         self.rerank_manager = RerankManager(config)
@@ -285,6 +304,15 @@ class RAGEngine:
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
+
+        # 查询改写器注册表
+        self.rewriters: dict = {}
+        if config.USE_HYDE:
+            self.rewriters["hyde"] = HyDERewriter(self.llm_client)
+        if config.MULTI_QUERY_ENABLED:
+            self.rewriters["multi_query"] = MultiQueryRewriter(
+                self.llm_client, num_queries=config.MULTI_QUERY_COUNT
+            )
 
         # 重排序层
         self.rerank_manager = RerankManager(config)
