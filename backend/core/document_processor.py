@@ -10,7 +10,8 @@ class DocumentProcessor:
     # 支持的图片格式
     IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'}
 
-    def __init__(self, config, ocr_provider=None, vlm_provider=None, file_reader_registry=None):
+    def __init__(self, config, ocr_provider=None, vlm_provider=None,
+                 file_reader_registry=None, chunking_strategy=None):
         """初始化
 
         Args:
@@ -18,6 +19,7 @@ class DocumentProcessor:
             ocr_provider: OCR 提供者（可选），用于扫描件 PDF 和图片
             vlm_provider: VLM 提供者（可选），用于图表理解
             file_reader_registry: 文件读取器注册表（可选），格式为 {ext: reader}
+            chunking_strategy: 切分策略实例（可选），实现 ChunkingStrategy 接口
         """
         self.percentile = config.SEMANTIC_CHUNK_PERCENTILE
         self.min_sentences = config.SEMANTIC_CHUNK_MIN_SENTENCES
@@ -26,10 +28,14 @@ class DocumentProcessor:
         self.ocr_provider = ocr_provider
         self.vlm_provider = vlm_provider
         self.file_reader_registry = file_reader_registry or {}
+        self.chunking_strategy = chunking_strategy
 
     def set_embedding_service(self, embedding_service):
         """注入 embedding 服务（由 RAGEngine 调用）"""
         self.embedding_service = embedding_service
+        # 同步注入到切分策略（语义切分需要 embedding 服务）
+        if self.chunking_strategy and hasattr(self.chunking_strategy, 'set_embedding_service'):
+            self.chunking_strategy.set_embedding_service(embedding_service)
 
     def read_file(self, file_path: str) -> str:
         """读取文件内容，支持多种格式"""
@@ -373,6 +379,28 @@ class DocumentProcessor:
                 all_embeddings.append(None)  # 需要后续编码
                 continue
 
+            # 使用切分策略（如果已配置）
+            if self.chunking_strategy:
+                heading = section["heading"] or "概述"
+                metadata = {"source": source, "section": heading}
+                strategy_chunks = self.chunking_strategy.split(processed_text, metadata)
+                for chunk_data in strategy_chunks:
+                    chunk_text = self._restore_code_blocks(chunk_data["content"], code_blocks)
+                    if chunk_text.strip():
+                        chunk_meta = chunk_data["metadata"]
+                        chunk_text = f"[{source} - {chunk_meta.get('section', heading)}]\n{chunk_text}"
+                        all_chunks.append({
+                            "text": chunk_text,
+                            "metadata": {
+                                "source": source,
+                                "section": chunk_meta.get("section", heading),
+                                "chunk_index": len(all_chunks),
+                            }
+                        })
+                        all_embeddings.append(None)  # 需要后续编码
+                continue
+
+            # 回退：使用内联语义切分（向后兼容）
             # 句子级 embedding（单次编码，后续复用）
             if self.embedding_service:
                 sentence_embeddings = self.embedding_service.encode(sentences)

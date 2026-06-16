@@ -42,6 +42,19 @@ def _make_config():
     config.SEMANTIC_CHUNK_PERCENTILE = 25
     config.SEMANTIC_CHUNK_MIN_SENTENCES = 2
     config.SEMANTIC_CHUNK_MAX_SENTENCES = 20
+    # 新增：避免 Mock 对象被当作路径
+    config.BM25_PERSIST_DIR = ""
+    config.VECTOR_STORE_PROVIDER = "chroma"
+    config.OCR_PROVIDER = "none"
+    config.USE_VLM = False
+    config.VLM_MODEL = ""
+    config.VLM_API_BASE = ""
+    config.CITATION_VERIFY_ENABLED = True
+    config.CITATION_CONFIDENCE_THRESHOLD = 0.5
+    config.RETRIEVAL_REFETCH_ENABLED = True
+    config.CHUNKING_STRATEGY = "semantic"
+    config.CHUNK_SIZE = 512
+    config.CHUNK_OVERLAP = 50
     return config
 
 

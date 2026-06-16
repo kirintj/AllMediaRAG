@@ -53,26 +53,37 @@ class RAGEngine:
             config: 配置对象
             use_factory: 是否使用工厂模式创建组件
         """
+        # 1. 模式特定初始化：仅创建 embedding_service, vector_store, llm_client
         if use_factory:
             self._init_with_factory(config)
         else:
             self._init_direct(config)
 
-        # 初始化 OCR 提供者
+        # 2. 初始化 OCR / VLM 提供者
         ocr_provider = self._init_ocr_provider(config)
-
-        # 初始化 VLM 提供者
         vlm_provider = self._init_vlm_provider(config)
 
-        # 构建文件读取器注册表
+        # 3. 构建文件读取器注册表
         file_reader_registry = self._build_file_reader_registry(ocr_provider, vlm_provider)
+
+        # 4. 初始化切分策略
+        chunking_strategy = self._init_chunking_strategy(config)
 
         self.document_processor = DocumentProcessor(
             config, ocr_provider, vlm_provider,
-            file_reader_registry=file_reader_registry
+            file_reader_registry=file_reader_registry,
+            chunking_strategy=chunking_strategy,
         )
         self.document_processor.set_embedding_service(self.embedding_service)
 
+        # 5. 初始化共享组件（BM25、查询理解、重排序、缓存等）
+        self._init_shared_components(config)
+
+    def _init_shared_components(self, config):
+        """初始化所有模式共享的组件
+
+        包括 BM25、查询理解层、重排序、缓存、增量索引、引用核查等。
+        """
         # BM25：优先从磁盘加载，加载失败再从向量库重建
         bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
         bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
@@ -151,7 +162,7 @@ class RAGEngine:
         self.rerank_top_k = config.RERANK_TOP_K
 
     def _init_direct(self, config):
-        """直接模式初始化：使用现有实现类
+        """直接模式初始化：仅创建 embedding_service, vector_store, llm_client
 
         Args:
             config: 配置对象
@@ -171,81 +182,10 @@ class RAGEngine:
             config.MIMO_MODEL
         )
 
-        # BM25：优先从磁盘加载，加载失败再从向量库重建
-        bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
-        bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
-        self.bm25_retriever = BM25Retriever(persist_path=bm25_path)
-        self._bm25_lock = threading.Lock()
-
-        if not self.bm25_retriever.load():
-            self._bm25_ready = False
-            threading.Thread(target=self._rebuild_bm25_index, daemon=True).start()
-        else:
-            self._bm25_ready = True
-
-        self.top_k = config.TOP_K
-        self.bm25_top_k = config.BM25_TOP_K
-        self.rrf_k = config.RRF_K
-        self.rrf_weight_vector = config.RRF_WEIGHT_VECTOR
-        self.rrf_weight_bm25 = config.RRF_WEIGHT_BM25
-        self.similarity_threshold = config.SIMILARITY_THRESHOLD
-
-        # 查询理解层
-        self.classifier = QueryClassifier()
-        self.router = QueryRouter()
-        self.hyde_generator = HyDEGenerator(self.llm_client)
-        self.multi_query_generator = MultiQueryGenerator(self.llm_client)
-
-        # 查询改写器注册表
-        self.rewriters: dict = {}
-        if config.USE_HYDE:
-            self.rewriters["hyde"] = HyDERewriter(self.llm_client)
-        if config.MULTI_QUERY_ENABLED:
-            self.rewriters["multi_query"] = MultiQueryRewriter(
-                self.llm_client, num_queries=config.MULTI_QUERY_COUNT
-            )
-
-        # 重排序层
-        self.rerank_manager = RerankManager(config)
-
-        # 缓存层
-        self.cache_manager = CacheManager({
-            "use_cache": config.USE_CACHE,
-            "l1_max_size": config.CACHE_L1_MAX_SIZE,
-            "l1_ttl": config.CACHE_L1_TTL,
-            "use_redis": config.USE_REDIS,
-            "redis_host": config.REDIS_HOST,
-            "redis_port": config.REDIS_PORT,
-            "l2_ttl": getattr(config, 'CACHE_L2_TTL', 600),
-        })
-
-        # 增量索引管理
-        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
-            from core.providers.pgvector_index_adapter import PgIndexManager
-            self.index_manager = PgIndexManager(database_url=config.database_url)
-        else:
-            self.index_manager = IndexManager(
-                state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json")
-            )
-
-        # 引用核查
-        self.citation_verifier = CitationVerifier(
-            llm_client=self.llm_client,
-            threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
-        )
-        self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
-
-        # 低置信度二次检索
-        self.confidence_evaluator = ConfidenceEvaluator(
-            threshold=config.SIMILARITY_THRESHOLD,
-            min_docs=2
-        )
-        self._refetch_enabled = getattr(config, 'RETRIEVAL_REFETCH_ENABLED', True)
-
         logger.info("RAGEngine initialized in direct mode")
 
     def _init_with_factory(self, config):
-        """工厂模式初始化：通过 ProviderFactory 创建可插拔组件
+        """工厂模式初始化：仅创建 embedding_service, vector_store, llm_client
 
         Args:
             config: 配置对象
@@ -283,77 +223,6 @@ class RAGEngine:
             api_base=config.MIMO_API_BASE,
             model=config.MIMO_MODEL
         )
-
-        # BM25 索引（不使用工厂模式，因为它是独立的检索器）
-        bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
-        bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
-        self.bm25_retriever = BM25Retriever(persist_path=bm25_path)
-        self._bm25_lock = threading.Lock()
-
-        if not self.bm25_retriever.load():
-            self._bm25_ready = False
-            threading.Thread(target=self._rebuild_bm25_index, daemon=True).start()
-        else:
-            self._bm25_ready = True
-
-        self.top_k = config.TOP_K
-        self.bm25_top_k = config.BM25_TOP_K
-        self.rrf_k = config.RRF_K
-        self.rrf_weight_vector = config.RRF_WEIGHT_VECTOR
-        self.rrf_weight_bm25 = config.RRF_WEIGHT_BM25
-        self.similarity_threshold = config.SIMILARITY_THRESHOLD
-
-        # 查询理解层
-        self.classifier = QueryClassifier()
-        self.router = QueryRouter()
-        self.hyde_generator = HyDEGenerator(self.llm_client)
-        self.multi_query_generator = MultiQueryGenerator(self.llm_client)
-
-        # 查询改写器注册表
-        self.rewriters: dict = {}
-        if config.USE_HYDE:
-            self.rewriters["hyde"] = HyDERewriter(self.llm_client)
-        if config.MULTI_QUERY_ENABLED:
-            self.rewriters["multi_query"] = MultiQueryRewriter(
-                self.llm_client, num_queries=config.MULTI_QUERY_COUNT
-            )
-
-        # 重排序层
-        self.rerank_manager = RerankManager(config)
-
-        # 缓存层
-        self.cache_manager = CacheManager({
-            "use_cache": config.USE_CACHE,
-            "l1_max_size": config.CACHE_L1_MAX_SIZE,
-            "l1_ttl": config.CACHE_L1_TTL,
-            "use_redis": config.USE_REDIS,
-            "redis_host": config.REDIS_HOST,
-            "redis_port": config.REDIS_PORT,
-            "l2_ttl": getattr(config, 'CACHE_L2_TTL', 600),
-        })
-
-        # 增量索引管理
-        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
-            from core.providers.pgvector_index_adapter import PgIndexManager
-            self.index_manager = PgIndexManager(database_url=config.database_url)
-        else:
-            self.index_manager = IndexManager(
-                state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json")
-            )
-
-        # 引用核查
-        self.citation_verifier = CitationVerifier(
-            llm_client=self.llm_client,
-            threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
-        )
-        self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
-
-        # 低置信度二次检索
-        self.confidence_evaluator = ConfidenceEvaluator(
-            threshold=config.SIMILARITY_THRESHOLD,
-            min_docs=2
-        )
-        self._refetch_enabled = getattr(config, 'RETRIEVAL_REFETCH_ENABLED', True)
 
         logger.info("RAGEngine initialized in factory mode")
 
@@ -435,6 +304,43 @@ class RAGEngine:
         except Exception as e:
             logger.warning("Failed to init VLM: %s", e)
             return None
+
+    def _init_chunking_strategy(self, config):
+        """初始化切分策略
+
+        根据 CHUNKING_STRATEGY 配置创建对应的切分策略实例。
+        如果工厂模式下已注册策略，优先使用工厂；否则直接创建。
+
+        Args:
+            config: 配置对象
+
+        Returns:
+            ChunkingStrategy 实例
+        """
+        from core.chunking import SemanticChunking, FixedSizeChunking, RecursiveChunking
+
+        strategy_name = getattr(config, 'CHUNKING_STRATEGY', 'semantic')
+
+        if strategy_name == "fixed_size":
+            strategy = FixedSizeChunking(
+                chunk_size=config.CHUNK_SIZE,
+                chunk_overlap=config.CHUNK_OVERLAP,
+            )
+        elif strategy_name == "recursive":
+            strategy = RecursiveChunking(
+                chunk_size=config.CHUNK_SIZE,
+                chunk_overlap=config.CHUNK_OVERLAP,
+            )
+        else:
+            # 默认语义切分
+            strategy = SemanticChunking(
+                percentile=config.SEMANTIC_CHUNK_PERCENTILE,
+                min_sentences=config.SEMANTIC_CHUNK_MIN_SENTENCES,
+                max_sentences=config.SEMANTIC_CHUNK_MAX_SENTENCES,
+            )
+
+        logger.info("Chunking strategy initialized: %s", strategy.name)
+        return strategy
 
     def _build_file_reader_registry(self, ocr_provider, vlm_provider) -> dict:
         """构建文件读取器注册表
