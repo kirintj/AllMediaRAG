@@ -1,5 +1,4 @@
 import re
-from typing import Any
 
 
 class QueryClassifier:
@@ -30,12 +29,8 @@ class QueryClassifier:
         r'类型|分类|版本|区别)',
     )
 
-    def __init__(self, llm_client: Any = None, cache_size: int = 0):
-        """
-        Args:
-            llm_client: 保留参数兼容，不再使用
-            cache_size: 保留参数兼容
-        """
+    def __init__(self):
+        """纯规则分类器，无需外部依赖"""
         pass
 
     def classify(self, query: str) -> dict:

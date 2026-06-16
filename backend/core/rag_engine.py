@@ -93,7 +93,7 @@ class RAGEngine:
         self.similarity_threshold = config.SIMILARITY_THRESHOLD
 
         # 查询理解层
-        self.classifier = QueryClassifier(self.llm_client)
+        self.classifier = QueryClassifier()
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
@@ -135,12 +135,14 @@ class RAGEngine:
             llm_client=self.llm_client,
             threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
         )
+        self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
 
         # 低置信度二次检索
         self.confidence_evaluator = ConfidenceEvaluator(
             threshold=config.SIMILARITY_THRESHOLD,
             min_docs=2
         )
+        self._refetch_enabled = getattr(config, 'RETRIEVAL_REFETCH_ENABLED', True)
 
         # 配置项缓存
         self.use_hyde = config.USE_HYDE
@@ -189,7 +191,7 @@ class RAGEngine:
         self.similarity_threshold = config.SIMILARITY_THRESHOLD
 
         # 查询理解层
-        self.classifier = QueryClassifier(self.llm_client)
+        self.classifier = QueryClassifier()
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
@@ -231,12 +233,14 @@ class RAGEngine:
             llm_client=self.llm_client,
             threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
         )
+        self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
 
         # 低置信度二次检索
         self.confidence_evaluator = ConfidenceEvaluator(
             threshold=config.SIMILARITY_THRESHOLD,
             min_docs=2
         )
+        self._refetch_enabled = getattr(config, 'RETRIEVAL_REFETCH_ENABLED', True)
 
         logger.info("RAGEngine initialized in direct mode")
 
@@ -300,7 +304,7 @@ class RAGEngine:
         self.similarity_threshold = config.SIMILARITY_THRESHOLD
 
         # 查询理解层
-        self.classifier = QueryClassifier(self.llm_client)
+        self.classifier = QueryClassifier()
         self.router = QueryRouter()
         self.hyde_generator = HyDEGenerator(self.llm_client)
         self.multi_query_generator = MultiQueryGenerator(self.llm_client)
@@ -342,12 +346,14 @@ class RAGEngine:
             llm_client=self.llm_client,
             threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
         )
+        self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
 
         # 低置信度二次检索
         self.confidence_evaluator = ConfidenceEvaluator(
             threshold=config.SIMILARITY_THRESHOLD,
             min_docs=2
         )
+        self._refetch_enabled = getattr(config, 'RETRIEVAL_REFETCH_ENABLED', True)
 
         logger.info("RAGEngine initialized in factory mode")
 
@@ -728,8 +734,7 @@ class RAGEngine:
                     except Exception as e:
                         logger.warning("%s failed: %s", key, e)
 
-        # 4. 路由
-        route_config = self.router.route(query, intent)
+        # 4. 路由参数（复用步骤 3 的 route_config）
         vector_weight = route_config.get("weights", {}).get("vector", self.rrf_weight_vector)
         bm25_weight = route_config.get("weights", {}).get("bm25", self.rrf_weight_bm25)
         retrieve_top_k = route_config.get("rerank_top_k", self.rerank_top_k)
@@ -743,29 +748,30 @@ class RAGEngine:
         result = self._do_retrieve(search_queries, query, vector_weight, bm25_weight, retrieve_top_k)
 
         # 6.5 置信度评估 + 二次检索
-        eval_result = self.confidence_evaluator.evaluate(result)
-        if eval_result["needs_refetch"]:
-            logger.info("Low confidence (%.2f), refetching: %s",
-                        eval_result["confidence"], eval_result["reason"])
-            # 扩大检索参数
-            expanded_top_k = eval_result["suggested_top_k"]
-            # 生成更多查询变体
-            try:
-                extra_queries = self.multi_query_generator.generate_queries(query, 5)
-                expanded_search_queries = list(set(search_queries + extra_queries))
-            except Exception as e:
-                logger.warning("Extra query generation failed: %s", e)
-                expanded_search_queries = search_queries
+        if self._refetch_enabled:
+            eval_result = self.confidence_evaluator.evaluate(result)
+            if eval_result["needs_refetch"]:
+                logger.info("Low confidence (%.2f), refetching: %s",
+                            eval_result["confidence"], eval_result["reason"])
+                # 扩大检索参数
+                expanded_top_k = eval_result["suggested_top_k"]
+                # 生成更多查询变体
+                try:
+                    extra_queries = self.multi_query_generator.generate_queries(query, 5)
+                    expanded_search_queries = list(set(search_queries + extra_queries))
+                except Exception as e:
+                    logger.warning("Extra query generation failed: %s", e)
+                    expanded_search_queries = search_queries
 
-            # 二次检索（加重 BM25 权重，关键词匹配更宽松）
-            refetch_result = self._do_retrieve(
-                expanded_search_queries, query,
-                vector_weight * 0.5, bm25_weight * 1.5,
-                expanded_top_k
-            )
-            # 合并结果（去重）
-            result = self.confidence_evaluator.merge_results(result, refetch_result)
-            logger.info("Refetch merged: %d documents", len(result["documents"]))
+                # 二次检索（加重 BM25 权重，关键词匹配更宽松）
+                refetch_result = self._do_retrieve(
+                    expanded_search_queries, query,
+                    vector_weight * 0.5, bm25_weight * 1.5,
+                    expanded_top_k
+                )
+                # 合并结果（去重）
+                result = self.confidence_evaluator.merge_results(result, refetch_result)
+                logger.info("Refetch merged: %d documents", len(result["documents"]))
 
         # 7. 写入缓存
         try:
@@ -861,31 +867,32 @@ class RAGEngine:
         )
 
         # 6.5 置信度评估 + 二次检索
-        eval_result = self.confidence_evaluator.evaluate(result)
-        if eval_result["needs_refetch"]:
-            logger.info("Low confidence (%.2f), refetching: %s",
-                        eval_result["confidence"], eval_result["reason"])
-            # 扩大检索参数
-            expanded_top_k = eval_result["suggested_top_k"]
-            # 生成更多查询变体
-            try:
-                extra_queries = await asyncio.to_thread(
-                    self.multi_query_generator.generate_queries, query, 5
-                )
-                expanded_search_queries = list(set(search_queries + extra_queries))
-            except Exception as e:
-                logger.warning("Extra query generation failed: %s", e)
-                expanded_search_queries = search_queries
+        if self._refetch_enabled:
+            eval_result = self.confidence_evaluator.evaluate(result)
+            if eval_result["needs_refetch"]:
+                logger.info("Low confidence (%.2f), refetching: %s",
+                            eval_result["confidence"], eval_result["reason"])
+                # 扩大检索参数
+                expanded_top_k = eval_result["suggested_top_k"]
+                # 生成更多查询变体
+                try:
+                    extra_queries = await asyncio.to_thread(
+                        self.multi_query_generator.generate_queries, query, 5
+                    )
+                    expanded_search_queries = list(set(search_queries + extra_queries))
+                except Exception as e:
+                    logger.warning("Extra query generation failed: %s", e)
+                    expanded_search_queries = search_queries
 
-            # 二次检索（加重 BM25 权重）
-            refetch_result = await asyncio.to_thread(
-                self._do_retrieve, expanded_search_queries, query,
-                vector_weight * 0.5, bm25_weight * 1.5,
-                expanded_top_k
-            )
-            # 合并结果
-            result = self.confidence_evaluator.merge_results(result, refetch_result)
-            logger.info("Refetch merged: %d documents", len(result["documents"]))
+                # 二次检索（加重 BM25 权重）
+                refetch_result = await asyncio.to_thread(
+                    self._do_retrieve, expanded_search_queries, query,
+                    vector_weight * 0.5, bm25_weight * 1.5,
+                    expanded_top_k
+                )
+                # 合并结果
+                result = self.confidence_evaluator.merge_results(result, refetch_result)
+                logger.info("Refetch merged: %d documents", len(result["documents"]))
 
         # 7. 写入缓存
         try:
@@ -1117,7 +1124,7 @@ class RAGEngine:
 
         # 流式结束后进行引用核查
         verification = None
-        if contexts and full_answer.strip():
+        if self._citation_verify_enabled and contexts and full_answer.strip():
             try:
                 verification = self.citation_verifier.verify(question, full_answer, contexts)
                 logger.info("Citation verification: confidence=%.2f, risk=%s",

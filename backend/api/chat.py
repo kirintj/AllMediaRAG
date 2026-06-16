@@ -71,6 +71,8 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
 
     async def generate():
         sources = []
+        contexts = []
+        verification = None
         try:
             if body.mode == "rag":
                 # 使用完整检索管线（异步版本，查询理解并行化）
@@ -84,6 +86,7 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
                     context_list = []
                     for doc, meta in zip(contexts_data["documents"], contexts_data["metadatas"]):
                         context_list.append({"text": doc, "metadata": meta})
+                    contexts = context_list
                     prompt = engine.build_prompt(body.message, context_list, history=history_dicts)
                 else:
                     prompt = f"你是一个知识库问答助手。请简洁明了地回答以下问题：\n\n{body.message}"
@@ -111,6 +114,17 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
                 }, ensure_ascii=False)
                 yield f"data: {data}\n\n"
 
+            # 引用核查（仅 RAG 模式且有上下文）
+            if body.mode == "rag" and engine._citation_verify_enabled and contexts and full_answer.strip():
+                try:
+                    verification = engine.citation_verifier.verify(
+                        body.message, full_answer, contexts
+                    )
+                    logger.info("Citation verification: confidence=%.2f, risk=%s",
+                               verification["confidence"], verification["hallucination_risk"])
+                except Exception as e:
+                    logger.warning("Citation verification failed: %s", e)
+
             # 持久化对话（合并历史 + 本轮消息）
             conv_id = body.conversation_id or str(uuid.uuid4())[:8]
             title = body.history[0].content[:30] if body.history else body.message[:30]
@@ -130,11 +144,12 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
                 _save, conv_id, username, title, all_messages, body.mode
             )
 
-            # 发送完成标记
+            # 发送完成标记（包含 verification）
             done_data = json.dumps({
                 "done": True,
                 "full_answer": full_answer,
                 "sources": sources,
+                "verification": verification,
                 "conversation_id": conv_id,
             }, ensure_ascii=False)
             yield f"data: {done_data}\n\n"
