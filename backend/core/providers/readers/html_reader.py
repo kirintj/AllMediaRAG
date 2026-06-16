@@ -100,6 +100,9 @@ class HtmlReader(FileReader):
                     parts.append(text)
             elif isinstance(child, Tag):
                 if child.name in ("pre", "code"):
+                    # 跳过嵌套在 pre/code 内部的子标签，避免重复输出
+                    if child.parent and child.parent.name in ("pre", "code"):
+                        continue
                     code_text = child.get_text()
                     if code_text.strip():
                         parts.append(f"\n```\n{code_text.strip()}\n```\n")

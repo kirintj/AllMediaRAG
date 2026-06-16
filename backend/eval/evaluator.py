@@ -111,8 +111,8 @@ class RAGEvaluator:
             }
         except Exception as e:
             return {
-                "faithfulness": 0,
-                "relevancy": 0,
+                "faithfulness": None,
+                "relevancy": None,
                 "reasoning": f"LLM 评估失败: {str(e)}",
             }
 
@@ -178,8 +178,8 @@ class RAGEvaluator:
         hit_rates = [r["retrieval"]["hit_rate"] for r in results if r["retrieval"].get("hit_rate") is not None]
 
         # 生成指标
-        faithfulness_scores = [r["generation"]["faithfulness"] for r in results if r["generation"]["faithfulness"] > 0]
-        relevancy_scores = [r["generation"]["relevancy"] for r in results if r["generation"]["relevancy"] > 0]
+        faithfulness_scores = [r["generation"]["faithfulness"] for r in results if r["generation"]["faithfulness"] is not None]
+        relevancy_scores = [r["generation"]["relevancy"] for r in results if r["generation"]["relevancy"] is not None]
 
         # 关键词覆盖率
         kw_coverages = [r["keyword_coverage"] for r in results if r["keyword_coverage"] is not None]

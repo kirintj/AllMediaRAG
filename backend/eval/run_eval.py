@@ -196,10 +196,16 @@ def main():
                 if "contexts" not in sample:
                     rag_result = engine.full_retrieve(sample["question"])
                     sample["contexts"] = rag_result["documents"]
+                    metadatas = rag_result.get("metadatas", [])
+                else:
+                    metadatas = []
                 if "answer" not in sample or not sample["answer"]:
                     prompt = engine.build_prompt(sample["question"], [
-                        {"text": ctx, "metadata": {}}
-                        for ctx in sample.get("contexts", [])
+                        {"text": ctx, "metadata": meta}
+                        for ctx, meta in zip(
+                            sample.get("contexts", []),
+                            metadatas if metadatas else [{}] * len(sample.get("contexts", []))
+                        )
                     ])
                     sample["answer"] = llm_client.generate(prompt)
                 # RAGAS 使用 ground_truth 字段

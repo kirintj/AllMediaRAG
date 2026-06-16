@@ -82,8 +82,10 @@ class ConfigComparator:
         for c in candidates:
             all_attrs.update(c.keys())
         for attr in all_attrs:
-            if hasattr(self.engine, attr):
-                original_attrs[attr] = getattr(self.engine, attr)
+            # 统一使用小写属性名（引擎属性通常为小写，如 top_k）
+            normalized = attr.lower() if hasattr(self.engine, attr.lower()) else attr
+            if hasattr(self.engine, normalized):
+                original_attrs[normalized] = getattr(self.engine, normalized)
 
         # 运行基准配置评估
         self._apply_config(base_config)
@@ -337,12 +339,15 @@ def main():
     # 生成配置组合
     candidates = _generate_config_combinations(comparisons)
 
+    # 基准配置：取各参数的第一个值
+    base_config = {k: v[0] for k, v in comparisons.items()}
+
+    # 从候选中移除基准配置，避免重复评估
+    candidates = [c for c in candidates if c != base_config]
+
     if not candidates:
         print("错误: 未生成任何配置组合")
         sys.exit(1)
-
-    # 基准配置：取各参数的第一个值
-    base_config = {k: v[0] for k, v in comparisons.items()}
 
     print("=" * 50)
     print("    RAG 配置自动比较")
