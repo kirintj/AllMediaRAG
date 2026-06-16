@@ -5,18 +5,27 @@ from bs4 import BeautifulSoup
 
 
 class DocumentProcessor:
-    """文档处理器：HTML 解析、语义分块"""
+    """文档处理器：HTML 解析、语义分块、OCR 支持"""
 
-    def __init__(self, config):
+    # 支持的图片格式
+    IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'}
+
+    def __init__(self, config, ocr_provider=None, vlm_provider=None, file_reader_registry=None):
         """初始化
 
         Args:
             config: 配置对象，需包含 SEMANTIC_CHUNK_PERCENTILE, SEMANTIC_CHUNK_MIN/MAX_SENTENCES
+            ocr_provider: OCR 提供者（可选），用于扫描件 PDF 和图片
+            vlm_provider: VLM 提供者（可选），用于图表理解
+            file_reader_registry: 文件读取器注册表（可选），格式为 {ext: reader}
         """
         self.percentile = config.SEMANTIC_CHUNK_PERCENTILE
         self.min_sentences = config.SEMANTIC_CHUNK_MIN_SENTENCES
         self.max_sentences = config.SEMANTIC_CHUNK_MAX_SENTENCES
         self.embedding_service = None  # 延迟注入，避免循环依赖
+        self.ocr_provider = ocr_provider
+        self.vlm_provider = vlm_provider
+        self.file_reader_registry = file_reader_registry or {}
 
     def set_embedding_service(self, embedding_service):
         """注入 embedding 服务（由 RAGEngine 调用）"""
@@ -24,8 +33,18 @@ class DocumentProcessor:
 
     def read_file(self, file_path: str) -> str:
         """读取文件内容，支持多种格式"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         ext = os.path.splitext(file_path)[1].lower()
 
+        # Try registry first
+        if ext in self.file_reader_registry:
+            reader = self.file_reader_registry[ext]
+            if reader.can_handle(file_path):
+                return reader.read(file_path)
+
+        # Fallback to hardcoded logic (backward compatible)
         if ext in ['.html', '.htm']:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
@@ -38,6 +57,8 @@ class DocumentProcessor:
             return self._read_pdf(file_path)
         elif ext == '.docx':
             return self._read_docx(file_path)
+        elif ext in self.IMAGE_EXTENSIONS:
+            return self._read_image(file_path)
         else:
             raise ValueError(f"不支持的文件格式: {ext}")
 
@@ -50,13 +71,75 @@ class DocumentProcessor:
         return html
 
     def _read_pdf(self, file_path: str) -> str:
-        """读取 PDF 文件"""
+        """读取 PDF 文件，支持 OCR 降级"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         from PyPDF2 import PdfReader
         reader = PdfReader(file_path)
         text = ""
         for page in reader.pages:
-            text += page.extract_text() + "\n\n"
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n\n"
+
+        # 检查是否为扫描件 PDF（文本量过少）
+        if self._is_scanned_pdf(text, len(reader.pages)):
+            logger.info("Scanned PDF detected, attempting OCR: %s", file_path)
+            ocr_text = self._read_pdf_with_ocr(file_path)
+            if ocr_text.strip():
+                return ocr_text
+            logger.warning("OCR extraction failed, falling back to empty text")
+
         return text
+
+    def _is_scanned_pdf(self, text: str, page_count: int) -> bool:
+        """判断是否为扫描件 PDF
+
+        判断标准：平均每页文本量 < 50 字符
+        """
+        if page_count == 0:
+            return False
+        avg_chars_per_page = len(text.strip()) / page_count
+        return avg_chars_per_page < 50
+
+    def _read_pdf_with_ocr(self, file_path: str) -> str:
+        """使用 OCR 提取扫描件 PDF 的文字"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.ocr_provider or not self.ocr_provider.is_available():
+            logger.warning("OCR provider not available")
+            return ""
+
+        try:
+            return self.ocr_provider.extract_text(file_path)
+        except Exception as e:
+            logger.warning("OCR extraction failed: %s", e)
+            return ""
+
+    def _read_image(self, file_path: str) -> str:
+        """读取图片文件，使用 OCR 提取文字"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.ocr_provider or not self.ocr_provider.is_available():
+            logger.warning("OCR provider not available for image: %s", file_path)
+            return ""
+
+        try:
+            ocr_text = self.ocr_provider.extract_text(file_path)
+
+            # 如果 VLM 可用，添加图片描述
+            if self.vlm_provider and self.vlm_provider.is_available():
+                vlm_desc = self.vlm_provider.describe_image(file_path)
+                if vlm_desc.strip():
+                    return f"{ocr_text}\n\n[图片描述]\n{vlm_desc}"
+
+            return ocr_text
+        except Exception as e:
+            logger.warning("Image OCR failed: %s", e)
+            return ""
 
     def _read_docx(self, file_path: str) -> str:
         """读取 Word 文档"""

@@ -21,31 +21,60 @@ from core.query_understanding.hyde_generator import HyDEGenerator
 from core.query_understanding.multi_query import MultiQueryGenerator
 from core.reranking.manager import RerankManager
 from core.performance.cache.manager import CacheManager
+from core.ocr.paddle_provider import PaddleOCRProvider
+from core.ocr.tesseract_provider import TesseractOCRProvider
+from core.ocr.vlm_provider import VLMProvider
+from core.index_manager import IndexManager
+from core.verification.citation_verifier import CitationVerifier
+from core.retrieval.confidence_evaluator import ConfidenceEvaluator
+from core.providers.factory import ProviderFactory
+from core.providers.adapters import (
+    ChromaVectorStoreAdapter,
+    SentenceTransformerAdapter,
+    OpenAICompatibleLLMAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class RAGEngine:
-    """RAG 引擎：组合各模块，提供完整的 RAG 查询接口"""
+    """RAG 引擎：组合各模块，提供完整的 RAG 查询接口
 
-    def __init__(self, config):
+    支持两种初始化模式：
+    1. 直接模式：直接实例化现有实现（默认）
+    2. 工厂模式：通过 ProviderFactory 创建可插拔组件
+    """
+
+    def __init__(self, config, use_factory: bool = False):
         """初始化 RAG 引擎
 
         Args:
             config: 配置对象
+            use_factory: 是否使用工厂模式创建组件
         """
-        self.embedding_service = EmbeddingService(config.EMBEDDING_MODEL_PATH)
-        self.vector_store = VectorStore(config.CHROMA_PERSIST_DIR)
-        self.llm_client = LLMClient(
-            config.MIMO_API_KEY,
-            config.MIMO_API_BASE,
-            config.MIMO_MODEL
+        if use_factory:
+            self._init_with_factory(config)
+        else:
+            self._init_direct(config)
+
+        # 初始化 OCR 提供者
+        ocr_provider = self._init_ocr_provider(config)
+
+        # 初始化 VLM 提供者
+        vlm_provider = self._init_vlm_provider(config)
+
+        # 构建文件读取器注册表
+        file_reader_registry = self._build_file_reader_registry(ocr_provider, vlm_provider)
+
+        self.document_processor = DocumentProcessor(
+            config, ocr_provider, vlm_provider,
+            file_reader_registry=file_reader_registry
         )
-        self.document_processor = DocumentProcessor(config)
         self.document_processor.set_embedding_service(self.embedding_service)
 
         # BM25：优先从磁盘加载，加载失败再从向量库重建
-        bm25_path = os.path.join(config.CHROMA_PERSIST_DIR, "bm25_index.pkl")
+        bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
+        bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
         self.bm25_retriever = BM25Retriever(persist_path=bm25_path)
         self._bm25_lock = threading.Lock()
 
@@ -79,13 +108,220 @@ class RAGEngine:
             "use_redis": config.USE_REDIS,
             "redis_host": config.REDIS_HOST,
             "redis_port": config.REDIS_PORT,
+            "l2_ttl": getattr(config, 'CACHE_L2_TTL', 600),
         })
+
+        # 增量索引管理
+        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
+            from core.providers.pgvector_index_adapter import PgIndexManager
+            self.index_manager = PgIndexManager(database_url=config.database_url)
+        else:
+            self.index_manager = IndexManager(
+                state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json")
+            )
+
+        # 引用核查
+        self.citation_verifier = CitationVerifier(
+            llm_client=self.llm_client,
+            threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
+        )
+
+        # 低置信度二次检索
+        self.confidence_evaluator = ConfidenceEvaluator(
+            threshold=config.SIMILARITY_THRESHOLD,
+            min_docs=2
+        )
 
         # 配置项缓存
         self.use_hyde = config.USE_HYDE
         self.multi_query_enabled = config.MULTI_QUERY_ENABLED
         self.multi_query_count = config.MULTI_QUERY_COUNT
         self.rerank_top_k = config.RERANK_TOP_K
+
+    def _init_direct(self, config):
+        """直接模式初始化：使用现有实现类
+
+        Args:
+            config: 配置对象
+        """
+        self.embedding_service = EmbeddingService(config.EMBEDDING_MODEL_PATH)
+
+        # 根据配置选择向量存储后端
+        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
+            from core.providers.pgvector_adapter import PgVectorStoreAdapter
+            self.vector_store = PgVectorStoreAdapter(database_url=config.database_url)
+        else:
+            self.vector_store = VectorStore(config.CHROMA_PERSIST_DIR)
+
+        self.llm_client = LLMClient(
+            config.MIMO_API_KEY,
+            config.MIMO_API_BASE,
+            config.MIMO_MODEL
+        )
+
+        # BM25：优先从磁盘加载，加载失败再从向量库重建
+        bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
+        bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
+        self.bm25_retriever = BM25Retriever(persist_path=bm25_path)
+        self._bm25_lock = threading.Lock()
+
+        if not self.bm25_retriever.load():
+            self._bm25_ready = False
+            threading.Thread(target=self._rebuild_bm25_index, daemon=True).start()
+        else:
+            self._bm25_ready = True
+
+        self.top_k = config.TOP_K
+        self.bm25_top_k = config.BM25_TOP_K
+        self.rrf_k = config.RRF_K
+        self.rrf_weight_vector = config.RRF_WEIGHT_VECTOR
+        self.rrf_weight_bm25 = config.RRF_WEIGHT_BM25
+        self.similarity_threshold = config.SIMILARITY_THRESHOLD
+
+        # 查询理解层
+        self.classifier = QueryClassifier(self.llm_client)
+        self.router = QueryRouter()
+        self.hyde_generator = HyDEGenerator(self.llm_client)
+        self.multi_query_generator = MultiQueryGenerator(self.llm_client)
+
+        # 重排序层
+        self.rerank_manager = RerankManager(config)
+
+        # 缓存层
+        self.cache_manager = CacheManager({
+            "use_cache": config.USE_CACHE,
+            "l1_max_size": config.CACHE_L1_MAX_SIZE,
+            "l1_ttl": config.CACHE_L1_TTL,
+            "use_redis": config.USE_REDIS,
+            "redis_host": config.REDIS_HOST,
+            "redis_port": config.REDIS_PORT,
+            "l2_ttl": getattr(config, 'CACHE_L2_TTL', 600),
+        })
+
+        # 增量索引管理
+        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
+            from core.providers.pgvector_index_adapter import PgIndexManager
+            self.index_manager = PgIndexManager(database_url=config.database_url)
+        else:
+            self.index_manager = IndexManager(
+                state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json")
+            )
+
+        # 引用核查
+        self.citation_verifier = CitationVerifier(
+            llm_client=self.llm_client,
+            threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
+        )
+
+        # 低置信度二次检索
+        self.confidence_evaluator = ConfidenceEvaluator(
+            threshold=config.SIMILARITY_THRESHOLD,
+            min_docs=2
+        )
+
+        logger.info("RAGEngine initialized in direct mode")
+
+    def _init_with_factory(self, config):
+        """工厂模式初始化：通过 ProviderFactory 创建可插拔组件
+
+        Args:
+            config: 配置对象
+        """
+        # 注册默认 Provider
+        ProviderFactory.register_vector_store("chroma", ChromaVectorStoreAdapter)
+        ProviderFactory.register_embedding_provider("sentence-transformer", SentenceTransformerAdapter)
+        ProviderFactory.register_llm_provider("openai-compatible", OpenAICompatibleLLMAdapter)
+
+        # 注册 pgvector provider
+        from core.providers.pgvector_adapter import PgVectorStoreAdapter
+        ProviderFactory.register_vector_store("pgvector", PgVectorStoreAdapter)
+
+        # 通过工厂创建组件
+        self.embedding_service = ProviderFactory.create_embedding_provider(
+            "sentence-transformer",
+            model_path=config.EMBEDDING_MODEL_PATH
+        )
+
+        # 根据配置选择向量存储后端
+        provider_name = getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma')
+        if provider_name == "pgvector":
+            self.vector_store = ProviderFactory.create_vector_store(
+                "pgvector",
+                database_url=config.database_url,
+            )
+        else:
+            self.vector_store = ProviderFactory.create_vector_store(
+                "chroma",
+                persist_dir=config.CHROMA_PERSIST_DIR,
+            )
+        self.llm_client = ProviderFactory.create_llm_provider(
+            "openai-compatible",
+            api_key=config.MIMO_API_KEY,
+            api_base=config.MIMO_API_BASE,
+            model=config.MIMO_MODEL
+        )
+
+        # BM25 索引（不使用工厂模式，因为它是独立的检索器）
+        bm25_base_dir = getattr(config, 'BM25_PERSIST_DIR', '') or config.CHROMA_PERSIST_DIR
+        bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
+        self.bm25_retriever = BM25Retriever(persist_path=bm25_path)
+        self._bm25_lock = threading.Lock()
+
+        if not self.bm25_retriever.load():
+            self._bm25_ready = False
+            threading.Thread(target=self._rebuild_bm25_index, daemon=True).start()
+        else:
+            self._bm25_ready = True
+
+        self.top_k = config.TOP_K
+        self.bm25_top_k = config.BM25_TOP_K
+        self.rrf_k = config.RRF_K
+        self.rrf_weight_vector = config.RRF_WEIGHT_VECTOR
+        self.rrf_weight_bm25 = config.RRF_WEIGHT_BM25
+        self.similarity_threshold = config.SIMILARITY_THRESHOLD
+
+        # 查询理解层
+        self.classifier = QueryClassifier(self.llm_client)
+        self.router = QueryRouter()
+        self.hyde_generator = HyDEGenerator(self.llm_client)
+        self.multi_query_generator = MultiQueryGenerator(self.llm_client)
+
+        # 重排序层
+        self.rerank_manager = RerankManager(config)
+
+        # 缓存层
+        self.cache_manager = CacheManager({
+            "use_cache": config.USE_CACHE,
+            "l1_max_size": config.CACHE_L1_MAX_SIZE,
+            "l1_ttl": config.CACHE_L1_TTL,
+            "use_redis": config.USE_REDIS,
+            "redis_host": config.REDIS_HOST,
+            "redis_port": config.REDIS_PORT,
+            "l2_ttl": getattr(config, 'CACHE_L2_TTL', 600),
+        })
+
+        # 增量索引管理
+        if getattr(config, 'VECTOR_STORE_PROVIDER', 'chroma') == "pgvector":
+            from core.providers.pgvector_index_adapter import PgIndexManager
+            self.index_manager = PgIndexManager(database_url=config.database_url)
+        else:
+            self.index_manager = IndexManager(
+                state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json")
+            )
+
+        # 引用核查
+        self.citation_verifier = CitationVerifier(
+            llm_client=self.llm_client,
+            threshold=getattr(config, 'CITATION_CONFIDENCE_THRESHOLD', 0.5)
+        )
+
+        # 低置信度二次检索
+        self.confidence_evaluator = ConfidenceEvaluator(
+            threshold=config.SIMILARITY_THRESHOLD,
+            min_docs=2
+        )
+
+        logger.info("RAGEngine initialized in factory mode")
 
     def _rebuild_bm25_index(self):
         """从向量库重建 BM25 索引（后台线程调用）"""
@@ -101,6 +337,97 @@ class RAGEngine:
             logger.warning("Failed to rebuild BM25 index: %s", e)
         finally:
             self._bm25_ready = True
+
+    def close(self):
+        """关闭引擎，释放资源（数据库连接池等）"""
+        try:
+            if hasattr(self.vector_store, 'close'):
+                self.vector_store.close()
+            if hasattr(self.index_manager, 'close'):
+                self.index_manager.close()
+            logger.info("RAGEngine closed")
+        except Exception as e:
+            logger.warning("Error closing RAGEngine: %s", e)
+
+    def _init_ocr_provider(self, config):
+        """初始化 OCR 提供者"""
+        ocr_type = config.OCR_PROVIDER.lower()
+        if ocr_type == "none":
+            logger.info("OCR disabled by config")
+            return None
+
+        if ocr_type == "paddle":
+            try:
+                provider = PaddleOCRProvider(
+                    lang=config.OCR_LANG,
+                    use_gpu=config.OCR_USE_GPU
+                )
+                logger.info("PaddleOCR provider initialized")
+                return provider
+            except Exception as e:
+                logger.warning("Failed to init PaddleOCR: %s", e)
+                return None
+
+        elif ocr_type == "tesseract":
+            try:
+                provider = TesseractOCRProvider(lang="chi_sim+eng")
+                logger.info("TesseractOCR provider initialized")
+                return provider
+            except Exception as e:
+                logger.warning("Failed to init TesseractOCR: %s", e)
+                return None
+
+        logger.warning("Unknown OCR_PROVIDER: %s", ocr_type)
+        return None
+
+    def _init_vlm_provider(self, config):
+        """初始化 VLM 提供者"""
+        if not config.USE_VLM:
+            logger.info("VLM disabled by config")
+            return None
+
+        if not config.VLM_MODEL or not config.VLM_API_BASE:
+            logger.warning("VLM_MODEL or VLM_API_BASE not configured")
+            return None
+
+        try:
+            provider = VLMProvider(
+                api_key=config.MIMO_API_KEY,
+                api_base=config.VLM_API_BASE,
+                model=config.VLM_MODEL
+            )
+            logger.info("VLM provider initialized (model=%s)", config.VLM_MODEL)
+            return provider
+        except Exception as e:
+            logger.warning("Failed to init VLM: %s", e)
+            return None
+
+    def _build_file_reader_registry(self, ocr_provider, vlm_provider) -> dict:
+        """构建文件读取器注册表
+
+        Args:
+            ocr_provider: OCR 提供者实例
+            vlm_provider: VLM 提供者实例
+
+        Returns:
+            {extension: reader_instance} 映射
+        """
+        from core.providers.readers import (
+            PDFReader, MarkdownReader, DocxReader, HtmlReader, ImageReader
+        )
+        readers = [
+            PDFReader(ocr_provider=ocr_provider),
+            MarkdownReader(),
+            DocxReader(),
+            HtmlReader(),
+            ImageReader(ocr_provider=ocr_provider, vlm_provider=vlm_provider),
+        ]
+        registry = {}
+        for reader in readers:
+            for ext in reader.supported_extensions():
+                registry[ext] = reader
+        logger.info("File reader registry built: %s", list(registry.keys()))
+        return registry
 
     def _wait_bm25_ready(self, timeout: float = 30.0):
         """等待 BM25 索引就绪（带超时）"""
@@ -387,6 +714,31 @@ class RAGEngine:
         # 6. 检索 + 融合 + 重排序
         result = self._do_retrieve(search_queries, query, vector_weight, bm25_weight, retrieve_top_k)
 
+        # 6.5 置信度评估 + 二次检索
+        eval_result = self.confidence_evaluator.evaluate(result)
+        if eval_result["needs_refetch"]:
+            logger.info("Low confidence (%.2f), refetching: %s",
+                        eval_result["confidence"], eval_result["reason"])
+            # 扩大检索参数
+            expanded_top_k = eval_result["suggested_top_k"]
+            # 生成更多查询变体
+            try:
+                extra_queries = self.multi_query_generator.generate_queries(query, 5)
+                expanded_search_queries = list(set(search_queries + extra_queries))
+            except Exception as e:
+                logger.warning("Extra query generation failed: %s", e)
+                expanded_search_queries = search_queries
+
+            # 二次检索（加重 BM25 权重，关键词匹配更宽松）
+            refetch_result = self._do_retrieve(
+                expanded_search_queries, query,
+                vector_weight * 0.5, bm25_weight * 1.5,
+                expanded_top_k
+            )
+            # 合并结果（去重）
+            result = self.confidence_evaluator.merge_results(result, refetch_result)
+            logger.info("Refetch merged: %d documents", len(result["documents"]))
+
         # 7. 写入缓存
         try:
             self.cache_manager.set(cache_key, result)
@@ -479,6 +831,33 @@ class RAGEngine:
             self._do_retrieve, search_queries, query,
             vector_weight, bm25_weight, retrieve_top_k
         )
+
+        # 6.5 置信度评估 + 二次检索
+        eval_result = self.confidence_evaluator.evaluate(result)
+        if eval_result["needs_refetch"]:
+            logger.info("Low confidence (%.2f), refetching: %s",
+                        eval_result["confidence"], eval_result["reason"])
+            # 扩大检索参数
+            expanded_top_k = eval_result["suggested_top_k"]
+            # 生成更多查询变体
+            try:
+                extra_queries = await asyncio.to_thread(
+                    self.multi_query_generator.generate_queries, query, 5
+                )
+                expanded_search_queries = list(set(search_queries + extra_queries))
+            except Exception as e:
+                logger.warning("Extra query generation failed: %s", e)
+                expanded_search_queries = search_queries
+
+            # 二次检索（加重 BM25 权重）
+            refetch_result = await asyncio.to_thread(
+                self._do_retrieve, expanded_search_queries, query,
+                vector_weight * 0.5, bm25_weight * 1.5,
+                expanded_top_k
+            )
+            # 合并结果
+            result = self.confidence_evaluator.merge_results(result, refetch_result)
+            logger.info("Refetch merged: %d documents", len(result["documents"]))
 
         # 7. 写入缓存
         try:
@@ -670,14 +1049,14 @@ class RAGEngine:
         return prompt
 
     def query_stream(self, question: str, history: list[dict] = None) -> Generator[dict, None, None]:
-        """流式查询，返回 {answer_chunk, sources}
+        """流式查询，返回 {answer_chunk, sources, verification}
 
         Args:
             question: 用户问题
             history: 对话历史 [{role, content}, ...]
 
         Yields:
-            包含 answer_chunk 和 sources 的字典
+            包含 answer_chunk、sources 和 verification 的字典
         """
         results = self.full_retrieve(question)
 
@@ -708,10 +1087,31 @@ class RAGEngine:
                 "sources": sources
             }
 
+        # 流式结束后进行引用核查
+        verification = None
+        if contexts and full_answer.strip():
+            try:
+                verification = self.citation_verifier.verify(question, full_answer, contexts)
+                logger.info("Citation verification: confidence=%.2f, risk=%s",
+                           verification["confidence"], verification["hallucination_risk"])
+            except Exception as e:
+                logger.warning("Citation verification failed: %s", e)
+
+        # 最终结果包含 verification
+        yield {
+            "answer_chunk": "",
+            "full_answer": full_answer,
+            "sources": sources,
+            "verification": verification,
+            "done": True
+        }
+
     def delete_by_source(self, source: str):
-        """按来源删除文档（向量库 + BM25）"""
+        """按来源删除文档（向量库 + BM25 + 缓存失效）"""
         self.vector_store.delete_by_source(source)
         self.bm25_retriever.delete_by_source(source)
+        # 缓存失效
+        self.cache_manager.invalidate_by_source(source)
 
     def delete_all(self):
         """清空所有文档"""
@@ -720,3 +1120,68 @@ class RAGEngine:
         # 删除持久化文件
         if self.bm25_retriever.persist_path and os.path.exists(self.bm25_retriever.persist_path):
             os.remove(self.bm25_retriever.persist_path)
+        # 清空缓存
+        self.cache_manager.clear()
+
+    def sync_index(self, data_dir: str) -> dict:
+        """增量同步索引
+
+        扫描 data_dir 目录，对比已索引文档的 Hash，
+        只处理新增、修改、删除的文档。
+
+        Args:
+            data_dir: 数据目录路径
+
+        Returns:
+            {"added": int, "modified": int, "deleted": int, "unchanged": int}
+        """
+        changes = self.index_manager.detect_changes(data_dir)
+        stats = {
+            "added": 0,
+            "modified": 0,
+            "deleted": 0,
+            "unchanged": len(changes["unchanged"])
+        }
+
+        # 处理删除
+        for filename in changes["deleted"]:
+            try:
+                self.delete_by_source(filename)
+                self.index_manager.remove_record(filename)
+                stats["deleted"] += 1
+                logger.info("Deleted from index: %s", filename)
+            except Exception as e:
+                logger.warning("Failed to delete %s: %s", filename, e)
+
+        # 处理新增和修改
+        for filename in changes["added"] + changes["modified"]:
+            file_path = os.path.join(data_dir, filename)
+            try:
+                # 修改场景：先删旧的
+                if filename in changes["modified"]:
+                    self.delete_by_source(filename)
+
+                # 索引新文档
+                chunks = self.ingest_document(file_path)
+                file_hash = IndexManager.compute_file_hash(file_path)
+                self.index_manager.record_indexed(filename, file_hash, chunks)
+
+                if filename in changes["added"]:
+                    stats["added"] += 1
+                    logger.info("Added to index: %s (%d chunks)", filename, chunks)
+                else:
+                    stats["modified"] += 1
+                    logger.info("Updated index: %s (%d chunks)", filename, chunks)
+            except Exception as e:
+                logger.warning("Failed to index %s: %s", filename, e)
+
+        logger.info("Sync completed: %s", stats)
+        return stats
+
+    def get_index_stats(self) -> dict:
+        """获取索引统计信息"""
+        return {
+            "indexed_documents": self.index_manager.get_record_count(),
+            "vector_count": self.vector_store.get_document_count(),
+            "bm25_ready": self._bm25_ready,
+        }
