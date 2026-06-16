@@ -447,10 +447,10 @@ class RAGEngine:
             {extension: reader_instance} 映射
         """
         from core.providers.readers import (
-            PDFReader, MarkdownReader, DocxReader, HtmlReader, ImageReader
+            EnhancedPDFReader, MarkdownReader, DocxReader, HtmlReader, ImageReader
         )
         readers = [
-            PDFReader(ocr_provider=ocr_provider),
+            EnhancedPDFReader(ocr_provider=ocr_provider, vlm_provider=vlm_provider),
             MarkdownReader(),
             DocxReader(),
             HtmlReader(),
