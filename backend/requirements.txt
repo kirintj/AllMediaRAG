@@ -11,6 +11,12 @@ openai>=1.6.0
 # === 向量数据库 ===
 chromadb>=0.4.0
 
+# === PostgreSQL + pgvector ===
+sqlalchemy>=2.0.0
+pgvector>=0.2.0
+psycopg2-binary>=2.9.0
+alembic>=1.13.0
+
 # === Embedding & Reranking ===
 sentence-transformers>=2.2.0
 # torch 需根据 CUDA 版本单独安装，见 https://pytorch.org/
@@ -21,6 +27,10 @@ jieba>=0.42.1
 rank-bm25>=0.2.2
 beautifulsoup4>=4.12.0
 numpy>=1.24.0
+
+# === PDF 增强解析 ===
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
 
 # === 外部 API ===
 cohere>=5.0.0
