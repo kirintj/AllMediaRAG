@@ -60,6 +60,15 @@
       <div v-if="uploadStatus" class="status-msg" :class="uploadStatusType">
         {{ uploadStatus }}
       </div>
+
+      <!-- 批量上传进度 -->
+      <BatchUploadProgress
+        v-if="batchTaskId"
+        :task-id="batchTaskId"
+        :total="batchTotal"
+        @close="batchTaskId = null"
+        @complete="handleBatchComplete"
+      />
     </div>
 
     <!-- 批量加载 -->
@@ -154,7 +163,8 @@
 import { ref, onMounted } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useChatStore } from '../stores/chat'
-import { uploadDocument } from '../api'
+import { uploadDocument, uploadBatch } from '../api'
+import BatchUploadProgress from './BatchUploadProgress.vue'
 
 const store = useChatStore()
 const loading = ref(false)
@@ -167,8 +177,58 @@ const syncStatus = ref('')
 const syncStatusType = ref('') // 'success' | 'error' | ''
 
 const uploadCount = ref({ done: 0, total: 0, success: 0, fail: 0 })
+const batchTaskId = ref(null)
+const batchTotal = ref(0)
+const pendingFiles = ref([])
 
 async function handleUpload(file) {
+  // Collect files for potential batch processing
+  pendingFiles.value.push(file)
+
+  // Delay processing to allow all files from a multi-select to be collected
+  if (pendingFiles.value.length === 1) {
+    setTimeout(async () => {
+      const filesToUpload = [...pendingFiles.value]
+      pendingFiles.value = []
+
+      if (filesToUpload.length >= 20) {
+        // Large batch: use batch upload API
+        await handleBatchUpload(filesToUpload)
+      } else {
+        // Small batch: upload one by one (preserves original behavior)
+        for (const f of filesToUpload) {
+          await handleSingleUpload(f)
+        }
+      }
+    }, 100)
+  }
+}
+
+async function handleBatchUpload(files) {
+  try {
+    uploadStatusType.value = 'uploading'
+    uploadStatus.value = `正在批量上传 ${files.length} 个文件...`
+
+    const result = await uploadBatch(files)
+
+    if (result.mode === 'sync') {
+      // Small batch handled synchronously, show result directly
+      uploadStatusType.value = 'success'
+      uploadStatus.value = `上传成功 · ${result.success} 个成功 / ${result.failed} 个失败`
+      await refresh()
+    } else {
+      // Large batch, show progress tracking component
+      uploadStatus.value = ''
+      batchTaskId.value = result.task_id
+      batchTotal.value = result.total
+    }
+  } catch (error) {
+    uploadStatusType.value = 'error'
+    uploadStatus.value = `批量上传失败: ${error.message}`
+  }
+}
+
+async function handleSingleUpload(file) {
   uploadCount.value.total++
   const idx = uploadCount.value.total
   uploadStatusType.value = 'uploading'
@@ -193,13 +253,19 @@ async function handleUpload(file) {
   }
 
   uploadCount.value.done++
-  // 全部完成后重置计数
+  // Reset counters when all uploads are done
   if (uploadCount.value.done >= uploadCount.value.total) {
     setTimeout(() => {
       uploadCount.value = { done: 0, total: 0, success: 0, fail: 0 }
       uploadStatusType.value = ''
     }, 3000)
   }
+}
+
+async function handleBatchComplete({ success, failed }) {
+  ElMessage.success(`批量索引完成，成功 ${success} 个`)
+  batchTaskId.value = null
+  await refresh()
 }
 
 async function handleLoadAll() {
