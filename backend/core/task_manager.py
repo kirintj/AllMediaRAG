@@ -221,6 +221,18 @@ class TaskManager:
                 task.status = TaskStatus.FAILED
                 task.error = error
 
+    def has_running_task(self) -> bool:
+        """检查是否有运行中的任务
+
+        Returns:
+            是否有运行中的任务
+        """
+        with self._lock:
+            return any(
+                task.status in (TaskStatus.PENDING, TaskStatus.RUNNING)
+                for task in self._tasks.values()
+            )
+
     def cleanup_old_tasks(self, max_age_hours: float = 24) -> int:
         """Remove tasks older than the specified age.
 

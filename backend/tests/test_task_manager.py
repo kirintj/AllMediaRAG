@@ -96,6 +96,19 @@ class TestTaskManager:
         task = self.manager.get_task(task_id)
         assert task.status == TaskStatus.FAILED
 
+    def test_has_running_task(self):
+        """测试检查运行中任务"""
+        # 初始状态没有运行中的任务
+        assert self.manager.has_running_task() == False
+
+        # 创建任务后应该有运行中的任务
+        task_id = self.manager.create_task(total=100)
+        assert self.manager.has_running_task() == True
+
+        # 完成任务后应该没有运行中的任务
+        self.manager.complete_task(task_id)
+        assert self.manager.has_running_task() == False
+
     def test_snapshot(self):
         """测试生成进度快照"""
         task_id = self.manager.create_task(total=100)
