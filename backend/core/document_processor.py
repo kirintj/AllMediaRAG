@@ -52,11 +52,9 @@ class DocumentProcessor:
 
         # Fallback to hardcoded logic (backward compatible)
         if ext in ['.html', '.htm']:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            return self._read_text_file(file_path)
         elif ext == '.txt':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            return self._read_text_file(file_path)
         elif ext == '.md':
             return self._read_markdown(file_path)
         elif ext == '.pdf':
@@ -68,12 +66,28 @@ class DocumentProcessor:
         else:
             raise ValueError(f"不支持的文件格式: {ext}")
 
+    @staticmethod
+    def _read_text_file(file_path: str) -> str:
+        """读取纯文本文件，自动检测编码
+
+        按 UTF-8 → UTF-16 → GBK → Latin-1 顺序尝试。
+        """
+        encodings = ['utf-8', 'utf-16', 'gbk', 'gb2312', 'latin-1']
+        for enc in encodings:
+            try:
+                with open(file_path, 'r', encoding=enc) as f:
+                    return f.read()
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        # 最终兜底：忽略无法解码的字节
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            return f.read()
+
     def _read_markdown(self, file_path: str) -> str:
         """读取 Markdown 文件"""
         import markdown
-        with open(file_path, 'r', encoding='utf-8') as f:
-            md_content = f.read()
-        html = markdown.markdown(md_content)
+        content = self._read_text_file(file_path)
+        html = markdown.markdown(content)
         return html
 
     def _read_pdf(self, file_path: str) -> str:

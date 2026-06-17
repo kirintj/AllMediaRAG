@@ -12,73 +12,73 @@ class QueryRouter:
         ("factoid", "simple"): {
             "use_hyde": False,
             "num_queries": 2,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("factoid", "medium"): {
             "use_hyde": True,
             "num_queries": 2,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("factoid", "complex"): {
             "use_hyde": True,
             "num_queries": 3,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("analytical", "simple"): {
             "use_hyde": False,
             "num_queries": 2,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("analytical", "medium"): {
             "use_hyde": True,
             "num_queries": 3,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("analytical", "complex"): {
             "use_hyde": True,
             "num_queries": 5,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("procedural", "simple"): {
             "use_hyde": False,
             "num_queries": 2,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("procedural", "medium"): {
             "use_hyde": True,
             "num_queries": 3,
-            "rerank_top_k": 15,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("procedural", "complex"): {
             "use_hyde": True,
             "num_queries": 4,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "simple"): {
             "use_hyde": True,
             "num_queries": 3,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "medium"): {
             "use_hyde": True,
             "num_queries": 4,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "complex"): {
             "use_hyde": True,
             "num_queries": 5,
-            "rerank_top_k": 20,
+            "rerank_top_k": 40,
             "weights": {"vector": 0.5, "bm25": 0.5}
         }
     }

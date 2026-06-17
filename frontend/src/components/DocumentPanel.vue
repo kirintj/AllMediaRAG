@@ -44,7 +44,7 @@
         action="#"
         :auto-upload="false"
         :on-change="handleUpload"
-        accept=".html,.htm,.txt,.md,.pdf,.docx"
+        accept=".html,.htm,.txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.bmp,.tiff"
         :show-file-list="false"
         multiple
         drag
@@ -54,7 +54,7 @@
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="var(--hm-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <p class="upload-text">拖拽或点击上传</p>
-          <p class="upload-hint">支持多选 · HTML / TXT / MD / PDF / DOCX</p>
+          <p class="upload-hint">支持多选 · HTML / TXT / MD / PDF / DOCX / 图片</p>
         </div>
       </el-upload>
       <div v-if="uploadStatus" class="status-msg" :class="uploadStatusType">
@@ -78,6 +78,25 @@
     </button>
     <div v-if="loadStatus" class="status-msg" :class="loadStatusType">
       {{ loadStatus }}
+    </div>
+
+    <!-- 增量同步 -->
+    <button
+      class="hm-action-btn sync-btn"
+      @click="handleSync"
+      :disabled="syncing"
+    >
+      <span v-if="syncing" class="hm-loading-spinner"></span>
+      <template v-else>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </template>
+      {{ syncing ? '同步中...' : '增量同步' }}
+    </button>
+    <div v-if="syncStatus" class="status-msg" :class="syncStatusType">
+      {{ syncStatus }}
     </div>
 
     <!-- 分割线 -->
@@ -143,6 +162,9 @@ const uploadStatus = ref('')
 const uploadStatusType = ref('') // 'uploading' | 'success' | 'error' | ''
 const loadStatus = ref('')
 const loadStatusType = ref('') // 'success' | 'error' | ''
+const syncing = ref(false)
+const syncStatus = ref('')
+const syncStatusType = ref('') // 'success' | 'error' | ''
 
 const uploadCount = ref({ done: 0, total: 0, success: 0, fail: 0 })
 
@@ -186,14 +208,41 @@ async function handleLoadAll() {
   loadStatus.value = '加载中...'
 
   try {
-    const result = await store.loadAllDocuments()
-    loadStatusType.value = 'success'
-    loadStatus.value = result.message
+    const result = await store.loadAllDocuments((status) => {
+      const pct = status.total > 0 ? Math.round((status.current / status.total) * 100) : 0
+      loadStatus.value = `加载中 ${status.current}/${status.total} (${pct}%)`
+    })
+    if (result.total_chunks === 0) {
+      loadStatusType.value = 'uploading'
+      loadStatus.value = result.message
+    } else {
+      loadStatusType.value = 'success'
+      loadStatus.value = result.message
+    }
   } catch (error) {
     loadStatusType.value = 'error'
     loadStatus.value = `加载失败: ${error.message}`
   } finally {
     loading.value = false
+  }
+}
+
+async function handleSync() {
+  syncing.value = true
+  syncStatusType.value = 'uploading'
+  syncStatus.value = '同步中...'
+
+  try {
+    const result = await store.syncDocuments()
+    syncStatusType.value = 'success'
+    const { added, modified, deleted, unchanged } = result.result
+    syncStatus.value = `同步完成: 新增 ${added}, 修改 ${modified}, 删除 ${deleted}, 未变 ${unchanged}`
+    await refresh()
+  } catch (error) {
+    syncStatusType.value = 'error'
+    syncStatus.value = `同步失败: ${error.message}`
+  } finally {
+    syncing.value = false
   }
 }
 

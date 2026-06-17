@@ -16,6 +16,7 @@ class EmbeddingService:
     """Embedding 服务：加载 BGE-M3 模型，提供向量编码接口
 
     特性：
+    - 延迟加载模型，首次使用时才加载（避免启动阻塞）
     - 自动检测 GPU，有 CUDA 时使用 GPU + FP16 加速
     - LRU 缓存避免重复编码
     - 长文本自动截断到模型最大长度
@@ -27,27 +28,43 @@ class EmbeddingService:
             model_path: 模型路径或 HuggingFace 模型 ID
             cache_size: embedding LRU 缓存大小，0 禁用
         """
-        import torch
-
-        # GPU 自动检测
-        if torch.cuda.is_available():
-            device = "cuda"
-            dtype = torch.float16
-            logger.info("Embedding: using GPU (%s), FP16", torch.cuda.get_device_name(0))
-        else:
-            device = "cpu"
-            dtype = torch.float32
-            logger.info("Embedding: using CPU, FP32")
-
-        self.model = SentenceTransformer(model_path, device=device)
-        self.model.to(dtype=dtype)
-        self.device = device
+        self._model_path = model_path
+        self._model = None
+        self._device = None
+        self._loaded = False
 
         # LRU 缓存
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
         self._cache_size = cache_size
         self._cache_hits = 0
         self._cache_misses = 0
+
+    @property
+    def model(self):
+        """延迟加载模型（首次使用时才加载）"""
+        if self._model is None:
+            self._load_model()
+        return self._model
+
+    def _load_model(self):
+        """实际加载模型（内部方法）"""
+        import torch
+
+        # GPU 自动检测
+        if torch.cuda.is_available():
+            self._device = "cuda"
+            dtype = torch.float16
+            logger.info("Embedding: loading GPU model (%s), FP16", torch.cuda.get_device_name(0))
+        else:
+            self._device = "cpu"
+            dtype = torch.float32
+            logger.info("Embedding: loading CPU model, FP32")
+
+        logger.info("Loading embedding model from: %s ...", self._model_path)
+        self._model = SentenceTransformer(self._model_path, device=self._device)
+        self._model.to(dtype=dtype)
+        self._loaded = True
+        logger.info("Embedding model loaded successfully")
 
     def encode(self, texts: list[str], show_progress: bool = False) -> list[list[float]]:
         """批量编码文本为向量（带缓存）
@@ -61,6 +78,9 @@ class EmbeddingService:
         """
         if not texts:
             return []
+
+        # 确保模型已加载
+        _ = self.model
 
         results: list[list[float] | None] = [None] * len(texts)
         to_encode_idx: list[int] = []
@@ -100,6 +120,9 @@ class EmbeddingService:
         Returns:
             向量
         """
+        # 确保模型已加载
+        _ = self.model
+
         truncated = self._truncate(text)
         cached = self._cache_get(truncated)
         if cached is not None:

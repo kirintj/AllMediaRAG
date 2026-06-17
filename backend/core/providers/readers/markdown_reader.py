@@ -10,6 +10,19 @@ from ..base import FileReader
 logger = logging.getLogger(__name__)
 
 
+def _read_with_encoding_detection(file_path: str) -> str:
+    """读取文本文件，自动检测编码"""
+    encodings = ['utf-8', 'utf-16', 'gbk', 'gb2312', 'latin-1']
+    for enc in encodings:
+        try:
+            with open(file_path, 'r', encoding=enc) as f:
+                return f.read()
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        return f.read()
+
+
 class MarkdownReader(FileReader):
     """Markdown 文档读取器
 
@@ -37,11 +50,9 @@ class MarkdownReader(FileReader):
             )
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                md_text = f.read()
-        except UnicodeDecodeError:
-            # 回退到系统默认编码
-            with open(file_path, "r") as f:
+            md_text = _read_with_encoding_detection(file_path)
+        except Exception:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 md_text = f.read()
 
         html = markdown.markdown(

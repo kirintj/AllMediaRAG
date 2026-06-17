@@ -17,8 +17,6 @@ from core.document_processor import DocumentProcessor
 from core.bm25_retriever import BM25Retriever
 from core.query_understanding.classifier import QueryClassifier
 from core.query_understanding.router import QueryRouter
-from core.query_understanding.hyde_generator import HyDEGenerator
-from core.query_understanding.multi_query import MultiQueryGenerator
 from core.query_understanding.rewriters import HyDERewriter, MultiQueryRewriter
 from core.reranking.manager import RerankManager
 from core.performance.cache.manager import CacheManager
@@ -53,6 +51,9 @@ class RAGEngine:
             config: 配置对象
             use_factory: 是否使用工厂模式创建组件
         """
+        # 共享线程池（避免每次请求创建/销毁）
+        self._executor = ThreadPoolExecutor(max_workers=3)
+
         # 1. 模式特定初始化：仅创建 embedding_service, vector_store, llm_client
         if use_factory:
             self._init_with_factory(config)
@@ -106,10 +107,8 @@ class RAGEngine:
         # 查询理解层
         self.classifier = QueryClassifier()
         self.router = QueryRouter()
-        self.hyde_generator = HyDEGenerator(self.llm_client)
-        self.multi_query_generator = MultiQueryGenerator(self.llm_client)
 
-        # 查询改写器注册表
+        # 查询改写器注册表（统一入口，替代直接实例化 generator）
         self.rewriters: dict = {}
         if config.USE_HYDE:
             self.rewriters["hyde"] = HyDERewriter(self.llm_client)
@@ -148,6 +147,11 @@ class RAGEngine:
         )
         self._citation_verify_enabled = getattr(config, 'CITATION_VERIFY_ENABLED', True)
 
+        # Self-RAG 反思（仅对复杂查询启用）
+        from core.verification.self_rag_reflector import SelfRAGReflector
+        self.self_rag_reflector = SelfRAGReflector(llm_client=self.llm_client)
+        self._self_rag_enabled = getattr(config, 'SELF_RAG_ENABLED', True)
+
         # 低置信度二次检索
         self.confidence_evaluator = ConfidenceEvaluator(
             threshold=config.SIMILARITY_THRESHOLD,
@@ -160,6 +164,7 @@ class RAGEngine:
         self.multi_query_enabled = config.MULTI_QUERY_ENABLED
         self.multi_query_count = config.MULTI_QUERY_COUNT
         self.rerank_top_k = config.RERANK_TOP_K
+        self.rerank_gate_threshold = getattr(config, 'RERANK_GATE_THRESHOLD', 0.3)
 
     def _init_direct(self, config):
         """直接模式初始化：仅创建 embedding_service, vector_store, llm_client
@@ -242,8 +247,29 @@ class RAGEngine:
             self._bm25_ready = True
 
     def close(self):
-        """关闭引擎，释放资源（数据库连接池等）"""
+        """关闭引擎，释放资源（数据库连接池、模型、线程池等）"""
         try:
+            # 关闭共享线程池
+            if hasattr(self, '_executor'):
+                self._executor.shutdown(wait=False)
+
+            # 释放 embedding 模型
+            if hasattr(self, 'embedding_service') and self.embedding_service:
+                self.embedding_service._model = None
+
+            # 释放 reranker 模型
+            if hasattr(self, 'reranker') and self.reranker:
+                if hasattr(self.reranker, '_model'):
+                    self.reranker._model = None
+
+            # 释放 PyTorch GPU 缓存
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
+
             if hasattr(self.vector_store, 'close'):
                 self.vector_store.close()
             if hasattr(self.index_manager, 'close'):
@@ -317,7 +343,7 @@ class RAGEngine:
         Returns:
             ChunkingStrategy 实例
         """
-        from core.chunking import SemanticChunking, FixedSizeChunking, RecursiveChunking
+        from core.chunking import SemanticChunking, FixedSizeChunking, RecursiveChunking, ParentChildChunking
 
         strategy_name = getattr(config, 'CHUNKING_STRATEGY', 'semantic')
 
@@ -330,6 +356,12 @@ class RAGEngine:
             strategy = RecursiveChunking(
                 chunk_size=config.CHUNK_SIZE,
                 chunk_overlap=config.CHUNK_OVERLAP,
+            )
+        elif strategy_name == "parent_child":
+            strategy = ParentChildChunking(
+                child_sentences=getattr(config, 'PC_CHILD_SENTENCES', 3),
+                parent_groups=getattr(config, 'PC_PARENT_GROUPS', 4),
+                overlap_sentences=getattr(config, 'PC_OVERLAP_SENTENCES', 1),
             )
         else:
             # 默认语义切分
@@ -370,12 +402,22 @@ class RAGEngine:
         return registry
 
     def _wait_bm25_ready(self, timeout: float = 30.0):
-        """等待 BM25 索引就绪（带超时）"""
+        """等待 BM25 索引就绪（同步版本，仅在同步上下文使用）"""
         if self._bm25_ready:
             return
         deadline = time.time() + timeout
         while not self._bm25_ready and time.time() < deadline:
             time.sleep(0.1)
+        if not self._bm25_ready:
+            logger.warning("BM25 index not ready after %.1fs, proceeding without it", timeout)
+
+    async def _wait_bm25_ready_async(self, timeout: float = 30.0):
+        """等待 BM25 索引就绪（异步版本，不阻塞事件循环）"""
+        if self._bm25_ready:
+            return
+        deadline = time.time() + timeout
+        while not self._bm25_ready and time.time() < deadline:
+            await asyncio.sleep(0.2)
         if not self._bm25_ready:
             logger.warning("BM25 index not ready after %.1fs, proceeding without it", timeout)
 
@@ -411,32 +453,41 @@ class RAGEngine:
         Returns:
             (intent, hyde_doc, queries)
         """
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            intent_f = executor.submit(self.classifier.classify, query)
-            hyde_f = executor.submit(
-                self.hyde_generator.generate_hypothetical_document, query, None
-            )
+        executor = self._executor
+        intent_f = executor.submit(self.classifier.classify, query)
+
+        hyde_f = None
+        if "hyde" in self.rewriters:
+            hyde_f = executor.submit(self.rewriters["hyde"].rewrite_sync, query)
+
+        mq_f = None
+        if "multi_query" in self.rewriters:
             mq_f = executor.submit(
-                self.multi_query_generator.generate_queries, query, self.multi_query_count
+                self.rewriters["multi_query"].rewrite_sync, query,
+                {"num_queries": self.multi_query_count}
             )
 
-            try:
-                intent = intent_f.result()
-            except Exception as e:
-                logger.warning("Classifier failed: %s", e)
-                intent = {"intent_type": "factoid", "confidence": 0.5, "complexity": "medium"}
+        try:
+            intent = intent_f.result()
+        except Exception as e:
+            logger.warning("Classifier failed: %s", e)
+            intent = {"intent_type": "factoid", "confidence": 0.5, "complexity": "medium"}
 
+        hyde_doc = None
+        if hyde_f is not None:
             try:
-                hyde_doc = hyde_f.result()
+                hyde_results = hyde_f.result()
+                hyde_doc = hyde_results[0] if hyde_results else None
             except Exception as e:
                 logger.warning("HyDE failed: %s", e)
-                hyde_doc = None
 
+        queries = [query]
+        if mq_f is not None:
             try:
-                queries = mq_f.result()
+                mq_variants = mq_f.result()
+                queries = [query] + mq_variants
             except Exception as e:
                 logger.warning("Multi-query failed: %s", e)
-                queries = [query]
 
         return intent, hyde_doc, queries
 
@@ -449,40 +500,41 @@ class RAGEngine:
         all_bm25_results = []
 
         # 批量编码 + 向量/BM25 并行检索
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            def vector_search():
-                results = []
-                embeddings = self.embedding_service.encode(search_queries)
-                for q_text, emb in zip(search_queries, embeddings):
-                    try:
-                        raw = self.vector_store.query(emb, self.bm25_top_k)
-                        for doc, meta, dist in zip(
-                            raw["documents"], raw["metadatas"], raw["distances"]
-                        ):
-                            results.append({
-                                "id": f"vec_{hashlib.sha256(doc.encode('utf-8')).hexdigest()[:16]}",
-                                "text": doc, "metadata": meta, "distance": dist,
-                            })
-                    except Exception as e:
-                        logger.warning("Vector retrieval failed for '%s': %s", q_text[:30], e)
-                return results
+        executor = self._executor
 
-            def bm25_search():
-                results = []
-                for q_text in search_queries:
-                    try:
-                        for r in self.bm25_retriever.search(q_text, self.bm25_top_k):
-                            results.append({
-                                "id": r["id"], "text": r["text"], "metadata": r["metadata"],
-                            })
-                    except Exception as e:
-                        logger.warning("BM25 retrieval failed for '%s': %s", q_text[:30], e)
-                return results
+        def vector_search():
+            results = []
+            embeddings = self.embedding_service.encode(search_queries)
+            for q_text, emb in zip(search_queries, embeddings):
+                try:
+                    raw = self.vector_store.query(emb, self.bm25_top_k)
+                    for doc, meta, dist in zip(
+                        raw["documents"], raw["metadatas"], raw["distances"]
+                    ):
+                        results.append({
+                            "id": f"vec_{hashlib.sha256(doc.encode('utf-8')).hexdigest()[:16]}",
+                            "text": doc, "metadata": meta, "distance": dist,
+                        })
+                except Exception as e:
+                    logger.warning("Vector retrieval failed for '%s': %s", q_text[:30], e)
+            return results
 
-            vec_f = executor.submit(vector_search)
-            bm25_f = executor.submit(bm25_search)
-            all_vector_results = vec_f.result()
-            all_bm25_results = bm25_f.result()
+        def bm25_search():
+            results = []
+            for q_text in search_queries:
+                try:
+                    for r in self.bm25_retriever.search(q_text, self.bm25_top_k):
+                        results.append({
+                            "id": r["id"], "text": r["text"], "metadata": r["metadata"],
+                        })
+                except Exception as e:
+                    logger.warning("BM25 retrieval failed for '%s': %s", q_text[:30], e)
+            return results
+
+        vec_f = executor.submit(vector_search)
+        bm25_f = executor.submit(bm25_search)
+        all_vector_results = vec_f.result()
+        all_bm25_results = bm25_f.result()
 
         t_search = time.time()
         logger.debug("Retrieval: %.0fms (queries=%d, vec=%d, bm25=%d)",
@@ -505,6 +557,18 @@ class RAGEngine:
                 deduplicated.append(doc)
                 source_counts[src] += 1
 
+        # RRF 分数过滤：移除明显不相关的文档（低于最高分 15%）
+        if deduplicated and len(deduplicated) > retrieve_top_k:
+            top_rrf = deduplicated[0].get("rrf_score", 0)
+            if top_rrf > 0:
+                threshold = top_rrf * 0.15
+                filtered = [d for d in deduplicated if d.get("rrf_score", 0) >= threshold]
+                # 保留最少 retrieve_top_k 个候选，避免过滤过激
+                if len(filtered) >= retrieve_top_k:
+                    deduplicated = filtered
+                    logger.debug("RRF filter: %d -> %d docs (threshold=%.4f)",
+                                 len(fused), len(deduplicated), threshold)
+
         # 重排序
         try:
             reranked = self.rerank_manager.rerank(query, deduplicated, top_k=retrieve_top_k)
@@ -513,6 +577,20 @@ class RAGEngine:
             reranked = deduplicated[:retrieve_top_k]
 
         t_rerank = time.time()
+
+        # 相关性门控：移除 rerank 分数过低的噪音文档
+        if reranked and len(reranked) > self.top_k:
+            gated = [d for d in reranked
+                     if d.get("rerank_score", 0) >= self.rerank_gate_threshold]
+            if len(gated) >= self.top_k:
+                logger.debug("Rerank gate: %d -> %d docs (threshold=%.2f)",
+                             len(reranked), len(gated), self.rerank_gate_threshold)
+                reranked = gated
+            elif gated:
+                # 门控后不足，但仍有一些通过，补充到 top_k
+                logger.debug("Rerank gate: only %d passed (need %d), keeping top results",
+                             len(gated), self.top_k)
+
         logger.debug("Rerank: %.0fms, total: %.0fms",
                       (t_rerank - t_search) * 1000, (t_rerank - t0) * 1000)
 
@@ -521,6 +599,7 @@ class RAGEngine:
             "documents": [d["text"] for d in top_docs],
             "metadatas": [d["metadata"] for d in top_docs],
             "distances": [d.get("distance", d.get("rerank_score", 0.0)) for d in top_docs],
+            "reranked": True,
         }
 
     def ingest_document(self, file_path: str) -> int:
@@ -571,7 +650,7 @@ class RAGEngine:
         return len(chunks)
 
     def retrieve(self, query: str, top_k: int = None) -> dict:
-        """检索相关文档（混合检索）
+        """检索相关文档（完整管道）
 
         Args:
             query: 用户查询
@@ -580,7 +659,7 @@ class RAGEngine:
         Returns:
             检索结果
         """
-        return self.hybrid_retrieve(query)
+        return self.full_retrieve(query)
 
     def full_retrieve(self, query: str) -> dict:
         """完整检索管道（同步版本，兼容 query_stream）
@@ -617,28 +696,29 @@ class RAGEngine:
         queries = [query]
 
         if need_hyde or need_mq:
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                futures = {}
-                if need_hyde:
-                    futures["hyde"] = executor.submit(
-                        self.hyde_generator.generate_hypothetical_document,
-                        query, intent.get("intent_type")
-                    )
-                if need_mq:
-                    num_queries = route_config.get("num_queries", self.multi_query_count)
-                    futures["mq"] = executor.submit(
-                        self.multi_query_generator.generate_queries, query, num_queries
-                    )
+            executor = self._executor
+            futures = {}
+            if need_hyde and "hyde" in self.rewriters:
+                futures["hyde"] = executor.submit(
+                    self.rewriters["hyde"].rewrite_sync, query,
+                    {"intent_type": intent.get("intent_type")}
+                )
+            if need_mq and "multi_query" in self.rewriters:
+                num_queries = route_config.get("num_queries", self.multi_query_count)
+                futures["mq"] = executor.submit(
+                    self.rewriters["multi_query"].rewrite_sync, query,
+                    {"num_queries": num_queries}
+                )
 
-                for key, fut in futures.items():
-                    try:
-                        result = fut.result()
-                        if key == "hyde":
-                            hyde_doc = result
-                        elif key == "mq":
-                            queries = result
-                    except Exception as e:
-                        logger.warning("%s failed: %s", key, e)
+            for key, fut in futures.items():
+                try:
+                    result = fut.result()
+                    if key == "hyde":
+                        hyde_doc = result[0] if result else None
+                    elif key == "mq":
+                        queries = [query] + result
+                except Exception as e:
+                    logger.warning("%s failed: %s", key, e)
 
         # 4. 路由参数（复用步骤 3 的 route_config）
         vector_weight = route_config.get("weights", {}).get("vector", self.rrf_weight_vector)
@@ -663,7 +743,11 @@ class RAGEngine:
                 expanded_top_k = eval_result["suggested_top_k"]
                 # 生成更多查询变体
                 try:
-                    extra_queries = self.multi_query_generator.generate_queries(query, 5)
+                    if "multi_query" in self.rewriters:
+                        extra_variants = self.rewriters["multi_query"].rewrite_sync(query, {"num_queries": 5})
+                        extra_queries = [query] + extra_variants
+                    else:
+                        extra_queries = search_queries
                     expanded_search_queries = list(set(search_queries + extra_queries))
                 except Exception as e:
                     logger.warning("Extra query generation failed: %s", e)
@@ -699,7 +783,7 @@ class RAGEngine:
             return {"documents": [], "metadatas": [], "distances": []}
 
         t_total = time.time()
-        self._wait_bm25_ready()
+        await self._wait_bm25_ready_async()
 
         # 1. 归一化缓存 key
         cache_key = f"rag:{hashlib.md5(self._normalize_query(query).encode()).hexdigest()}"
@@ -731,27 +815,30 @@ class RAGEngine:
         if need_hyde or need_mq:
             # 只跑需要的部分，仍然并行
             tasks = {}
-            if need_hyde:
+            if need_hyde and "hyde" in self.rewriters:
                 tasks["hyde"] = asyncio.to_thread(
-                    self.hyde_generator.generate_hypothetical_document, query,
-                    intent.get("intent_type")
+                    self.rewriters["hyde"].rewrite_sync, query,
+                    {"intent_type": intent.get("intent_type")}
                 )
-            if need_mq:
+            if need_mq and "multi_query" in self.rewriters:
                 num_queries = route_config.get("num_queries", self.multi_query_count)
                 tasks["mq"] = asyncio.to_thread(
-                    self.multi_query_generator.generate_queries, query, num_queries
+                    self.rewriters["multi_query"].rewrite_sync, query,
+                    {"num_queries": num_queries}
                 )
 
             results = await asyncio.gather(*tasks.values(), return_exceptions=True)
             for key, result in zip(tasks.keys(), results):
                 if key == "hyde":
-                    hyde_doc = result if not isinstance(result, Exception) else None
                     if isinstance(result, Exception):
                         logger.warning("HyDE failed: %s", result)
+                    else:
+                        hyde_doc = result[0] if result else None
                 elif key == "mq":
-                    queries = result if not isinstance(result, Exception) else [query]
                     if isinstance(result, Exception):
                         logger.warning("Multi-query failed: %s", result)
+                    else:
+                        queries = [query] + result
 
             logger.debug("HyDE+MQ: %.0fms (hyde=%s, mq=%s)",
                           (time.time() - t_classify) * 1000, need_hyde, need_mq)
@@ -782,9 +869,13 @@ class RAGEngine:
                 expanded_top_k = eval_result["suggested_top_k"]
                 # 生成更多查询变体
                 try:
-                    extra_queries = await asyncio.to_thread(
-                        self.multi_query_generator.generate_queries, query, 5
-                    )
+                    if "multi_query" in self.rewriters:
+                        extra_variants = await asyncio.to_thread(
+                            self.rewriters["multi_query"].rewrite_sync, query, {"num_queries": 5}
+                        )
+                        extra_queries = [query] + extra_variants
+                    else:
+                        extra_queries = search_queries
                     expanded_search_queries = list(set(search_queries + extra_queries))
                 except Exception as e:
                     logger.warning("Extra query generation failed: %s", e)
@@ -857,7 +948,7 @@ class RAGEngine:
             k: RRF 常数
 
         Returns:
-            融合后的排序结果
+            融合后的排序结果，每个 doc 包含 rrf_score 字段
         """
         score_map = {}  # id -> (total_score, doc_dict)
 
@@ -875,7 +966,13 @@ class RAGEngine:
                     score_map[doc_id] = (rrf_score, doc)
 
         sorted_docs = sorted(score_map.values(), key=lambda x: x[0], reverse=True)
-        return [doc for _, doc in sorted_docs]
+        # 将 RRF 分数注入文档中，供后续过滤使用
+        result = []
+        for score, doc in sorted_docs:
+            enriched = dict(doc)
+            enriched["rrf_score"] = score
+            result.append(enriched)
+        return result
 
     def hybrid_retrieve(self, query: str) -> dict:
         """混合检索：向量 + BM25，RRF 融合
@@ -938,53 +1035,75 @@ class RAGEngine:
         }
 
     def build_prompt(self, query: str, contexts: list[dict], history: list[dict] = None) -> str:
-        """构建 Prompt
+        """构建结构化 Prompt
+
+        改进点：
+        - 按来源去重并标注可靠性（high/medium/low）
+        - 明确引用格式指令
+        - 区分"文档支持的回答"和"推测"
 
         Args:
             query: 用户问题
-            contexts: 检索到的上下文
+            contexts: 检索到的上下文 [{"text": str, "metadata": dict}, ...]
             history: 对话历史 [{role, content}, ...]，由调用方传入
 
         Returns:
             完整的 Prompt
         """
+        # 按来源去重，保留每个来源中最相关的 chunk
+        seen_sources = {}
+        for ctx in contexts:
+            source = ctx["metadata"].get("source", "未知")
+            if source not in seen_sources:
+                seen_sources[source] = []
+            seen_sources[source].append(ctx)
+
+        # 构建结构化上下文（Parent-Child 策略自动使用 parent 文本）
         context_parts = []
-        for i, ctx in enumerate(contexts, 1):
-            source = ctx["metadata"]["source"]
-            section = ctx["metadata"]["section"]
-            context_parts.append(f"[来源 {i}: {source} - {section}]\n{ctx['text']}")
+        for i, (source, chunks) in enumerate(seen_sources.items(), 1):
+            texts = [c["metadata"].get("parent_text", c["text"]) for c in chunks[:2]]
+            combined_text = "\n...\n".join(texts)
+            section = chunks[0]["metadata"].get("section", "")
+            label = f"{source} - {section}" if section else source
+            context_parts.append(f"[来源 {i}] {label}\n{combined_text}")
 
         context_str = "\n\n".join(context_parts)
 
+        # 对话历史
         history_str = ""
         if history:
             history_lines = []
-            for msg in history:
+            for msg in history[-10:]:  # 最多保留最近 10 轮
                 role = "用户" if msg["role"] == "user" else "助手"
                 history_lines.append(f"{role}: {msg['content']}")
             history_str = "\n".join(history_lines)
 
-        prompt = f"""你是一个知识库文档问答助手。请基于以下参考文档内容回答用户问题。
+        prompt = f"""你是一个知识库文档问答助手。请基于以下参考文档回答用户问题。
 
-要求：
-1. 仅基于提供的文档内容回答，不要编造信息
-2. 如果文档中没有相关信息，请明确说明"文档中未找到相关信息"
-3. 回答要准确、简洁，必要时引用代码示例
-4. 在回答末尾标注引用的文档来源
-5. 结合对话历史理解上下文，避免重复已说明的内容
+## 参考文档
 
----参考文档---
 {context_str}
+
+## 回答要求
+
+1. **优先引用高相关度来源**，使用 [来源 N] 格式标注信息出处
+2. **仅基于文档内容回答**，不要编造文档中不存在的信息
+3. 如果参考文档不足以完整回答，明确说明哪些部分是基于文档、哪些是推测
+4. 对于多部分问题，逐点结构化回答
+5. 必要时引用代码示例，保持格式清晰
+6. 结合对话历史理解上下文，避免重复已说明的内容
 """
 
         if history_str:
             prompt += f"""
----对话历史---
+## 对话历史
+
 {history_str}
 """
 
         prompt += f"""
----用户问题---
+## 用户问题
+
 {query}"""
 
         return prompt
@@ -1001,11 +1120,20 @@ class RAGEngine:
         """
         results = self.full_retrieve(question)
 
+        # 查询分类（用于决定是否启用 Self-RAG）
+        try:
+            intent = self.classifier.classify(question)
+            intent_type = intent.get("intent_type", "factoid")
+        except Exception:
+            intent_type = "factoid"
+
         # 将 results 转换为 contexts 格式
+        # Parent-Child 策略：如果 metadata 中有 parent_text，用 parent 替换 child
         contexts = []
         for doc, meta in zip(results["documents"], results["metadatas"]):
+            text = meta.get("parent_text", doc)
             contexts.append({
-                "text": doc,
+                "text": text,
                 "metadata": meta
             })
 
@@ -1027,6 +1155,26 @@ class RAGEngine:
                 "full_answer": full_answer,
                 "sources": sources
             }
+
+        # Self-RAG 反思（仅对复杂查询启用）
+        reflection = None
+        if (self._self_rag_enabled
+                and self.self_rag_reflector.should_reflect(intent_type)
+                and contexts and full_answer.strip()):
+            try:
+                reflection = self.self_rag_reflector.reflect(question, full_answer, contexts)
+                if reflection and reflection.get("has_gaps") and reflection.get("supplement"):
+                    # 将补充内容追加到回答
+                    supplement = reflection["supplement"]
+                    full_answer += f"\n\n**补充说明：**\n{supplement}"
+                    # 更新流式输出的最终结果
+                    yield {
+                        "answer_chunk": f"\n\n**补充说明：**\n{supplement}",
+                        "full_answer": full_answer,
+                        "sources": sources,
+                    }
+            except Exception as e:
+                logger.warning("Self-RAG reflection failed: %s", e)
 
         # 流式结束后进行引用核查
         verification = None

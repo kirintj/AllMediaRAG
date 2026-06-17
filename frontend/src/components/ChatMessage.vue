@@ -46,6 +46,35 @@
         </div>
       </div>
 
+      <!-- 引用核查 -->
+      <div v-if="message.verification" class="verification-block">
+        <div class="verification-header" @click="toggleVerification">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>引用核查</span>
+          <span class="verification-badge" :class="verificationRiskClass">
+            {{ verificationRiskText }}
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="chevron" :class="{ expanded: showVerification }">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div v-if="showVerification" class="verification-details">
+          <div class="verification-item">
+            <span class="label">置信度:</span>
+            <span class="value">{{ (message.verification.confidence * 100).toFixed(0) }}%</span>
+          </div>
+          <div v-if="message.verification.unsupported_claims && message.verification.unsupported_claims.length > 0" class="verification-item">
+            <span class="label">无支撑断言:</span>
+            <span class="value warning">{{ message.verification.unsupported_claims.length }} 条</span>
+          </div>
+          <div v-if="message.verification.suggested_disclaimer" class="verification-disclaimer">
+            {{ message.verification.suggested_disclaimer }}
+          </div>
+        </div>
+      </div>
+
       <!-- 耗时 -->
       <div v-if="message.role === 'assistant' && message.elapsed != null" class="message-timing">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -59,13 +88,35 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   message: {
     type: Object,
     required: true
   }
+})
+
+const showVerification = ref(false)
+
+function toggleVerification() {
+  showVerification.value = !showVerification.value
+}
+
+const verificationRiskClass = computed(() => {
+  if (!props.message.verification) return ''
+  const risk = props.message.verification.hallucination_risk
+  if (risk === 'high') return 'risk-high'
+  if (risk === 'medium') return 'risk-medium'
+  return 'risk-low'
+})
+
+const verificationRiskText = computed(() => {
+  if (!props.message.verification) return ''
+  const risk = props.message.verification.hallucination_risk
+  if (risk === 'high') return '高风险'
+  if (risk === 'medium') return '中风险'
+  return '低风险'
 })
 
 const formattedContent = computed(() => {
@@ -256,6 +307,97 @@ const formattedElapsed = computed(() => {
 
 .source-chip:hover {
   transform: none;
+}
+
+/* ── 引用核查 ── */
+.verification-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--hm-bg-container-secondary);
+  border-radius: var(--hm-radius-md);
+  border: 1px solid var(--hm-border);
+}
+
+.verification-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hm-font-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.verification-header:hover {
+  color: var(--hm-font-primary);
+}
+
+.verification-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.verification-badge.risk-low {
+  background: rgba(100, 187, 92, 0.1);
+  color: var(--hm-success);
+}
+
+.verification-badge.risk-medium {
+  background: rgba(255, 183, 77, 0.1);
+  color: #e6a23c;
+}
+
+.verification-badge.risk-high {
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+}
+
+.chevron {
+  transition: transform 0.2s;
+}
+
+.chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.verification-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hm-border);
+}
+
+.verification-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.verification-item .label {
+  color: var(--hm-font-tertiary);
+}
+
+.verification-item .value {
+  color: var(--hm-font-primary);
+  font-weight: 500;
+}
+
+.verification-item .value.warning {
+  color: #e6a23c;
+}
+
+.verification-disclaimer {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 183, 77, 0.05);
+  border-radius: var(--hm-radius-sm);
+  font-size: 11px;
+  color: var(--hm-font-secondary);
+  line-height: 1.5;
 }
 
 /* ── 耗时 ── */

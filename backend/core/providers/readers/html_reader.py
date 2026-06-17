@@ -14,6 +14,19 @@ logger = logging.getLogger(__name__)
 _REMOVE_TAGS = {"nav", "footer", "script", "style", "header", "aside"}
 
 
+def _read_with_encoding_detection(file_path: str) -> str:
+    """读取文本文件，自动检测编码"""
+    encodings = ['utf-8', 'utf-16', 'gbk', 'gb2312', 'latin-1']
+    for enc in encodings:
+        try:
+            with open(file_path, 'r', encoding=enc) as f:
+                return f.read()
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        return f.read()
+
+
 class HtmlReader(FileReader):
     """HTML 文档读取器
 
@@ -42,10 +55,9 @@ class HtmlReader(FileReader):
             )
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
-        except UnicodeDecodeError:
-            with open(file_path, "r") as f:
+            html_content = _read_with_encoding_detection(file_path)
+        except Exception:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")

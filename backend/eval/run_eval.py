@@ -133,9 +133,9 @@ def main():
     )
     parser.add_argument(
         "--framework",
-        choices=["custom", "ragas"],
+        choices=["custom", "ragas", "both"],
         default="custom",
-        help="评估框架: custom (自研) 或 ragas (RAGAS 标准) (default: custom)"
+        help="评估框架: custom (自研), ragas (RAGAS 标准), both (同时运行两者) (default: custom)"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -178,66 +178,82 @@ def main():
     with open(dataset_path, "r", encoding="utf-8") as f:
         dataset = json.load(f)
 
-    if args.framework == "ragas":
-        # ── RAGAS 标准评估 ──────────────────────────────────────
-        from eval.ragas_evaluator import RAGASEvaluator
+    frameworks_to_run = [args.framework] if args.framework != "both" else ["custom", "ragas"]
 
-        # RAGAS 需要 contexts 字段；如果数据集没有，用引擎预填充
-        needs_prefill = any("contexts" not in s for s in dataset)
-        if needs_prefill:
-            print("正在初始化 RAG 引擎（为 RAGAS 预填充 contexts）...")
+    for fw in frameworks_to_run:
+        if len(frameworks_to_run) > 1:
+            print(f"\n{'='*30} {fw.upper()} {'='*30}")
+
+        if fw == "ragas":
+            # ── RAGAS 标准评估 ──────────────────────────────────────
+            from eval.ragas_evaluator import RAGASEvaluator
+
+            # RAGAS 需要 contexts 字段；如果数据集没有，用引擎预填充
+            needs_prefill = any("contexts" not in s for s in dataset)
+            if needs_prefill:
+                print("正在初始化 RAG 引擎（为 RAGAS 预填充 contexts）...")
+                engine = RAGEngine(config)
+                llm_client = LLMClient(
+                    config.MIMO_API_KEY,
+                    config.MIMO_API_BASE,
+                    config.MIMO_MODEL,
+                )
+                for sample in dataset:
+                    if "contexts" not in sample:
+                        rag_result = engine.full_retrieve(sample["question"])
+                        sample["contexts"] = rag_result["documents"]
+                        metadatas = rag_result.get("metadatas", [])
+                    else:
+                        metadatas = []
+                    if "answer" not in sample or not sample["answer"]:
+                        prompt = engine.build_prompt(sample["question"], [
+                            {"text": ctx, "metadata": meta}
+                            for ctx, meta in zip(
+                                sample.get("contexts", []),
+                                metadatas if metadatas else [{}] * len(sample.get("contexts", []))
+                            )
+                        ])
+                        sample["answer"] = llm_client.generate(prompt)
+                    # RAGAS 使用 ground_truth 字段
+                    if "ground_truth" not in sample:
+                        sample["ground_truth"] = sample.get("reference_answer", "")
+
+            print("正在运行 RAGAS 评估...")
+            ragas_evaluator = RAGASEvaluator()
+            report = ragas_evaluator.evaluate(dataset)
+
+        else:
+            # ── 自研评估器（原有流程，保持不变）──────────────────────
+            print("正在初始化 RAG 引擎...")
             engine = RAGEngine(config)
+
             llm_client = LLMClient(
                 config.MIMO_API_KEY,
                 config.MIMO_API_BASE,
                 config.MIMO_MODEL,
             )
-            for sample in dataset:
-                if "contexts" not in sample:
-                    rag_result = engine.full_retrieve(sample["question"])
-                    sample["contexts"] = rag_result["documents"]
-                    metadatas = rag_result.get("metadatas", [])
-                else:
-                    metadatas = []
-                if "answer" not in sample or not sample["answer"]:
-                    prompt = engine.build_prompt(sample["question"], [
-                        {"text": ctx, "metadata": meta}
-                        for ctx, meta in zip(
-                            sample.get("contexts", []),
-                            metadatas if metadatas else [{}] * len(sample.get("contexts", []))
-                        )
-                    ])
-                    sample["answer"] = llm_client.generate(prompt)
-                # RAGAS 使用 ground_truth 字段
-                if "ground_truth" not in sample:
-                    sample["ground_truth"] = sample.get("reference_answer", "")
 
-        print("正在运行 RAGAS 评估...")
-        ragas_evaluator = RAGASEvaluator()
-        report = ragas_evaluator.evaluate(dataset)
+            evaluator = RAGEvaluator(engine, llm_client)
 
-    else:
-        # ── 自研评估器（原有流程，保持不变）──────────────────────
-        print("正在初始化 RAG 引擎...")
-        engine = RAGEngine(config)
+            print("正在运行评估...")
+            report = evaluator.run(str(dataset_path), top_k=args.top_k)
 
-        llm_client = LLMClient(
-            config.MIMO_API_KEY,
-            config.MIMO_API_BASE,
-            config.MIMO_MODEL,
-        )
+        # 保存报告
+        if len(frameworks_to_run) > 1:
+            fw_report_path = report_path.parent / f"report_{fw}{report_path.suffix}"
+        else:
+            fw_report_path = report_path
 
-        evaluator = RAGEvaluator(engine, llm_client)
+        with open(fw_report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
 
-        print("正在运行评估...")
-        report = evaluator.run(str(dataset_path), top_k=args.top_k)
+        print_report(report, verbose=args.verbose)
+        print(f"\n详细结果已保存到: {fw_report_path}")
 
-    # 保存详细报告
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
-
-    print_report(report, verbose=args.verbose)
-    print(f"\n详细结果已保存到: {report_path}")
+    # 同时运行两者时，保存合并报告
+    if len(frameworks_to_run) > 1:
+        print(f"\n{'='*30} 对比总结 {'='*30}")
+        print("自研框架和 RAGAS 的报告已分别保存，可直接对比指标差异。")
 
 
 if __name__ == "__main__":

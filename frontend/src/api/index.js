@@ -115,8 +115,11 @@ export async function chatStream(message, mode, onChunk, conversationId, history
                 onChunk(data)
                 return
               }
-              // 收到结束标记直接返回
-              if (data.done) return
+              // 收到结束标记（可能包含 verification）
+              if (data.done) {
+                onChunk(data)
+                return
+              }
               onChunk(data)
             }
           } catch (e) {
@@ -174,6 +177,11 @@ export async function loadDocuments() {
   return response.data
 }
 
+export async function getLoadStatus() {
+  const response = await api.get('/documents/load/status')
+  return response.data
+}
+
 export async function getStats() {
   const response = await api.get('/stats')
   return response.data
@@ -186,6 +194,11 @@ export async function deleteDocument(source) {
 
 export async function clearAllDocuments() {
   const response = await api.delete('/documents')
+  return response.data
+}
+
+export async function syncDocuments() {
+  const response = await api.post('/documents/sync')
   return response.data
 }
 

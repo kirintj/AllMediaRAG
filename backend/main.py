@@ -35,10 +35,12 @@ init_advanced_config()
 if not config.MIMO_API_KEY:
     logging.warning("MIMO_API_KEY 未配置，LLM 相关功能将不可用")
 
-# 创建共享的 RAG 引擎实例
-rag_engine = RAGEngine(config)
+# 创建共享的 RAG 引擎实例（支持工厂模式配置）
+logging.info("Initializing RAG engine (models will be loaded on first use)...")
+rag_engine = RAGEngine(config, use_factory=config.USE_FACTORY_MODE)
 set_chat_engine(rag_engine)
 set_docs_engine(rag_engine, config)
+logging.info("RAG engine initialized. Server ready!")
 
 app = FastAPI(title="知识库智能问答助手 API")
 
@@ -70,6 +72,13 @@ async def root():
 async def health():
     return {"status": "ok"}
 
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """关闭时释放资源（数据库连接池等）"""
+    if hasattr(rag_engine, 'close'):
+        rag_engine.close()
+
 if __name__ == "__main__":
-    reload = os.getenv("DEV_RELOAD", "true").lower() in ("true", "1", "yes")
+    reload = os.getenv("DEV_RELOAD", "false").lower() in ("true", "1", "yes")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)

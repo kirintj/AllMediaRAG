@@ -1,23 +1,85 @@
 # Environment
 .env
 .env.local
+.env.*.local
+.env.example.local
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
-.pytest_cache/
+*.pyd
+.Python
 *.egg-info/
+*.egg
 dist/
 build/
-venv/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
 .venv/
+venv/
+ENV/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
 
 # Data (generated at runtime)
 chroma_db/
+backend/chroma_db/
 models/
 data/conversations/
+data/users.json
+data/knowledge-base/
+data/eval_results/
 *.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL (local development)
+pgdata/
+postgres_data/
+
+# Alembic
+backend/alembic/versions/__pycache__/
+
+# BM25 index
+*.pkl
+*.pickle
+
+# Index state
+index_state.json
+index_metadata.json
+
+# Model files
+*.pt
+*.pth
+*.bin
+*.onnx
+*.h5
+*.pb
+saved_model/
+.huggingface/
+.cache/huggingface/
+
+# Redis
+redis_data/
+dump.rdb
+appendonly.aof
 
 # Claude Code
 .claude/
@@ -25,16 +87,71 @@ data/conversations/
 # Node
 node_modules/
 frontend/dist/
+frontend/.next/
+frontend/out/
+.npm
+.yarn-integrity
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
 # Superpowers
 .superpowers/
+
+# Docker volumes (local)
+docker-data/
+
+# Misc
+*.bak
+*.tmp
+*.temp
+.cache/
+.DS_Store?
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# SSL certificates
+*.crt
+*.key
+*.pem
+*.pfx
+
+# API keys and credentials
+*.key.json
+credentials.json
+service-account.json
+
+# Monitoring/Metrics
+.prometheus/
+grafana_data/
+prometheus_data/
+
+# CI/CD
+.ci/
+.circleci/local/
+.github/workflows/local/
+
+# Local development overrides
+.local/
+.dev/
+

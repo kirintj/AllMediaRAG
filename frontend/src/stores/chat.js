@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { chatStream, getDocuments, loadDocuments, getStats, deleteDocument, clearAllDocuments, getConversations, getConversation, deleteConversation, clearAllConversations } from '../api'
+import { chatStream, getDocuments, loadDocuments, getLoadStatus, getStats, deleteDocument, clearAllDocuments, syncDocuments as syncDocumentsApi, getConversations, getConversation, deleteConversation, clearAllConversations } from '../api'
 
 export const useChatStore = defineStore('chat', () => {
   // 状态
@@ -72,6 +72,7 @@ export const useChatStore = defineStore('chat', () => {
           role: 'assistant',
           content: data.full_answer || '',
           sources: data.sources && data.sources.length > 0 ? data.sources : [],
+          verification: data.verification || null,
           loading: false,
           elapsed: Date.now() - startTime
         }
@@ -110,15 +111,42 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // 批量加载文档
-  async function loadAllDocuments() {
+  // 批量加载文档（后台任务 + 轮询进度）
+  async function loadAllDocuments(onProgress) {
     try {
-      const data = await loadDocuments()
+      await loadDocuments()  // 启动后台任务，立即返回
+
+      // 轮询进度
+      while (true) {
+        await new Promise(r => setTimeout(r, 1000))
+        const status = await getLoadStatus()
+
+        if (onProgress) onProgress(status)
+
+        if (status.status === 'done') {
+          await fetchDocuments()
+          await fetchStats()
+          return status.result
+        }
+        if (status.status === 'error') {
+          throw new Error(status.error || '文档加载失败')
+        }
+      }
+    } catch (error) {
+      console.error('加载文档失败:', error)
+      throw error
+    }
+  }
+
+  // 增量同步文档
+  async function syncDocuments() {
+    try {
+      const data = await syncDocumentsApi()
       await fetchDocuments()
       await fetchStats()
       return data
     } catch (error) {
-      console.error('加载文档失败:', error)
+      console.error('同步文档失败:', error)
       throw error
     }
   }
@@ -223,6 +251,7 @@ export const useChatStore = defineStore('chat', () => {
     clearChatHistory,
     fetchDocuments,
     loadAllDocuments,
+    syncDocuments,
     fetchStats,
     removeDocument,
     removeAllDocuments,

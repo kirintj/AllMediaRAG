@@ -62,7 +62,8 @@ class Config:
     RERANK_STRATEGY: str = os.getenv("RERANK_STRATEGY", "cohere")  # "cohere", "bge", "hybrid"
     COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
     BGE_RERANKER_PATH: str = os.getenv("BGE_RERANKER_PATH", "BAAI/bge-reranker-base")
-    RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "20"))
+    RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "40"))
+    RERANK_GATE_THRESHOLD: float = float(os.getenv("RERANK_GATE_THRESHOLD", "0.3"))
 
     # 缓存配置
     USE_CACHE: bool = os.getenv("USE_CACHE", "true").lower() in ("true", "1", "yes")
@@ -90,6 +91,14 @@ class Config:
     # 二次检索配置
     RETRIEVAL_REFETCH_ENABLED: bool = os.getenv("RETRIEVAL_REFETCH_ENABLED", "true").lower() in ("true", "1", "yes")
     RETRIEVAL_CONFIDENCE_THRESHOLD: float = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", "0.5"))
+
+    # Self-RAG 配置
+    SELF_RAG_ENABLED: bool = os.getenv("SELF_RAG_ENABLED", "true").lower() in ("true", "1", "yes")
+
+    # Parent-Child 分块配置
+    PC_CHILD_SENTENCES: int = int(os.getenv("PC_CHILD_SENTENCES", "3"))
+    PC_PARENT_GROUPS: int = int(os.getenv("PC_PARENT_GROUPS", "4"))
+    PC_OVERLAP_SENTENCES: int = int(os.getenv("PC_OVERLAP_SENTENCES", "1"))
 
     # 工厂模式配置
     USE_FACTORY_MODE: bool = os.getenv("USE_FACTORY_MODE", "false").lower() in ("true", "1", "yes")

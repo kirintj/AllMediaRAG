@@ -16,18 +16,22 @@ class RAGEvaluator:
         self.engine = rag_engine
         self.llm_client = llm_client
 
-    def evaluate_retrieval(self, question: str, expected_sources: list[str], top_k: int = 5) -> dict:
+    def evaluate_retrieval(self, question: str, expected_sources: list[str],
+                           top_k: int = 5, retrieval_results: dict = None) -> dict:
         """评估检索质量
 
         Args:
             question: 用户问题
             expected_sources: 期望命中的文档来源列表
             top_k: 召回数量
+            retrieval_results: 预获取的检索结果（避免重复调用），None 时自动获取
 
         Returns:
             {"recall": float, "mrr": float, "precision": float, "retrieved_sources": list}
         """
-        results = self.engine.full_retrieve(question)
+        if retrieval_results is None:
+            retrieval_results = self.engine.full_retrieve(question)
+        results = retrieval_results
         retrieved_sources = [meta["source"] for meta in results["metadatas"]]
 
         if not expected_sources:
@@ -136,14 +140,17 @@ class RAGEvaluator:
             expected_keywords = sample.get("expected_keywords", [])
             reference_answer = sample.get("reference_answer", "")
 
-            # 检索评估（使用完整管道）
-            retrieval_result = self.evaluate_retrieval(question, expected_sources, top_k)
-
-            # 生成回答（使用完整管道）
+            # 单次检索（复用结果给检索评估和生成评估）
             rag_result = self.engine.full_retrieve(question)
             contexts = rag_result["documents"]
             contexts_meta = rag_result["metadatas"]
 
+            # 检索评估（复用 rag_result，不再重复调用）
+            retrieval_result = self.evaluate_retrieval(
+                question, expected_sources, top_k, retrieval_results=rag_result
+            )
+
+            # 生成回答
             prompt = self.engine.build_prompt(question, [
                 {"text": doc, "metadata": meta}
                 for doc, meta in zip(contexts, contexts_meta)

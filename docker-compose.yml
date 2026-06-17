@@ -1,6 +1,42 @@
 version: "3.8"
 
 services:
+  # ---------- Redis ----------
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---------- PostgreSQL + pgvector ----------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: rag_db
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ---------- 后端 ----------
   backend:
     build:
@@ -12,13 +48,15 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      - CORS_ORIGINS=http://localhost,http://localhost:3000
     volumes:
-      # 持久化：模型文件（只读）、向量数据库、数据目录、对话记录
       - ./models:/app/models:ro
       - chroma_data:/app/chroma_db
       - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -26,7 +64,7 @@ services:
       retries: 3
       start_period: 30s
 
-  # ---------- 前端 + Nginx 反向代理 ----------
+  # ---------- 前端 + Nginx ----------
   frontend:
     build:
       context: .
@@ -41,4 +79,8 @@ services:
 
 volumes:
   chroma_data:
+    driver: local
+  redis_data:
+    driver: local
+  postgres_data:
     driver: local
