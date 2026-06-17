@@ -180,31 +180,37 @@ const uploadCount = ref({ done: 0, total: 0, success: 0, fail: 0 })
 const batchTaskId = ref(null)
 const batchTotal = ref(0)
 const pendingFiles = ref([])
+let batchTimer = null
+const isUploading = ref(false)
 
 async function handleUpload(file) {
-  // Collect files for potential batch processing
+  if (isUploading.value) {
+    ElMessage.warning('有文件正在上传中，请稍后再试')
+    return
+  }
+
   pendingFiles.value.push(file)
 
-  // Delay processing to allow all files from a multi-select to be collected
-  if (pendingFiles.value.length === 1) {
-    setTimeout(async () => {
-      const filesToUpload = [...pendingFiles.value]
-      pendingFiles.value = []
+  // Clear any previous timer and set a new one
+  if (batchTimer) clearTimeout(batchTimer)
 
-      if (filesToUpload.length >= 20) {
-        // Large batch: use batch upload API
-        await handleBatchUpload(filesToUpload)
-      } else {
-        // Small batch: upload one by one (preserves original behavior)
-        for (const f of filesToUpload) {
-          await handleSingleUpload(f)
-        }
-      }
-    }, 100)
-  }
+  batchTimer = setTimeout(async () => {
+    const filesToUpload = [...pendingFiles.value]
+    pendingFiles.value = []
+    batchTimer = null
+
+    if (filesToUpload.length === 0) return
+
+    if (filesToUpload.length >= 20) {
+      await handleBatchUpload(filesToUpload)
+    } else {
+      await handleMultipleSingleUploads(filesToUpload)
+    }
+  }, 100)
 }
 
 async function handleBatchUpload(files) {
+  isUploading.value = true
   try {
     uploadStatusType.value = 'uploading'
     uploadStatus.value = `正在批量上传 ${files.length} 个文件...`
@@ -212,12 +218,10 @@ async function handleBatchUpload(files) {
     const result = await uploadBatch(files)
 
     if (result.mode === 'sync') {
-      // Small batch handled synchronously, show result directly
       uploadStatusType.value = 'success'
       uploadStatus.value = `上传成功 · ${result.success} 个成功 / ${result.failed} 个失败`
       await refresh()
     } else {
-      // Large batch, show progress tracking component
       uploadStatus.value = ''
       batchTaskId.value = result.task_id
       batchTotal.value = result.total
@@ -225,40 +229,57 @@ async function handleBatchUpload(files) {
   } catch (error) {
     uploadStatusType.value = 'error'
     uploadStatus.value = `批量上传失败: ${error.message}`
+  } finally {
+    isUploading.value = false
   }
 }
 
-async function handleSingleUpload(file) {
-  uploadCount.value.total++
-  const idx = uploadCount.value.total
-  uploadStatusType.value = 'uploading'
-  uploadStatus.value = `正在上传 (${idx}/${idx})...`
+async function handleMultipleSingleUploads(files) {
+  const total = files.length
+  uploadCount.value = { done: 0, total, success: 0, fail: 0 }
+  isUploading.value = true
 
   try {
-    const result = await uploadDocument(file.raw)
-    if (result.error) {
-      uploadCount.value.fail++
-      uploadStatusType.value = 'error'
-      uploadStatus.value = `「${file.name}」: ${result.error}`
-    } else {
-      uploadCount.value.success++
-      uploadStatusType.value = 'success'
-      uploadStatus.value = `上传成功 · ${uploadCount.value.success} 个成功 / ${uploadCount.value.fail} 个失败`
-      await refresh()
-    }
-  } catch (error) {
-    uploadCount.value.fail++
-    uploadStatusType.value = 'error'
-    uploadStatus.value = `「${file.name}」上传失败: ${error.message}`
-  }
+    for (let i = 0; i < files.length; i++) {
+      uploadStatusType.value = 'uploading'
+      uploadStatus.value = `正在上传 (${i + 1}/${total})...`
 
-  uploadCount.value.done++
-  // Reset counters when all uploads are done
-  if (uploadCount.value.done >= uploadCount.value.total) {
+      try {
+        const result = await uploadDocument(files[i].raw)
+        if (result.error) {
+          uploadCount.value.fail++
+          uploadStatusType.value = 'error'
+          uploadStatus.value = `「${files[i].name}」: ${result.error}`
+        } else {
+          uploadCount.value.success++
+        }
+      } catch (error) {
+        uploadCount.value.fail++
+        uploadStatusType.value = 'error'
+        uploadStatus.value = `「${files[i].name}」上传失败: ${error.message}`
+      }
+
+      uploadCount.value.done++
+    }
+
+    // Final status after all files processed
+    if (uploadCount.value.fail === 0) {
+      uploadStatusType.value = 'success'
+      uploadStatus.value = `上传成功 · ${uploadCount.value.success} 个文件`
+    } else {
+      uploadStatusType.value = 'error'
+      uploadStatus.value = `上传完成 · ${uploadCount.value.success} 个成功 / ${uploadCount.value.fail} 个失败`
+    }
+
+    await refresh()
+
     setTimeout(() => {
-      uploadCount.value = { done: 0, total: 0, success: 0, fail: 0 }
       uploadStatusType.value = ''
+      uploadStatus.value = ''
+      uploadCount.value = { done: 0, total: 0, success: 0, fail: 0 }
     }, 3000)
+  } finally {
+    isUploading.value = false
   }
 }
 
