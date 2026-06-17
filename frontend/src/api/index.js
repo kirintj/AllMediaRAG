@@ -167,6 +167,26 @@ export async function uploadDocument(file) {
   return response.data
 }
 
+// 批量上传
+export async function uploadBatch(files) {
+  const formData = new FormData()
+  files.forEach(file => {
+    formData.append('files', file.raw || file)
+  })
+
+  const response = await api.post('/upload/batch', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000  // 5 分钟超时
+  })
+  return response.data
+}
+
+// 查询批量上传进度
+export async function getBatchStatus(taskId) {
+  const response = await api.get(`/upload/batch/status/${taskId}`)
+  return response.data
+}
+
 export async function getDocuments() {
   const response = await api.get('/documents')
   return response.data
