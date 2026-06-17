@@ -221,6 +221,17 @@ class TaskManager:
                 task.status = TaskStatus.FAILED
                 task.error = error
 
+    def start_task(self, task_id: str):
+        """标记任务开始运行（线程安全）
+
+        Args:
+            task_id: The task identifier.
+        """
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task:
+                task.status = TaskStatus.RUNNING
+
     def has_running_task(self) -> bool:
         """检查是否有运行中的任务
 

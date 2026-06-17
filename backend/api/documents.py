@@ -7,10 +7,16 @@ import time
 from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 from core.rate_limit import limiter, RATE_LIMIT_UPLOAD, RATE_LIMIT_BATCH_UPLOAD
-from core.task_manager import task_manager, TaskPhase, TaskStatus
+from core.task_manager import task_manager, TaskPhase
 from core.auth import get_current_user
 
 logger = logging.getLogger(__name__)
+
+# 支持的文件扩展名（统一常量，避免多处重复定义）
+SUPPORTED_EXTENSIONS = {
+    ".html", ".htm", ".txt", ".md", ".pdf", ".docx",
+    ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif",
+}
 
 # 文件上传限制
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -70,6 +76,26 @@ class _LoadState:
         self.started_at = None
         self._lock = threading.Lock()
 
+    def try_start(self, total: int) -> bool:
+        """尝试开始任务（原子操作，防止竞态条件）
+
+        Args:
+            total: Total number of items to process.
+
+        Returns:
+            True if the task was started, False if already running.
+        """
+        with self._lock:
+            if self.status == "running":
+                return False
+            self.status = "running"
+            self.current = 0
+            self.total = total
+            self.result = None
+            self.error = None
+            self.started_at = time.time()
+            return True
+
     def reset(self, total: int):
         with self._lock:
             self.status = "running"
@@ -118,8 +144,6 @@ async def upload_document(
     """上传文档（同名文件自动去重）"""
     engine, config = get_engine_and_config()
 
-    supported_types = [".html", ".htm", ".txt", ".md", ".pdf", ".docx",
-                       ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
     # 防止路径遍历：只取文件名，丢弃路径分隔符
     safe_name = os.path.basename(file.filename)
     if not safe_name:
@@ -130,8 +154,8 @@ async def upload_document(
 
     ext = os.path.splitext(safe_name)[1].lower()
 
-    if ext not in supported_types:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式，支持: {', '.join(supported_types)}")
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件格式，支持: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
 
     # MIME type 校验（与扩展名双重验证）
     if file.content_type:
@@ -181,10 +205,8 @@ def _process_single_file(engine, config, file: UploadFile, safe_name: str) -> in
         HTTPException: 文件校验或处理失败时抛出。
     """
     ext = os.path.splitext(safe_name)[1].lower()
-    supported_types = [".html", ".htm", ".txt", ".md", ".pdf", ".docx",
-                       ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]
 
-    if ext not in supported_types:
+    if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
 
     content = file.file.read()
@@ -236,9 +258,8 @@ def _process_batch_sync(engine, config, files: List[UploadFile]) -> dict:
 
 def _process_batch_async(engine, config, files: List[UploadFile], task_id: str):
     """在后台线程中逐个处理文件，带重试逻辑。"""
+    task_manager.start_task(task_id)
     task_manager.set_phase(task_id, TaskPhase.UPLOADING)
-    task = task_manager.get_task(task_id)
-    task.status = TaskStatus.RUNNING
 
     success_count = 0
 
@@ -402,13 +423,10 @@ async def load_documents(current_user: dict = Depends(get_current_user)):
     """批量加载本地文档（后台执行，通过 /documents/load/status 查询进度）"""
     engine, config = get_engine_and_config()
 
-    if _load_state.status == "running":
-        raise HTTPException(status_code=409, detail="文档加载任务正在进行中")
-
     if not os.path.exists(config.DATA_DIR):
         raise HTTPException(status_code=404, detail="数据目录不存在")
 
-    files = [f for f in os.listdir(config.DATA_DIR) if f.endswith((".html", ".htm", ".txt", ".md", ".pdf", ".docx"))]
+    files = [f for f in os.listdir(config.DATA_DIR) if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS]
 
     if not files:
         return {
@@ -417,7 +435,8 @@ async def load_documents(current_user: dict = Depends(get_current_user)):
             "total_chunks": 0
         }
 
-    _load_state.reset(len(files))
+    if not _load_state.try_start(len(files)):
+        raise HTTPException(status_code=409, detail="文档加载任务正在进行中")
 
     def _run():
         loaded_files = []
