@@ -33,13 +33,15 @@ class CitationVerifier:
         self.llm_client = llm_client
         self.threshold = threshold
 
-    def verify(self, query: str, answer: str, contexts: list[dict]) -> dict:
+    def verify(self, query: str, answer: str, contexts: list[dict],
+               retrieval_results: dict = None) -> dict:
         """核查回答的引用质量
 
         Args:
             query: 用户查询
             answer: LLM 生成的回答
             contexts: 检索到的上下文 [{"text": str, "metadata": dict}, ...]
+            retrieval_results: 检索结果（包含distances等），用于计算检索指标
 
         Returns:
             {
@@ -48,7 +50,10 @@ class CitationVerifier:
                 "citations": list,          # 找到的引用列表
                 "hallucination_risk": str,  # "low" | "medium" | "high"
                 "unsupported_claims": list, # 无来源支撑的断言
-                "suggested_disclaimer": str # 建议添加的免责声明
+                "suggested_disclaimer": str, # 建议添加的免责声明
+                "retrieval_metrics": dict,  # 检索质量指标
+                "faithfulness_metrics": dict, # 忠实度指标
+                "context_coverage": float,  # 上下文覆盖率
             }
         """
         if not answer.strip():
@@ -69,6 +74,11 @@ class CitationVerifier:
         # 5. 生成免责声明
         disclaimer = self._generate_disclaimer(hallucination_risk, faithfulness)
 
+        # 6. 计算新增指标
+        retrieval_metrics = self._compute_retrieval_metrics(retrieval_results)
+        faithfulness_metrics = self._extract_faithfulness_metrics(faithfulness)
+        context_coverage = self._compute_context_coverage(answer, contexts)
+
         return {
             "verified": confidence >= self.threshold,
             "confidence": round(confidence, 3),
@@ -76,6 +86,9 @@ class CitationVerifier:
             "hallucination_risk": hallucination_risk,
             "unsupported_claims": faithfulness.get("unsupported_claims", []),
             "suggested_disclaimer": disclaimer,
+            "retrieval_metrics": retrieval_metrics,
+            "faithfulness_metrics": faithfulness_metrics,
+            "context_coverage": context_coverage,
         }
 
     def _empty_result(self) -> dict:
@@ -263,6 +276,52 @@ class CitationVerifier:
         else:
             return "high"
 
+    def _extract_faithfulness_metrics(self, faithfulness: dict) -> dict:
+        """提取忠实度指标
+
+        Args:
+            faithfulness: _verify_faithfulness 的返回结果
+
+        Returns:
+            {
+                "support_ratio": float,
+                "claim_count": int,
+                "supported_count": int,
+            }
+        """
+        if not faithfulness:
+            return {}
+
+        claims = faithfulness.get("claims", [])
+        supported_count = len([c for c in claims if c.get("supported")])
+
+        return {
+            "support_ratio": faithfulness.get("support_ratio", 0.0),
+            "claim_count": len(claims),
+            "supported_count": supported_count,
+        }
+
+    def _compute_context_coverage(self, answer: str, contexts: list[dict]) -> float:
+        """计算上下文覆盖率
+
+        Args:
+            answer: LLM 生成的回答
+            contexts: 检索到的上下文列表
+
+        Returns:
+            覆盖率 0-1
+        """
+        if not contexts:
+            return 0.0
+
+        answer_length = len(answer)
+        context_length = sum(len(c.get("text", "")) for c in contexts)
+
+        if context_length == 0:
+            return 0.0
+
+        return round(min(answer_length / context_length, 1.0), 3)
+
     def _compute_retrieval_metrics(self, retrieval_results: Optional[dict]) -> dict:
         """计算检索质量指标
 
@@ -280,19 +339,25 @@ class CitationVerifier:
         if not retrieval_results:
             return {}
 
-        distances = retrieval_results.get("distances", [])
-        doc_count = len(retrieval_results.get("documents", []))
+        distances = retrieval_results.get("distances") or []
+        doc_count = len(retrieval_results.get("documents") or [])
 
         if not distances:
             return {"doc_count": doc_count}
 
         # 计算相似度（距离越小越相似）
-        similarities = [1 - d for d in distances]
+        # Clamped to [0, 1] because L2/Euclidean distances can exceed 1,
+        # which would produce negative similarities otherwise.
+        similarities = [max(0, 1 - d) for d in distances]
         avg_similarity = sum(similarities) / len(similarities)
 
         # 计算稳定性（方差越小越稳定）
+        # The multiplier 10 maps variance to a [0, 1] range:
+        # when variance <= 0.1 (typical for similarities in [0,1]),
+        # stability stays >= 0. Without the multiplier, small variances
+        # would yield near-1 stability even for moderately spread results.
         variance = sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)
-        stability = max(0, 1 - variance * 10)  # 归一化
+        stability = max(0, 1 - variance * 10)
 
         return {
             "doc_count": doc_count,
