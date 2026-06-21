@@ -9,26 +9,39 @@ from pydantic import BaseModel, Field
 from typing import Literal, Optional
 from core.rate_limit import limiter, RATE_LIMIT_CHAT
 from core.auth import get_current_user
+from core.services import InfraBundle
+from core.services.retrieval_pipeline import RetrievalPipeline
+from core.services.generation_service import GenerationService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# 共享引擎实例（由 main.py 注入）
-_engine = None
+# Chat-specific thread pool for LLM streaming (separate from engine's retrieval pool)
 _executor = ThreadPoolExecutor(max_workers=4)
 
 _SENTINEL = "__STREAM_END__"
 
-def set_engine(engine):
-    """由 main.py 调用，注入共享引擎实例"""
-    global _engine
-    _engine = engine
 
-def get_engine():
-    if _engine is None:
-        raise RuntimeError("RAG engine not initialized. Call set_engine() first.")
-    return _engine
+# ---------------------------------------------------------------------------
+# Dependency providers (read from app.state, no circular import)
+# ---------------------------------------------------------------------------
+
+def _get_infra(request: Request) -> InfraBundle:
+    return request.app.state.infra
+
+
+def _get_retrieval(request: Request) -> RetrievalPipeline:
+    return request.app.state.retrieval
+
+
+def _get_generation(request: Request) -> GenerationService:
+    return request.app.state.generation
+
+
+# ---------------------------------------------------------------------------
+# Request / Response models
+# ---------------------------------------------------------------------------
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -40,12 +53,22 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None, max_length=64, pattern=r"^[a-zA-Z0-9_-]*$")
     history: list[ChatMessage] = Field(default_factory=list, max_length=20, description="最近对话上下文")
 
+
+# ---------------------------------------------------------------------------
+# Chat endpoint (SSE streaming)
+# ---------------------------------------------------------------------------
+
 @router.post("/chat")
 @limiter.limit(RATE_LIMIT_CHAT)
-async def chat(request: Request, body: ChatRequest, current_user: dict = Depends(get_current_user)):
+async def chat(
+    request: Request,
+    body: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+    infra: InfraBundle = Depends(_get_infra),
+    retrieval: RetrievalPipeline = Depends(_get_retrieval),
+    generation: GenerationService = Depends(_get_generation),
+):
     """流式对话接口"""
-    engine = get_engine()
-
     # 将前端传来的 history 转为 build_prompt 需要的格式
     history_dicts = [{"role": m.role, "content": m.content} for m in body.history]
 
@@ -56,7 +79,7 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
     def generate_in_thread(prompt):
         """在线程池中运行的同步生成器，将结果放入队列"""
         try:
-            for chunk in engine.llm_client.stream_generate(prompt):
+            for chunk in infra.llm_client.stream_generate(prompt):
                 asyncio.run_coroutine_threadsafe(
                     queue.put(chunk), loop
                 )
@@ -76,7 +99,7 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
         try:
             if body.mode == "rag":
                 # 使用完整检索管线（异步版本，查询理解并行化）
-                contexts_data = await engine.full_retrieve_async(body.message)
+                contexts_data = await retrieval.full_retrieve_async(body.message)
                 if contexts_data["documents"]:
                     for meta in contexts_data["metadatas"]:
                         sources.append({
@@ -87,7 +110,7 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
                     for doc, meta in zip(contexts_data["documents"], contexts_data["metadatas"]):
                         context_list.append({"text": doc, "metadata": meta})
                     contexts = context_list
-                    prompt = engine.build_prompt(body.message, context_list, history=history_dicts)
+                    prompt = generation.build_prompt(body.message, context_list, history=history_dicts)
                 else:
                     prompt = f"你是一个知识库问答助手。请简洁明了地回答以下问题：\n\n{body.message}"
             else:
@@ -115,10 +138,12 @@ async def chat(request: Request, body: ChatRequest, current_user: dict = Depends
                 yield f"data: {data}\n\n"
 
             # 引用核查（仅 RAG 模式且有上下文）
-            if body.mode == "rag" and engine._citation_verify_enabled and contexts and full_answer.strip():
+            citation_verify_enabled = infra.settings.CITATION_VERIFY_ENABLED
+            if body.mode == "rag" and citation_verify_enabled and contexts and full_answer.strip():
                 try:
-                    verification = engine.citation_verifier.verify(
-                        body.message, full_answer, contexts
+                    verification = infra.citation_verifier.verify(
+                        body.message, full_answer, contexts,
+                        retrieval_results=contexts_data
                     )
                     logger.info("Citation verification: confidence=%.2f, risk=%s",
                                verification["confidence"], verification["hallucination_risk"])
