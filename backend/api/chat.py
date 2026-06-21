@@ -139,6 +139,8 @@ async def chat(
 
             # 引用核查（仅 RAG 模式且有上下文）
             citation_verify_enabled = infra.settings.CITATION_VERIFY_ENABLED
+            logger.info("Citation verify check: mode=%s, enabled=%s, contexts=%d, answer=%s",
+                       body.mode, citation_verify_enabled, len(contexts), bool(full_answer.strip()))
             if body.mode == "rag" and citation_verify_enabled and contexts and full_answer.strip():
                 try:
                     verification = infra.citation_verifier.verify(
