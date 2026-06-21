@@ -263,6 +263,44 @@ class CitationVerifier:
         else:
             return "high"
 
+    def _compute_retrieval_metrics(self, retrieval_results: Optional[dict]) -> dict:
+        """计算检索质量指标
+
+        Args:
+            retrieval_results: 包含 documents 和 distances 的字典
+
+        Returns:
+            {
+                "doc_count": int,
+                "max_similarity": float,
+                "avg_similarity": float,
+                "stability": float,
+            }
+        """
+        if not retrieval_results:
+            return {}
+
+        distances = retrieval_results.get("distances", [])
+        doc_count = len(retrieval_results.get("documents", []))
+
+        if not distances:
+            return {"doc_count": doc_count}
+
+        # 计算相似度（距离越小越相似）
+        similarities = [1 - d for d in distances]
+        avg_similarity = sum(similarities) / len(similarities)
+
+        # 计算稳定性（方差越小越稳定）
+        variance = sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)
+        stability = max(0, 1 - variance * 10)  # 归一化
+
+        return {
+            "doc_count": doc_count,
+            "max_similarity": round(max(similarities), 3),
+            "avg_similarity": round(avg_similarity, 3),
+            "stability": round(stability, 3),
+        }
+
     def _generate_disclaimer(self, risk: str, faithfulness: dict) -> str:
         """生成免责声明"""
         unsupported = faithfulness.get("unsupported_claims", [])
