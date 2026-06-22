@@ -72,7 +72,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { login as apiLogin, register as apiRegister, getMe } from '../api/index.js'
+import { login as apiLogin, register as apiRegister, getMe } from '../../api/auth.js'
 
 const emit = defineEmits(['login-success'])
 

@@ -2,8 +2,10 @@ import uuid
 
 import chromadb
 
+from core.providers.base import VectorStoreProvider
 
-class VectorStore:
+
+class VectorStore(VectorStoreProvider):
     """向量存储服务：封装 Chroma 向量数据库操作"""
 
     def __init__(self, persist_dir: str):
@@ -17,6 +19,8 @@ class VectorStore:
             name="python_docs",
             metadata={"hnsw:space": "cosine"}
         )
+        # 源列表缓存（避免每次 get_all_sources 都加载全量数据）
+        self._sources_cache: list[str] | None = None
 
     def add_documents(self, texts: list[str], embeddings: list, metadatas: list):
         """添加文档到向量库
@@ -33,6 +37,7 @@ class VectorStore:
             metadatas=metadatas,
             ids=ids
         )
+        self._sources_cache = None
 
     def query(self, embedding: list[float], top_k: int) -> dict:
         """检索最相似的文档
@@ -66,19 +71,23 @@ class VectorStore:
         )
         if results["ids"]:
             self.collection.delete(ids=results["ids"])
+            self._sources_cache = None
 
     def get_all_sources(self) -> list[str]:
-        """获取所有文档来源
+        """获取所有文档来源（带缓存，跳过嵌入加载）
 
         Returns:
             去重后的来源列表
         """
-        results = self.collection.get()
+        if self._sources_cache is not None:
+            return self._sources_cache
+        results = self.collection.get(include=["metadatas"])
         sources = set()
         for metadata in results["metadatas"]:
             if metadata and "source" in metadata:
                 sources.add(metadata["source"])
-        return list(sources)
+        self._sources_cache = list(sources)
+        return self._sources_cache
 
     def get_document_count(self) -> int:
         """获取文档总数
@@ -95,6 +104,21 @@ class VectorStore:
             name="python_docs",
             metadata={"hnsw:space": "cosine"}
         )
+        self._sources_cache = None
+
+    def get_source_details(self) -> list[dict]:
+        """获取每个来源的 chunk 数量（跳过嵌入加载）
+
+        Returns:
+            [{"source": str, "chunks": int}, ...]
+        """
+        results = self.collection.get(include=["metadatas"])
+        counts: dict[str, int] = {}
+        for metadata in results["metadatas"]:
+            if metadata and "source" in metadata:
+                src = metadata["source"]
+                counts[src] = counts.get(src, 0) + 1
+        return [{"source": src, "chunks": cnt} for src, cnt in counts.items()]
 
     def close(self):
         """关闭客户端，释放资源"""

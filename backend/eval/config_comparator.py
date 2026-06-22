@@ -253,6 +253,21 @@ def _generate_config_combinations(comparisons: dict) -> list[dict]:
     return combinations
 
 
+# 预置对比方案
+_PRESETS = {
+    "chunking": {
+        "chunking_strategy": ["fixed_size", "recursive", "semantic", "parent_child"],
+    },
+    "reranker": {
+        "rerank_strategy": ["cohere", "bge", "hybrid", "siliconflow"],
+    },
+    "retrieval": {
+        "top_k": [3, 5, 10],
+        "rrf_k": [30, 60, 100],
+    },
+}
+
+
 def _parse_compare_arg(arg: str) -> tuple:
     """解析 --compare 参数
 
@@ -294,12 +309,21 @@ def main():
     parser = argparse.ArgumentParser(
         description="RAG 配置自动比较工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""示例:
+        epilog="""预置方案:
+  --preset chunking    切分策略对比 (fixed_size/recursive/semantic/parent_child)
+  --preset reranker    重排序模型对比 (cohere/bge/hybrid/siliconflow)
+  --preset retrieval   召回参数对比 (top_k x rrf_k 笛卡尔积)
+
+示例:
   python eval/config_comparator.py \\
       --dataset eval/eval_dataset.json \\
       --compare top_k:3,5,10 \\
       --compare rrf_k:30,60 \\
       --output comparison_report.md
+
+  python eval/config_comparator.py \\
+      --dataset eval/eval_dataset.json \\
+      --preset retrieval
 """,
     )
     parser.add_argument(
@@ -311,9 +335,14 @@ def main():
     parser.add_argument(
         "--compare",
         action="append",
-        required=True,
         metavar="key:v1,v2",
         help="配置比较项，格式 key:value1,value2（可重复使用）",
+    )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        choices=list(_PRESETS.keys()),
+        help="预置对比方案: chunking / reranker / retrieval",
     )
     parser.add_argument(
         "--output",
@@ -330,11 +359,17 @@ def main():
 
     args = parser.parse_args()
 
-    # 解析 --compare 参数
-    comparisons = {}
-    for arg in args.compare:
-        key, values = _parse_compare_arg(arg)
-        comparisons[key] = values
+    # 确定比较参数来源：--preset 或 --compare
+    if args.preset:
+        comparisons = _PRESETS[args.preset]
+        print(f"使用预置方案: {args.preset}")
+    elif args.compare:
+        comparisons = {}
+        for arg in args.compare:
+            key, values = _parse_compare_arg(arg)
+            comparisons[key] = values
+    else:
+        parser.error("必须指定 --preset 或至少一个 --compare 参数")
 
     # 生成配置组合
     candidates = _generate_config_combinations(comparisons)

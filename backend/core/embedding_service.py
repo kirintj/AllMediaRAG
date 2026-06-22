@@ -4,6 +4,8 @@ from collections import OrderedDict
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+from core.providers.base import EmbeddingProvider
+
 logger = logging.getLogger(__name__)
 
 # BGE-M3 原生最大 token 长度
@@ -12,7 +14,7 @@ _MAX_TOKENS = 8192
 _MAX_CHARS = int(_MAX_TOKENS * 2 * 0.9)  # ~14745
 
 
-class EmbeddingService:
+class EmbeddingService(EmbeddingProvider):
     """Embedding 服务：加载 BGE-M3 模型，提供向量编码接口
 
     特性：
@@ -104,9 +106,9 @@ class EmbeddingService:
                 show_progress_bar=show_progress and len(to_encode_text) > 10,
                 batch_size=64,
             )
-            for idx, emb in zip(to_encode_idx, embeddings):
+            for idx, emb, text in zip(to_encode_idx, embeddings, to_encode_text):
                 vec = emb.tolist()
-                self._cache_put(to_encode_text[to_encode_idx.index(idx)], vec)
+                self._cache_put(text, vec)
                 results[idx] = vec
 
         return results  # type: ignore

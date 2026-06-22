@@ -115,7 +115,20 @@
     <div class="documents-section">
       <div class="section-title">
         <span>已加载文档</span>
-        <span class="doc-count" v-if="store.documents.length > 0">{{ store.documents.length }}</span>
+        <div class="section-title-right">
+          <span class="doc-count" v-if="store.documents.length > 0">{{ store.documents.length }}</span>
+          <button
+            v-if="store.documents.length > 0"
+            class="view-all-btn"
+            @click="showDetailDialog = true"
+            title="查看文档详情"
+          >
+            查看全部
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="doc-list cus-scroll">
         <div v-if="store.documents.length === 0" class="doc-empty">
@@ -156,18 +169,26 @@
         清空全部文档
       </button>
     </div>
+
+    <!-- 文档详情弹窗 -->
+    <DocumentDetailDialog
+      v-model="showDetailDialog"
+      @deleted="onDocumentDeleted"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { useChatStore } from '../stores/chat'
-import { uploadDocument, uploadBatch } from '../api'
+import { useDocumentStore } from '../../stores/useDocumentStore.js'
+import { uploadDocument, uploadBatch } from '../../api/documents.js'
 import BatchUploadProgress from './BatchUploadProgress.vue'
+import DocumentDetailDialog from './DocumentDetailDialog.vue'
 
-const store = useChatStore()
+const store = useDocumentStore()
 const loading = ref(false)
+const showDetailDialog = ref(false)
 const uploadStatus = ref('')
 const uploadStatusType = ref('') // 'uploading' | 'success' | 'error' | ''
 const loadStatus = ref('')
@@ -374,8 +395,11 @@ async function handleClearAll() {
 }
 
 async function refresh() {
-  await store.fetchDocuments()
-  await store.fetchStats()
+  await Promise.all([store.fetchDocuments(), store.fetchStats()])
+}
+
+function onDocumentDeleted() {
+  refresh()
 }
 
 onMounted(() => {
@@ -547,6 +571,14 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
+.section-title-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .doc-count {
   background: var(--hm-brand-light);
   color: var(--hm-brand);
@@ -554,6 +586,36 @@ onMounted(() => {
   border-radius: var(--hm-radius-full);
   font-size: 11px;
   font-weight: 600;
+}
+
+.view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--hm-brand);
+  cursor: pointer;
+  border-radius: var(--hm-radius-sm);
+  transition: all 0.2s var(--hm-spring);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.view-all-btn:hover {
+  background: var(--hm-brand-bg-light);
+  transform: translateX(1px);
+}
+
+.view-all-btn svg {
+  transition: transform 0.2s var(--hm-spring);
+}
+
+.view-all-btn:hover svg {
+  transform: translateX(2px);
 }
 
 .doc-list {

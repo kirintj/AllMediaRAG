@@ -1,56 +1,58 @@
-version: "3.8"
-
 services:
   # ---------- Redis ----------
   redis:
     image: redis:7-alpine
-    container_name: rag-redis
+    container_name: multimodal-rag-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6381}:6379"
     volumes:
-      - redis_data:/data
+      - multimodal_rag_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
+    networks:
+      - multimodal-rag-network
 
   # ---------- PostgreSQL + pgvector ----------
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: rag-postgres
+    container_name: multimodal-rag-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     environment:
-      POSTGRES_DB: rag_db
-      POSTGRES_USER: rag_user
-      POSTGRES_PASSWORD: rag_password
+      POSTGRES_DB: ${POSTGRES_DB:-rag_db}
+      POSTGRES_USER: ${POSTGRES_USER:-rag_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag_password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - multimodal_rag_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag_user} -d ${POSTGRES_DB:-rag_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - multimodal-rag-network
 
   # ---------- 后端 ----------
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rag-backend
+    container_name: multimodal-rag-backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     env_file:
       - .env
     volumes:
       - ./models:/app/models:ro
-      - chroma_data:/app/chroma_db
+      - multimodal_rag_chroma_data:/app/chroma_db
       - ./data:/app/data
     depends_on:
       redis:
@@ -63,24 +65,33 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      - multimodal-rag-network
 
   # ---------- 前端 + Nginx ----------
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: rag-frontend
+    container_name: multimodal-rag-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - multimodal-rag-network
 
 volumes:
-  chroma_data:
+  multimodal_rag_chroma_data:
     driver: local
-  redis_data:
+  multimodal_rag_redis_data:
     driver: local
-  postgres_data:
+  multimodal_rag_postgres_data:
     driver: local
+
+networks:
+  multimodal-rag-network:
+    driver: bridge
+    name: multimodal-rag-network

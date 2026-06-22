@@ -1,9 +1,5 @@
 from .logger import StructuredLogger
-
-try:
-    from .metrics_collector import MetricsCollector
-except ImportError:
-    MetricsCollector = None  # type: ignore[assignment,misc]
+from .metrics_collector import MetricsCollector, metrics_collector
 
 try:
     from .tracer import TraceCollector
@@ -23,6 +19,7 @@ except ImportError:
 __all__ = [
     "StructuredLogger",
     "MetricsCollector",
+    "metrics_collector",
     "TraceCollector",
     "AlertManager",
     "DebugToolkit"

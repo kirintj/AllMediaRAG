@@ -1,6 +1,6 @@
 <template>
   <!-- 未认证：显示登录页 -->
-  <LoginView v-if="!isAuthenticated" @login-success="onLoginSuccess" />
+  <LoginView v-if="!authStore.isAuthenticated" @login-success="onLoginSuccess" />
 
   <!-- 已认证：显示主界面 -->
   <div v-else class="app-container" :class="{ dark: isDark }">
@@ -21,28 +21,51 @@
       </el-aside>
     </el-container>
 
-    <!-- 工具栏：深色模式 + 退出登录 -->
+    <!-- 工具栏：深色模式 + 仪表盘 + 退出登录 -->
     <div class="toolbar">
+      <button class="dashboard-btn hm-icon-btn" @click="showDashboard = true" title="评测与性能">
+        <span style="font-size: 16px">&#128202;</span>
+      </button>
       <button class="dark-toggle hm-icon-btn" @click="toggleDark" :title="isDark ? '切换浅色模式' : '切换深色模式'">
         <span v-if="isDark" style="font-size: 18px">&#9728;&#65039;</span>
         <span v-else style="font-size: 18px">&#127769;</span>
       </button>
       <button class="logout-btn hm-icon-btn" @click="handleLogout" title="退出登录">
-        <span style="font-size: 16px">⏻</span>
+        <span style="font-size: 16px">&#x23FB;</span>
       </button>
+    </div>
+
+    <!-- 评测仪表盘对话框 -->
+    <EvalDashboard v-model="showDashboard" />
+
+    <!-- Toast 容器 -->
+    <div class="toast-container">
+      <div
+        v-for="toast in toastStore.toasts"
+        :key="toast.id"
+        class="toast-item"
+        :class="toast.type"
+      >
+        {{ toast.msg }}
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import ChatSidebar from './components/ChatSidebar.vue'
-import ChatView from './components/ChatView.vue'
-import DocumentPanel from './components/DocumentPanel.vue'
-import LoginView from './components/LoginView.vue'
+import { useAuthStore } from './stores/useAuthStore.js'
+import { useToastStore } from './stores/useToastStore.js'
+import ChatSidebar from './features/chat/ChatSidebar.vue'
+import ChatView from './features/chat/ChatView.vue'
+import DocumentPanel from './features/documents/DocumentPanel.vue'
+import LoginView from './features/auth/LoginView.vue'
+import EvalDashboard from './features/eval/EvalDashboard.vue'
 
+const authStore = useAuthStore()
+const toastStore = useToastStore()
 const isDark = ref(false)
-const isAuthenticated = ref(false)
+const showDashboard = ref(false)
 
 function toggleDark() {
   isDark.value = !isDark.value
@@ -50,30 +73,20 @@ function toggleDark() {
 }
 
 function onLoginSuccess() {
-  isAuthenticated.value = true
+  // auth state is already updated by the store's login/register methods
 }
 
 function handleLogout() {
-  localStorage.removeItem('token')
-  isAuthenticated.value = false
+  authStore.logout()
 }
 
 function onAuthExpired() {
-  isAuthenticated.value = false
+  authStore.onAuthExpired()
 }
 
 onMounted(async () => {
   // 检查是否有有效 token
-  const token = localStorage.getItem('token')
-  if (token) {
-    try {
-      const { getMe } = await import('./api/index.js')
-      await getMe()
-      isAuthenticated.value = true
-    } catch {
-      localStorage.removeItem('token')
-    }
-  }
+  await authStore.checkAuth()
 
   // 监听 401 过期事件
   window.addEventListener('auth-expired', onAuthExpired)
@@ -124,7 +137,8 @@ onUnmounted(() => {
 }
 
 .dark-toggle,
-.logout-btn {
+.logout-btn,
+.dashboard-btn {
   width: 36px;
   height: 36px;
   border-radius: var(--hm-radius-full);
@@ -151,5 +165,60 @@ onUnmounted(() => {
 
 .logout-btn:hover {
   color: var(--hm-error);
+}
+
+/* ── Toast 容器 ── */
+.toast-container {
+  position: fixed;
+  top: 60px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast-item {
+  padding: 10px 20px;
+  border-radius: var(--hm-radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--hm-shadow-md);
+  animation: toast-in 0.3s var(--hm-spring);
+}
+
+.toast-item.success {
+  background: #f0f9eb;
+  color: #67c23a;
+  border: 1px solid #e1f3d8;
+}
+
+.toast-item.error {
+  background: #fef0f0;
+  color: #f56c6c;
+  border: 1px solid #fde2e2;
+}
+
+.toast-item.warning {
+  background: #fdf6ec;
+  color: #e6a23c;
+  border: 1px solid #faecd8;
+}
+
+.toast-item.info {
+  background: #f4f4f5;
+  color: #909399;
+  border: 1px solid #e9e9eb;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 </style>

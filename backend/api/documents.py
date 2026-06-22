@@ -9,6 +9,9 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 from core.rate_limit import limiter, RATE_LIMIT_UPLOAD, RATE_LIMIT_BATCH_UPLOAD
 from core.task_manager import task_manager, TaskPhase
 from core.auth import get_current_user
+from core.config import AppSettings
+from core.services import InfraBundle
+from core.services.ingestion_service import IngestionService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +41,7 @@ ALLOWED_MIME_TYPES = {
 }
 
 # 批量上传限制
-MAX_BATCH_FILES = 100
+MAX_BATCH_FILES = 200
 MAX_BATCH_TOTAL_SIZE = 500 * 1024 * 1024  # 500MB
 SYNC_THRESHOLD = 20
 MAX_RETRIES = 3
@@ -46,23 +49,26 @@ RETRY_DELAYS = [1, 3, 5]
 
 router = APIRouter()
 
-# 共享引擎实例（由 main.py 注入）
-_engine = None
-_config = None
+
+# ---------------------------------------------------------------------------
+# Dependency providers (read from app.state, no circular import)
+# ---------------------------------------------------------------------------
+
+def _get_settings(request: Request) -> AppSettings:
+    return request.app.state.config
 
 
-def set_engine(engine, config):
-    """由 main.py 调用，注入共享引擎实例"""
-    global _engine, _config
-    _engine = engine
-    _config = config
+def _get_infra(request: Request) -> InfraBundle:
+    return request.app.state.infra
 
 
-def get_engine_and_config():
-    if _engine is None:
-        raise RuntimeError("RAG engine not initialized. Call set_engine() first.")
-    return _engine, _config
+def _get_ingestion(request: Request) -> IngestionService:
+    return request.app.state.ingestion
 
+
+# ---------------------------------------------------------------------------
+# Batch load state
+# ---------------------------------------------------------------------------
 
 class _LoadState:
     """线程安全的批量加载进度跟踪"""
@@ -134,16 +140,130 @@ class _LoadState:
 
 _load_state = _LoadState()
 
+
+# ---------------------------------------------------------------------------
+# File processing helpers
+# ---------------------------------------------------------------------------
+
+def _process_single_file(ingestion: IngestionService, config: AppSettings, file: UploadFile, safe_name: str) -> int:
+    """处理单个文件：校验、保存、索引。
+
+    Returns:
+        成功索引的 chunk 数量。
+
+    Raises:
+        HTTPException: 文件校验或处理失败时抛出。
+    """
+    ext = os.path.splitext(safe_name)[1].lower()
+
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
+
+    content = file.file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件 {safe_name} 过大，最大允许 {MAX_FILE_SIZE // (1024*1024)}MB",
+        )
+
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    file_path = os.path.join(config.DATA_DIR, safe_name)
+    ingestion.delete_by_source(safe_name)
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    return ingestion.ingest_document(file_path)
+
+
+def _process_batch_sync(ingestion: IngestionService, config: AppSettings, files: List[UploadFile]) -> dict:
+    """同步处理批量文件，返回汇总结果。"""
+    success_count = 0
+    results = []
+
+    for file in files:
+        safe_name = os.path.basename(file.filename)
+        if not safe_name:
+            results.append({"filename": file.filename, "status": "failed", "error": "文件名为空"})
+            continue
+        if len(safe_name) > MAX_FILENAME_LENGTH:
+            results.append({"filename": safe_name, "status": "failed", "error": "文件名过长"})
+            continue
+        try:
+            chunks = _process_single_file(ingestion, config, file, safe_name)
+            success_count += 1
+            results.append({"filename": safe_name, "status": "success", "chunks": chunks})
+        except Exception as e:
+            logger.warning("批量处理文件失败 %s: %s", safe_name, e)
+            results.append({"filename": safe_name, "status": "failed", "error": str(e)})
+
+    return {
+        "mode": "sync",
+        "total": len(files),
+        "success": success_count,
+        "failed": len(files) - success_count,
+        "results": results,
+    }
+
+
+def _process_batch_async(ingestion: IngestionService, config: AppSettings, files: List[UploadFile], task_id: str):
+    """在后台线程中逐个处理文件，带重试逻辑。"""
+    task_manager.start_task(task_id)
+    task_manager.set_phase(task_id, TaskPhase.UPLOADING)
+
+    success_count = 0
+
+    for idx, file in enumerate(files):
+        safe_name = os.path.basename(file.filename)
+        if not safe_name:
+            task_manager.add_upload_failure(task_id, file.filename or "", "文件名为空")
+            task_manager.update_upload_progress(task_id, idx + 1)
+            continue
+        if len(safe_name) > MAX_FILENAME_LENGTH:
+            task_manager.add_upload_failure(task_id, safe_name, "文件名过长")
+            task_manager.update_upload_progress(task_id, idx + 1)
+            continue
+
+        retries = 0
+        for attempt in range(MAX_RETRIES):
+            try:
+                _process_single_file(ingestion, config, file, safe_name)
+                success_count += 1
+                break
+            except Exception as e:
+                retries = attempt + 1
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(
+                        "批量处理文件失败 %s (尝试 %d/%d): %s",
+                        safe_name, retries, MAX_RETRIES, e,
+                    )
+                    time.sleep(RETRY_DELAYS[attempt])
+                else:
+                    logger.warning("批量处理文件最终失败 %s: %s", safe_name, e)
+                    task_manager.add_index_failure(
+                        task_id, safe_name, str(e), retries=retries
+                    )
+
+        task_manager.update_upload_progress(task_id, idx + 1)
+
+    task_manager.update_index_progress(task_id, len(files), success_count)
+    task_manager.complete_task(task_id)
+
+
+# ---------------------------------------------------------------------------
+# API endpoints
+# ---------------------------------------------------------------------------
+
 @router.post("/upload")
 @limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
 ):
     """上传文档（同名文件自动去重）"""
-    engine, config = get_engine_and_config()
-
     # 防止路径遍历：只取文件名，丢弃路径分隔符
     safe_name = os.path.basename(file.filename)
     if not safe_name:
@@ -169,7 +289,7 @@ async def upload_document(
         file_path = os.path.join(config.DATA_DIR, safe_name)
 
         # 同名文件去重：先删除旧向量
-        engine.delete_by_source(safe_name)
+        ingestion.delete_by_source(safe_name)
 
         content = await file.read()
 
@@ -180,7 +300,7 @@ async def upload_document(
         with open(file_path, "wb") as f:
             f.write(content)
 
-        chunks = engine.ingest_document(file_path)
+        chunks = ingestion.ingest_document(file_path)
 
         return {
             "message": "上传成功",
@@ -195,125 +315,20 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 
-def _process_single_file(engine, config, file: UploadFile, safe_name: str) -> int:
-    """处理单个文件：校验、保存、索引。
-
-    Returns:
-        成功索引的 chunk 数量。
-
-    Raises:
-        HTTPException: 文件校验或处理失败时抛出。
-    """
-    ext = os.path.splitext(safe_name)[1].lower()
-
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
-
-    content = file.file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件 {safe_name} 过大，最大允许 {MAX_FILE_SIZE // (1024*1024)}MB",
-        )
-
-    os.makedirs(config.DATA_DIR, exist_ok=True)
-    file_path = os.path.join(config.DATA_DIR, safe_name)
-    engine.delete_by_source(safe_name)
-
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    return engine.ingest_document(file_path)
-
-
-def _process_batch_sync(engine, config, files: List[UploadFile]) -> dict:
-    """同步处理批量文件，返回汇总结果。"""
-    success_count = 0
-    results = []
-
-    for file in files:
-        safe_name = os.path.basename(file.filename)
-        if not safe_name:
-            results.append({"filename": file.filename, "status": "failed", "error": "文件名为空"})
-            continue
-        if len(safe_name) > MAX_FILENAME_LENGTH:
-            results.append({"filename": safe_name, "status": "failed", "error": "文件名过长"})
-            continue
-        try:
-            chunks = _process_single_file(engine, config, file, safe_name)
-            success_count += 1
-            results.append({"filename": safe_name, "status": "success", "chunks": chunks})
-        except Exception as e:
-            logger.warning("批量处理文件失败 %s: %s", safe_name, e)
-            results.append({"filename": safe_name, "status": "failed", "error": str(e)})
-
-    return {
-        "mode": "sync",
-        "total": len(files),
-        "success": success_count,
-        "failed": len(files) - success_count,
-        "results": results,
-    }
-
-
-def _process_batch_async(engine, config, files: List[UploadFile], task_id: str):
-    """在后台线程中逐个处理文件，带重试逻辑。"""
-    task_manager.start_task(task_id)
-    task_manager.set_phase(task_id, TaskPhase.UPLOADING)
-
-    success_count = 0
-
-    for idx, file in enumerate(files):
-        safe_name = os.path.basename(file.filename)
-        if not safe_name:
-            task_manager.add_upload_failure(task_id, file.filename or "", "文件名为空")
-            task_manager.update_upload_progress(task_id, idx + 1)
-            continue
-        if len(safe_name) > MAX_FILENAME_LENGTH:
-            task_manager.add_upload_failure(task_id, safe_name, "文件名过长")
-            task_manager.update_upload_progress(task_id, idx + 1)
-            continue
-
-        retries = 0
-        for attempt in range(MAX_RETRIES):
-            try:
-                _process_single_file(engine, config, file, safe_name)
-                success_count += 1
-                break
-            except Exception as e:
-                retries = attempt + 1
-                if attempt < MAX_RETRIES - 1:
-                    logger.warning(
-                        "批量处理文件失败 %s (尝试 %d/%d): %s",
-                        safe_name, retries, MAX_RETRIES, e,
-                    )
-                    time.sleep(RETRY_DELAYS[attempt])
-                else:
-                    logger.warning("批量处理文件最终失败 %s: %s", safe_name, e)
-                    task_manager.add_index_failure(
-                        task_id, safe_name, str(e), retries=retries
-                    )
-
-        task_manager.update_upload_progress(task_id, idx + 1)
-
-    task_manager.update_index_progress(task_id, len(files), success_count)
-    task_manager.complete_task(task_id)
-
-
 @router.post("/upload/batch")
 @limiter.limit(RATE_LIMIT_BATCH_UPLOAD)
 async def batch_upload(
     request: Request,
     files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
 ):
     """批量上传文档。
 
     文件数 < SYNC_THRESHOLD 时同步处理并直接返回结果，
     否则异步处理并返回 task_id 供前端轮询。
     """
-    engine, config = get_engine_and_config()
-
     if len(files) > MAX_BATCH_FILES:
         raise HTTPException(
             status_code=400,
@@ -336,7 +351,7 @@ async def batch_upload(
         )
 
     if len(files) < SYNC_THRESHOLD:
-        return _process_batch_sync(engine, config, files)
+        return _process_batch_sync(ingestion, config, files)
 
     task_id = task_manager.create_task(total=len(files))
 
@@ -346,7 +361,7 @@ async def batch_upload(
         for filename, content in file_contents:
             wrapper = UploadFile(filename=filename, file=BytesIO(content))
             wrapper_files.append(wrapper)
-        _process_batch_async(engine, config, wrapper_files, task_id)
+        _process_batch_async(ingestion, config, wrapper_files, task_id)
 
     threading.Thread(target=_run_async, daemon=True).start()
 
@@ -371,24 +386,55 @@ async def batch_status(
 
 
 @router.get("/documents")
-async def get_documents(current_user: dict = Depends(get_current_user)):
+async def get_documents(
+    current_user: dict = Depends(get_current_user),
+    infra: InfraBundle = Depends(_get_infra),
+):
     """获取文档列表"""
-    engine, _ = get_engine_and_config()
-    sources = engine.vector_store.get_all_sources()
+    sources = infra.vector_store.get_all_sources()
     return {"documents": sources}
 
-@router.delete("/documents/{source}")
-async def delete_document(source: str, current_user: dict = Depends(get_current_user)):
-    """删除单个文档及其向量"""
-    engine, config = get_engine_and_config()
 
+@router.get("/documents/detail")
+async def get_document_details(
+    current_user: dict = Depends(get_current_user),
+    infra: InfraBundle = Depends(_get_infra),
+    config: AppSettings = Depends(_get_settings),
+):
+    """获取文档详情（chunks 数量、文件大小、文件类型）"""
+    source_details = infra.vector_store.get_source_details()
+    documents = []
+    for item in source_details:
+        source = item["source"]
+        file_path = os.path.join(config.DATA_DIR, source)
+        file_size = 0
+        if os.path.isfile(file_path):
+            file_size = os.path.getsize(file_path)
+        ext = os.path.splitext(source)[1].lower().lstrip(".")
+        documents.append({
+            "source": source,
+            "chunks": item["chunks"],
+            "file_size": file_size,
+            "file_type": ext,
+        })
+    return {"documents": documents}
+
+
+@router.delete("/documents/{source}")
+async def delete_document(
+    source: str,
+    current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
+):
+    """删除单个文档及其向量"""
     # 防止路径穿越：只取文件名，丢弃路径分隔符
     safe_source = os.path.basename(source)
     if not safe_source:
         raise HTTPException(status_code=400, detail="无效的文件名")
 
     try:
-        engine.delete_by_source(safe_source)
+        ingestion.delete_by_source(safe_source)
 
         # 同时删除磁盘文件
         file_path = os.path.join(config.DATA_DIR, safe_source)
@@ -400,13 +446,16 @@ async def delete_document(source: str, current_user: dict = Depends(get_current_
         logger.exception("删除文档失败: %s", source)
         raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
-@router.delete("/documents")
-async def clear_all_documents(current_user: dict = Depends(get_current_user)):
-    """清空所有文档和向量"""
-    engine, config = get_engine_and_config()
 
+@router.delete("/documents")
+async def clear_all_documents(
+    current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
+):
+    """清空所有文档和向量"""
     try:
-        engine.delete_all()
+        ingestion.delete_all()
 
         # 清空数据目录
         if os.path.exists(config.DATA_DIR):
@@ -418,11 +467,14 @@ async def clear_all_documents(current_user: dict = Depends(get_current_user)):
         logger.exception("清空文档失败")
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
 
-@router.post("/documents/load")
-async def load_documents(current_user: dict = Depends(get_current_user)):
-    """批量加载本地文档（后台执行，通过 /documents/load/status 查询进度）"""
-    engine, config = get_engine_and_config()
 
+@router.post("/documents/load")
+async def load_documents(
+    current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
+):
+    """批量加载本地文档（后台执行，通过 /documents/load/status 查询进度）"""
     if not os.path.exists(config.DATA_DIR):
         raise HTTPException(status_code=404, detail="数据目录不存在")
 
@@ -444,7 +496,7 @@ async def load_documents(current_user: dict = Depends(get_current_user)):
         for file in files:
             try:
                 file_path = os.path.join(config.DATA_DIR, file)
-                chunks = engine.ingest_document(file_path)
+                chunks = ingestion.ingest_document(file_path)
                 total_chunks += chunks
                 loaded_files.append(file)
             except Exception as e:
@@ -471,20 +523,23 @@ async def load_documents_status(current_user: dict = Depends(get_current_user)):
     """查询批量加载进度"""
     return _load_state.snapshot()
 
+
 @router.post("/documents/sync")
-async def sync_documents(current_user: dict = Depends(get_current_user)):
+async def sync_documents(
+    current_user: dict = Depends(get_current_user),
+    ingestion: IngestionService = Depends(_get_ingestion),
+    config: AppSettings = Depends(_get_settings),
+):
     """增量同步文档索引
 
     扫描数据目录，对比已索引文档的 Hash，
     只处理新增、修改、删除的文档。
     """
-    engine, config = get_engine_and_config()
-
     if not os.path.exists(config.DATA_DIR):
         raise HTTPException(status_code=404, detail="数据目录不存在")
 
     try:
-        result = engine.sync_index(config.DATA_DIR)
+        result = ingestion.sync_index(config.DATA_DIR)
         return {
             "message": "同步完成",
             "result": result
@@ -493,13 +548,17 @@ async def sync_documents(current_user: dict = Depends(get_current_user)):
         logger.exception("同步失败")
         raise HTTPException(status_code=500, detail=f"同步失败: {str(e)}")
 
+
 @router.get("/stats")
-async def get_stats(current_user: dict = Depends(get_current_user)):
+async def get_stats(
+    current_user: dict = Depends(get_current_user),
+    infra: InfraBundle = Depends(_get_infra),
+    ingestion: IngestionService = Depends(_get_ingestion),
+):
     """获取统计信息"""
-    engine, _ = get_engine_and_config()
-    doc_count = engine.vector_store.get_document_count()
-    sources = engine.vector_store.get_all_sources()
-    index_stats = engine.get_index_stats()
+    doc_count = infra.vector_store.get_document_count()
+    sources = infra.vector_store.get_all_sources()
+    index_stats = ingestion.get_index_stats()
     return {
         "document_count": doc_count,
         "source_count": len(sources),

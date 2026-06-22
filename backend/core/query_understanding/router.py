@@ -11,74 +11,74 @@ class QueryRouter:
         # (intent_type, complexity) -> config
         ("factoid", "simple"): {
             "use_hyde": False,
-            "num_queries": 2,
-            "rerank_top_k": 30,
-            "weights": {"vector": 0.6, "bm25": 0.4}
+            "num_queries": 1,       # 简单事实查询无需扩展
+            "rerank_top_k": 15,
+            "weights": {"vector": 0.7, "bm25": 0.3}
         },
         ("factoid", "medium"): {
-            "use_hyde": True,
-            "num_queries": 2,
-            "rerank_top_k": 30,
+            "use_hyde": False,      # 事实型一般不需要 HyDE
+            "num_queries": 1,       # 减少 LLM 调用
+            "rerank_top_k": 15,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("factoid", "complex"): {
             "use_hyde": True,
-            "num_queries": 3,
-            "rerank_top_k": 30,
+            "num_queries": 2,
+            "rerank_top_k": 20,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("analytical", "simple"): {
             "use_hyde": False,
-            "num_queries": 2,
-            "rerank_top_k": 30,
+            "num_queries": 1,
+            "rerank_top_k": 15,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("analytical", "medium"): {
             "use_hyde": True,
-            "num_queries": 3,
-            "rerank_top_k": 40,
+            "num_queries": 2,
+            "rerank_top_k": 20,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("analytical", "complex"): {
             "use_hyde": True,
-            "num_queries": 5,
-            "rerank_top_k": 40,
+            "num_queries": 3,
+            "rerank_top_k": 25,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("procedural", "simple"): {
             "use_hyde": False,
-            "num_queries": 2,
-            "rerank_top_k": 30,
+            "num_queries": 1,
+            "rerank_top_k": 15,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("procedural", "medium"): {
             "use_hyde": True,
-            "num_queries": 3,
-            "rerank_top_k": 30,
+            "num_queries": 2,
+            "rerank_top_k": 20,
             "weights": {"vector": 0.6, "bm25": 0.4}
         },
         ("procedural", "complex"): {
             "use_hyde": True,
-            "num_queries": 4,
-            "rerank_top_k": 40,
+            "num_queries": 3,
+            "rerank_top_k": 25,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "simple"): {
             "use_hyde": True,
-            "num_queries": 3,
-            "rerank_top_k": 40,
+            "num_queries": 2,
+            "rerank_top_k": 20,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "medium"): {
             "use_hyde": True,
-            "num_queries": 4,
-            "rerank_top_k": 40,
+            "num_queries": 3,
+            "rerank_top_k": 25,
             "weights": {"vector": 0.5, "bm25": 0.5}
         },
         ("exploratory", "complex"): {
             "use_hyde": True,
-            "num_queries": 5,
-            "rerank_top_k": 40,
+            "num_queries": 4,
+            "rerank_top_k": 30,
             "weights": {"vector": 0.5, "bm25": 0.5}
         }
     }

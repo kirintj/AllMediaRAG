@@ -33,7 +33,7 @@
       <div class="list-header">
         <div class="list-title">历史对话</div>
         <button
-          v-if="store.conversations.length > 0"
+          v-if="conversationStore.conversations.length > 0"
           class="clear-all-btn"
           @click="handleClearAll"
           title="清空全部"
@@ -41,7 +41,7 @@
           清空全部
         </button>
       </div>
-      <div v-if="store.conversations.length === 0" class="list-empty">
+      <div v-if="conversationStore.conversations.length === 0" class="list-empty">
         <div class="empty-icon">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
             <rect width="40" height="40" rx="12" fill="var(--hm-bg-container-secondary)"/>
@@ -53,11 +53,11 @@
       </div>
       <div v-else class="conv-items">
         <div
-          v-for="conv in store.conversations"
+          v-for="conv in conversationStore.conversations"
           :key="conv.id"
           class="conv-item"
-          :class="{ active: store.activeConversationId === conv.id }"
-          @click="store.loadConversation(conv.id)"
+          :class="{ active: chatStore.activeConversationId === conv.id }"
+          @click="conversationStore.loadConversation(conv.id)"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" flex-shrink="0">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -80,16 +80,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { useChatStore } from '../stores/chat'
+import { useChatStore } from '../../stores/useChatStore.js'
+import { useConversationStore } from '../../stores/useConversationStore.js'
 
-const store = useChatStore()
+const chatStore = useChatStore()
+const conversationStore = useConversationStore()
 const listRef = ref(null)
 
 function newChat() {
-  store.clearChatHistory()
+  chatStore.clearChatHistory()
 }
 
 async function handleDelete(conv) {
@@ -105,7 +106,7 @@ async function handleDelete(conv) {
         confirmButtonClass: 'el-button--danger',
       }
     )
-    await store.removeConversation(conv.id)
+    await conversationStore.removeConversation(conv.id)
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
       console.error('删除对话失败:', e)
@@ -114,7 +115,7 @@ async function handleDelete(conv) {
 }
 
 async function handleClearAll() {
-  const count = store.conversations.length
+  const count = conversationStore.conversations.length
   try {
     await ElMessageBox.confirm(
       `将删除全部 ${count} 条对话记录，删除后不可恢复。`,
@@ -127,7 +128,7 @@ async function handleClearAll() {
         confirmButtonClass: 'el-button--danger',
       }
     )
-    await store.removeAllConversations()
+    await conversationStore.removeAllConversations()
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
       console.error('清空对话失败:', e)
@@ -136,7 +137,7 @@ async function handleClearAll() {
 }
 
 onMounted(() => {
-  store.fetchConversations()
+  conversationStore.fetchConversations()
 })
 </script>
 

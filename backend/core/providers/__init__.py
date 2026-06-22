@@ -1,10 +1,6 @@
 from .base import FileReader, VectorStoreProvider, EmbeddingProvider, LLMProvider
 from .factory import ProviderFactory
-from .adapters import (
-    ChromaVectorStoreAdapter,
-    SentenceTransformerAdapter,
-    OpenAICompatibleLLMAdapter,
-)
+from .siliconflow_adapter import SiliconFlowEmbeddingAdapter
 from .pgvector_adapter import PgVectorStoreAdapter
 from .pgvector_index_adapter import PgIndexManager
 
@@ -14,9 +10,7 @@ __all__ = [
     "EmbeddingProvider",
     "LLMProvider",
     "ProviderFactory",
-    "ChromaVectorStoreAdapter",
-    "SentenceTransformerAdapter",
-    "OpenAICompatibleLLMAdapter",
+    "SiliconFlowEmbeddingAdapter",
     "PgVectorStoreAdapter",
     "PgIndexManager",
 ]

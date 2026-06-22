@@ -123,10 +123,15 @@ class L2Cache:
             return
 
         try:
-            keys = self.client.keys(f"{self.prefix}*")
-            if keys:
-                self.client.delete(*keys)
-            logger.info("Redis L2 cache cleared: %d keys", len(keys))
+            cursor = 0
+            deleted = 0
+            while True:
+                cursor, keys = self.client.scan(cursor=cursor, match=f"{self.prefix}*", count=100)
+                if keys:
+                    deleted += self.client.delete(*keys)
+                if cursor == 0:
+                    break
+            logger.info("Redis L2 cache cleared: %d keys", deleted)
         except Exception as e:
             logger.warning("Redis L2 clear failed: %s", e)
 
@@ -143,10 +148,15 @@ class L2Cache:
             return 0
 
         try:
-            keys = self.client.keys(f"{self.prefix}{pattern}")
-            if keys:
-                return self.client.delete(*keys)
-            return 0
+            cursor = 0
+            deleted = 0
+            while True:
+                cursor, keys = self.client.scan(cursor=cursor, match=f"{self.prefix}{pattern}", count=100)
+                if keys:
+                    deleted += self.client.delete(*keys)
+                if cursor == 0:
+                    break
+            return deleted
         except Exception as e:
             logger.warning("Redis L2 invalidate failed: %s", e)
             return 0

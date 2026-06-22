@@ -166,7 +166,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getBatchStatus } from '../api'
+import { getBatchStatus } from '../../api/documents.js'
 
 const props = defineProps({
   taskId: {

@@ -43,7 +43,7 @@ export async function chatStream(message, mode, onChunk, conversationId, history
       buffer = lines.pop() || '' // 保留不完整的行
 
       for (const line of lines) {
-        // 处理 event: 行（如 event: error）
+        // 处理 event: 行（如 event: error / event: verification）
         if (line.startsWith('event: ')) {
           currentEvent = line.slice(7).trim()
           continue
@@ -58,10 +58,17 @@ export async function chatStream(message, mode, onChunk, conversationId, history
                 onChunk(data)
                 return
               }
+              // verification 独立事件：推送后关闭连接
+              if (currentEvent === 'verification') {
+                onChunk({ verification: data.verification, conversation_id: data.conversation_id })
+                return
+              }
               // 收到结束标记（可能包含 verification）
               if (data.done) {
                 onChunk(data)
-                return
+                // 不 return，继续读取后续 verification 事件
+                currentEvent = ''
+                continue
               }
               onChunk(data)
             }

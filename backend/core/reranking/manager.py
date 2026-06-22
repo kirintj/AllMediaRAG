@@ -1,9 +1,11 @@
+import hashlib
 import logging
 from typing import Optional
 
 from .base import RerankerProvider
 from .cohere_reranker import CohereReranker
 from .bge_reranker import BGEReranker
+from .siliconflow_reranker import SiliconFlowReranker
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,10 @@ class RerankManager:
         )
         self.bge_reranker = BGEReranker(
             model_path=config.BGE_RERANKER_PATH
+        )
+        self.siliconflow_reranker = SiliconFlowReranker(
+            api_key=getattr(config, 'SILICONFLOW_API_KEY', ''),
+            model=getattr(config, 'SILICONFLOW_RERANKER_MODEL', 'BAAI/bge-reranker-v2-m3'),
         )
 
         logger.info("RerankManager initialized with strategy: %s", self.strategy)
@@ -94,6 +100,16 @@ class RerankManager:
                 return self.bge_reranker
             return None
 
+        elif self.strategy == "siliconflow":
+            # SiliconFlow 云端重排序
+            if self.siliconflow_reranker.is_available():
+                return self.siliconflow_reranker
+            # 回退到 BGE 本地模型
+            elif self.bge_reranker.is_available():
+                logger.info("SiliconFlow not available, falling back to BGE")
+                return self.bge_reranker
+            return None
+
         logger.warning("Unknown rerank strategy: %s", self.strategy)
         return None
 
@@ -122,13 +138,19 @@ class HybridReranker(RerankerProvider):
         self.cohere_weight = cohere_weight
         self.bge_weight = bge_weight
 
+    @staticmethod
+    def _doc_key(doc: dict) -> str:
+        """生成稳定的文档标识，用于跨重排序器匹配合并"""
+        text = doc.get("text", doc.get("content", ""))
+        return hashlib.md5(text.encode()).hexdigest()
+
     def rerank(self, query: str, documents: list[dict], top_k: int = 5) -> list[dict]:
-        """混合重排序"""
+        """混合重排序：按位置索引配对两个重排序器的分数并融合"""
         # 分别使用两个重排序器，传入副本避免修改原始列表
         cohere_results = self.cohere.rerank(query, documents.copy(), top_k=len(documents))
         bge_results = self.bge.rerank(query, documents.copy(), top_k=len(documents))
 
-        # 使用索引作为键，避免相同文本的文档互相覆盖
+        # 按索引位置配对，避免同文本文档被错误合并
         score_map: dict[int, dict] = {}
 
         for i, doc in enumerate(cohere_results):

@@ -98,7 +98,7 @@
 
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { useChatStore } from '../stores/chat'
+import { useChatStore } from '../../stores/useChatStore.js'
 import ChatMessage from './ChatMessage.vue'
 
 const store = useChatStore()

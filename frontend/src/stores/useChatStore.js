@@ -23,6 +23,9 @@ export const useChatStore = defineStore('chat', () => {
   async function sendMessage(content) {
     if (!content.trim() || loading.value) return
 
+    // 在添加用户消息之前提取历史（避免当前消息被包含在历史中）
+    const history = getRecentHistory()
+
     // 添加用户消息
     messages.value.push({
       role: 'user',
@@ -40,9 +43,6 @@ export const useChatStore = defineStore('chat', () => {
 
     loading.value = true
     const startTime = Date.now()
-
-    // 提取最近上下文
-    const history = getRecentHistory()
 
     try {
       await chatStream(content, mode.value, (data) => {
@@ -62,29 +62,48 @@ export const useChatStore = defineStore('chat', () => {
         if (data.conversation_id) {
           activeConversationId.value = data.conversation_id
         }
-        // 创建新对象触发响应式
-        console.log('SSE done data:', data)
+        // 独立 verification 事件：仅更新 verification 字段
+        if (data.verification && !data.done) {
+          const current = messages.value[assistantIndex]
+          if (current) {
+            messages.value.splice(assistantIndex, 1, {
+              ...current,
+              verification: data.verification
+            })
+          }
+          return
+        }
+        // 每个 chunk 都更新消息（实现流式输出效果）
         const newMsg = {
           role: 'assistant',
           content: data.full_answer || '',
           sources: data.sources && data.sources.length > 0 ? data.sources : [],
           verification: data.verification || null,
           loading: false,
-          elapsed: Date.now() - startTime
+          elapsed
         }
-        console.log('New message:', newMsg)
         // 使用 splice 确保响应式更新
         messages.value.splice(assistantIndex, 1, newMsg)
       }, activeConversationId.value, history)
     } catch (error) {
       const elapsed = Date.now() - startTime
-      messages.value.splice(assistantIndex, 1, {
-        role: 'assistant',
-        content: `错误: ${error.message}`,
-        sources: [],
-        loading: false,
-        elapsed
-      })
+      // 如果已有回答内容（超时但回答已流式接收），保留内容而非覆盖为错误
+      const currentMsg = messages.value[assistantIndex]
+      if (currentMsg && currentMsg.content && currentMsg.content.trim()) {
+        messages.value.splice(assistantIndex, 1, {
+          ...currentMsg,
+          loading: false,
+          elapsed
+        })
+      } else {
+        messages.value.splice(assistantIndex, 1, {
+          role: 'assistant',
+          content: `错误: ${error.message}`,
+          sources: [],
+          loading: false,
+          elapsed
+        })
+      }
     } finally {
       loading.value = false
       // 刷新对话列表

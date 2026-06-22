@@ -55,6 +55,15 @@ def _make_config():
     config.CHUNKING_STRATEGY = "semantic"
     config.CHUNK_SIZE = 512
     config.CHUNK_OVERLAP = 50
+    # RAGEngine backward compat attrs
+    config.RERANK_GATE_THRESHOLD = 0.3
+    config.CITATION_VERIFY_ENABLED = True
+    config.SELF_RAG_ENABLED = True
+    config.RETRIEVAL_REFETCH_ENABLED = True
+    config.EMBEDDING_PROVIDER = "sentence-transformer"
+    config.SILICONFLOW_API_KEY = ""
+    config.SILICONFLOW_EMBEDDING_MODEL = "BAAI/bge-m3"
+    config.SILICONFLOW_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
     return config
 
 
@@ -78,72 +87,145 @@ def _mock_bm25_results():
     ]
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_calls_all_modules(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+def _build_mock_infra(config):
+    """Build a mock InfraBundle with sensible defaults.
+
+    After refactoring, RAGEngine delegates full_retrieve() to
+    RetrievalPipeline which reads components from InfraBundle.
+    We patch create_infra to return this mock so we can control all deps.
+    """
+    from dataclasses import dataclass, field
+
+    # Reuse the real InfraBundle dataclass so attribute access works
+    from core.services import InfraBundle
+
+    mock_embed = Mock()
+    mock_embed.encode.side_effect = lambda texts: [[0.1] * 10 for _ in texts]
+    mock_embed.encode_single.return_value = [0.1] * 10
+
+    mock_vector = Mock()
+    mock_vector.query.return_value = _mock_vector_results()
+
+    mock_llm = Mock()
+    mock_llm.generate.return_value = '{"intent_type":"factoid","confidence":0.5,"complexity":"simple"}'
+    mock_llm.stream_generate.return_value = iter([])
+
+    mock_bm25 = Mock()
+    mock_bm25.search.return_value = []
+
+    mock_rerank = Mock()
+    mock_rerank.rerank.side_effect = lambda q, docs, top_k: [
+        {**d, "rerank_score": 0.9 - i * 0.1} for i, d in enumerate(docs)
+    ][:top_k]
+
+    mock_cache = Mock()
+    # Delegate to a real dict for cache get/set
+    _cache_store = {}
+    mock_cache.get.side_effect = lambda k: _cache_store.get(k)
+    mock_cache.set.side_effect = lambda k, v: _cache_store.__setitem__(k, v)
+
+    mock_classifier = Mock()
+    mock_classifier.classify.return_value = {
+        "intent_type": "factoid", "confidence": 0.5, "complexity": "medium"
+    }
+
+    mock_router = Mock()
+    mock_router.route.return_value = {
+        "use_hyde": False, "num_queries": 1,
+        "rerank_top_k": config.RERANK_TOP_K,
+        "weights": {"vector": config.RRF_WEIGHT_VECTOR, "bm25": config.RRF_WEIGHT_BM25},
+    }
+
+    mock_hyde = Mock()
+    mock_hyde.rewrite_sync.return_value = []
+
+    mock_mq = Mock()
+    mock_mq.rewrite_sync.return_value = []
+
+    rewriters = {"hyde": mock_hyde, "multi_query": mock_mq}
+
+    mock_confidence = Mock()
+    mock_confidence.evaluate.return_value = {"needs_refetch": False, "confidence": 0.8}
+
+    executor = Mock()
+    # Make executor.submit work like a real ThreadPoolExecutor
+    from concurrent.futures import Future
+
+    def _submit(fn, *args, **kwargs):
+        f = Future()
+        try:
+            result = fn(*args, **kwargs)
+            f.set_result(result)
+        except Exception as e:
+            f.set_exception(e)
+        return f
+
+    executor.submit.side_effect = _submit
+
+    infra = InfraBundle(
+        settings=config,
+        embedding_service=mock_embed,
+        vector_store=mock_vector,
+        llm_client=mock_llm,
+        bm25_retriever=mock_bm25,
+        document_processor=Mock(),
+        rerank_manager=mock_rerank,
+        cache_manager=mock_cache,
+        index_manager=Mock(),
+        classifier=mock_classifier,
+        router=mock_router,
+        rewriters=rewriters,
+        confidence_evaluator=mock_confidence,
+        citation_verifier=Mock(),
+        self_rag_reflector=Mock(),
+        executor=executor,
+        bm25_ready=True,
+    )
+    return infra
+
+
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_calls_all_modules(mock_create_infra):
     """测试 full_retrieve 按顺序调用所有模块"""
     from core.rag_engine import RAGEngine
 
     config = _make_config()
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
-    # 设置 mock — 使用 encode (batch) 而非 encode_single
-    mock_embed_instance = Mock()
-    # encode 返回与输入等长的向量列表
-    mock_embed_instance.encode.side_effect = lambda texts: [[0.1] * 10 for _ in texts]
-    mock_embed_instance.encode_single.return_value = [0.1] * 10
-    mock_embed.return_value = mock_embed_instance
+    # 设置 BM25 返回结果
+    infra.bm25_retriever.search.return_value = _mock_bm25_results()
 
-    mock_vector_instance = Mock()
-    mock_vector_instance.query.return_value = _mock_vector_results()
-    mock_vector.return_value = mock_vector_instance
-
-    mock_llm_instance = Mock()
-    mock_llm_instance.stream_generate.return_value = iter(["回答"])
-    mock_llm.return_value = mock_llm_instance
-
-    mock_doc_proc_instance = Mock()
-    mock_doc_proc.return_value = mock_doc_proc_instance
-
-    # RerankManager mock
-    mock_cohere = Mock()
-    mock_cohere.is_available.return_value = True
-    mock_cohere.rerank.side_effect = lambda q, docs, top_k: [
-        {**d, "rerank_score": 0.9 - i * 0.1} for i, d in enumerate(docs)
-    ][:top_k]
-    mock_cohere_cls.return_value = mock_cohere
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
-
-    engine = RAGEngine(config)
-    engine.bm25_retriever = Mock()
-    engine.bm25_retriever.search.return_value = _mock_bm25_results()
-
-    # Mock 各模块以避免 LLM 调用
-    engine.classifier.classify = Mock(return_value={
+    # Mock classifier
+    infra.classifier.classify = Mock(return_value={
         "intent_type": "analytical", "confidence": 0.9, "complexity": "medium"
     })
-    engine.hyde_generator.generate_hypothetical_document = Mock(return_value="假设性文档内容")
-    engine.multi_query_generator.generate_queries = Mock(
-        return_value=["Python 装饰器怎么用", "查询变体1", "查询变体2"]
-    )
+
+    # Mock rewriters (retrieval pipeline reads from infra.rewriters)
+    infra.rewriters["hyde"].rewrite_sync.return_value = ["假设性文档内容"]
+    infra.rewriters["multi_query"].rewrite_sync.return_value = ["查询变体1", "查询变体2"]
+
+    # 设置路由配置
+    infra.router.route.return_value = {
+        "use_hyde": True, "num_queries": 3,
+        "rerank_top_k": config.RERANK_TOP_K,
+        "weights": {"vector": 0.6, "bm25": 0.4},
+    }
+
+    engine = RAGEngine(config)
 
     # 执行
     result = engine.full_retrieve("Python 装饰器怎么用")
 
     # 验证：classifier 被调用
-    engine.classifier.classify.assert_called_once_with("Python 装饰器怎么用")
+    infra.classifier.classify.assert_called_once_with("Python 装饰器怎么用")
 
     # 验证：向量检索被调用（批量 encode + query）
-    assert mock_embed_instance.encode.call_count >= 1
-    assert mock_vector_instance.query.call_count >= 1
+    assert infra.embedding_service.encode.call_count >= 1
+    assert infra.vector_store.query.call_count >= 1
 
     # 验证：BM25 检索被调用
-    assert engine.bm25_retriever.search.call_count >= 1
+    assert infra.bm25_retriever.search.call_count >= 1
 
     # 验证：返回格式正确
     assert "documents" in result
@@ -152,34 +234,16 @@ def test_full_retrieve_calls_all_modules(
     assert len(result["documents"]) <= config.TOP_K
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_cache_hit(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_cache_hit(mock_create_infra):
     """测试缓存命中时直接返回，不调用检索"""
     from core.rag_engine import RAGEngine
 
     config = _make_config()
-    mock_embed.return_value = Mock(
-        encode_single=Mock(return_value=[0.1] * 10),
-        encode=Mock(side_effect=lambda t: [[0.1] * 10 for _ in t]),
-    )
-    mock_vector.return_value = Mock(query=Mock(return_value=_mock_vector_results()))
-    mock_llm.return_value = Mock(
-        generate=Mock(return_value='{"intent_type":"factoid","confidence":0.5,"complexity":"simple"}'),
-        stream_generate=Mock(return_value=iter([])),
-    )
-    mock_doc_proc.return_value = Mock()
-    mock_cohere_cls.return_value = Mock(is_available=Mock(return_value=False))
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
     engine = RAGEngine(config)
-    engine.bm25_retriever = Mock(search=Mock(return_value=[]))
 
     # 使用归一化后的 key 预热缓存
     import hashlib
@@ -193,8 +257,8 @@ def test_full_retrieve_cache_hit(
     engine.cache_manager.set(cache_key, cached_result)
 
     # 重置 mock 调用记录
-    mock_vector.return_value.query.reset_mock()
-    engine.bm25_retriever.search.reset_mock()
+    infra.vector_store.query.reset_mock()
+    infra.bm25_retriever.search.reset_mock()
 
     # 执行 —— 应命中缓存
     result = engine.full_retrieve("test query")
@@ -203,19 +267,12 @@ def test_full_retrieve_cache_hit(
     assert result == cached_result
 
     # 验证：检索未被调用
-    mock_vector.return_value.query.assert_not_called()
-    engine.bm25_retriever.search.assert_not_called()
+    infra.vector_store.query.assert_not_called()
+    infra.bm25_retriever.search.assert_not_called()
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_classifier_fallback(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_classifier_fallback(mock_create_infra):
     """测试分类器失败时降级到默认配置"""
     from core.rag_engine import RAGEngine
 
@@ -223,28 +280,15 @@ def test_full_retrieve_classifier_fallback(
     config.USE_HYDE = False
     config.MULTI_QUERY_ENABLED = False
 
-    mock_embed.return_value = Mock(
-        encode_single=Mock(return_value=[0.1] * 10),
-        encode=Mock(side_effect=lambda t: [[0.1] * 10 for _ in t]),
-    )
-    mock_vector.return_value = Mock(query=Mock(return_value=_mock_vector_results()))
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
-    mock_llm_instance = Mock()
-    mock_llm_instance.generate.side_effect = RuntimeError("LLM unavailable")
-    mock_llm_instance.stream_generate.return_value = iter(["回答"])
-    mock_llm.return_value = mock_llm_instance
-
-    mock_doc_proc.return_value = Mock()
-    mock_cohere_cls.return_value = Mock(is_available=Mock(return_value=False))
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
-
-    engine = RAGEngine(config)
-    engine.bm25_retriever = Mock(search=Mock(return_value=_mock_bm25_results()))
+    infra.bm25_retriever.search.return_value = _mock_bm25_results()
 
     # Mock classifier 返回降级默认值
-    engine.classifier.classify = Mock(side_effect=RuntimeError("LLM unavailable"))
-    engine.hyde_generator.generate_hypothetical_document = Mock(return_value=None)
-    engine.multi_query_generator.generate_queries = Mock(return_value=["test query"])
+    infra.classifier.classify = Mock(side_effect=RuntimeError("LLM unavailable"))
+
+    engine = RAGEngine(config)
 
     # 不应抛出异常
     result = engine.full_retrieve("test query")
@@ -254,45 +298,26 @@ def test_full_retrieve_classifier_fallback(
     assert len(result["documents"]) > 0
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_rerank_fallback(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_rerank_fallback(mock_create_infra):
     """测试重排序失败时降级到原始顺序"""
     from core.rag_engine import RAGEngine
 
     config = _make_config()
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
-    mock_embed.return_value = Mock(
-        encode_single=Mock(return_value=[0.1] * 10),
-        encode=Mock(side_effect=lambda t: [[0.1] * 10 for _ in t]),
-    )
-    mock_vector.return_value = Mock(query=Mock(return_value=_mock_vector_results()))
-    mock_llm.return_value = Mock(
-        generate=Mock(return_value='{"intent_type":"factoid","confidence":0.5,"complexity":"simple"}'),
-        stream_generate=Mock(return_value=iter([])),
-    )
-    mock_doc_proc.return_value = Mock()
+    infra.bm25_retriever.search.return_value = _mock_bm25_results()
 
     # RerankManager.rerank 抛出异常
-    mock_cohere = Mock()
-    mock_cohere.is_available.return_value = True
-    mock_cohere.rerank.side_effect = RuntimeError("Rerank API timeout")
-    mock_cohere_cls.return_value = mock_cohere
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
+    infra.rerank_manager.rerank.side_effect = RuntimeError("Rerank API timeout")
 
-    engine = RAGEngine(config)
-    engine.bm25_retriever = Mock(search=Mock(return_value=_mock_bm25_results()))
-    engine.classifier.classify = Mock(return_value={
+    # Mock classifier
+    infra.classifier.classify = Mock(return_value={
         "intent_type": "factoid", "confidence": 0.5, "complexity": "simple"
     })
-    engine.hyde_generator.generate_hypothetical_document = Mock(return_value=None)
-    engine.multi_query_generator.generate_queries = Mock(return_value=["test query"])
+
+    engine = RAGEngine(config)
 
     # 不应抛出异常
     result = engine.full_retrieve("test query")
@@ -302,52 +327,44 @@ def test_full_retrieve_rerank_fallback(
     assert len(result["documents"]) > 0
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_dynamic_weights(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_dynamic_weights(mock_create_infra):
     """测试路由器返回动态权重后正确传递到 RRF"""
     from core.rag_engine import RAGEngine
 
     config = _make_config()
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
-    mock_embed.return_value = Mock(
-        encode_single=Mock(return_value=[0.1] * 10),
-        encode=Mock(side_effect=lambda t: [[0.1] * 10 for _ in t]),
-    )
-    mock_vector.return_value = Mock(query=Mock(return_value=_mock_vector_results()))
-    mock_llm.return_value = Mock(
-        generate=Mock(return_value='{"intent_type":"exploratory","confidence":0.8,"complexity":"complex"}'),
-        stream_generate=Mock(return_value=iter([])),
-    )
-    mock_doc_proc.return_value = Mock()
-    mock_cohere_cls.return_value = Mock(is_available=Mock(return_value=False))
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
+    infra.bm25_retriever.search.return_value = _mock_bm25_results()
 
-    engine = RAGEngine(config)
-    engine.bm25_retriever = Mock(search=Mock(return_value=_mock_bm25_results()))
-    engine.classifier.classify = Mock(return_value={
+    # Mock classifier
+    infra.classifier.classify = Mock(return_value={
         "intent_type": "exploratory", "confidence": 0.8, "complexity": "complex"
     })
-    engine.hyde_generator.generate_hypothetical_document = Mock(return_value="假设文档")
-    engine.multi_query_generator.generate_queries = Mock(
-        return_value=["深入分析 Python 内存管理机制", "变体1", "变体2"]
-    )
 
-    # spy on reciprocal_rank_fusion
-    original_rrf = engine.reciprocal_rank_fusion
+    # Mock rewriters
+    infra.rewriters["hyde"].rewrite_sync.return_value = ["假设文档"]
+    infra.rewriters["multi_query"].rewrite_sync.return_value = ["变体1", "变体2"]
+
+    # 设置路由配置: exploratory + complex → weights = {"vector": 0.5, "bm25": 0.5}
+    infra.router.route.return_value = {
+        "use_hyde": True, "num_queries": 3,
+        "rerank_top_k": config.RERANK_TOP_K,
+        "weights": {"vector": 0.5, "bm25": 0.5},
+    }
+
+    engine = RAGEngine(config)
+
+    # spy on reciprocal_rank_fusion (on retrieval pipeline)
+    original_rrf = engine.retrieval.reciprocal_rank_fusion
     rrf_calls = []
 
     def spy_rrf(results_list, weights, k):
         rrf_calls.append({"weights": weights, "k": k})
         return original_rrf(results_list, weights, k)
 
-    engine.reciprocal_rank_fusion = spy_rrf
+    engine.retrieval.reciprocal_rank_fusion = spy_rrf
 
     engine.full_retrieve("深入分析 Python 内存管理机制")
 
@@ -358,56 +375,46 @@ def test_full_retrieve_dynamic_weights(
     assert last_call["weights"][1] == 0.5  # bm25 weight
 
 
-@patch("core.reranking.manager.CohereReranker")
-@patch("core.reranking.manager.BGEReranker")
-@patch("core.rag_engine.EmbeddingService")
-@patch("core.rag_engine.VectorStore")
-@patch("core.rag_engine.LLMClient")
-@patch("core.rag_engine.DocumentProcessor")
-def test_full_retrieve_hyde_skips_for_high_confidence_factoid(
-    mock_doc_proc, mock_llm, mock_vector, mock_embed, mock_bge_cls, mock_cohere_cls
-):
+@patch("core.rag_engine.create_infra")
+def test_full_retrieve_hyde_skips_for_high_confidence_factoid(mock_create_infra):
     """测试高置信度事实型查询时 HyDE 被跳过"""
     from core.rag_engine import RAGEngine
 
     config = _make_config()
+    infra = _build_mock_infra(config)
+    mock_create_infra.return_value = infra
 
-    mock_embed.return_value = Mock(
-        encode_single=Mock(return_value=[0.1] * 10),
-        encode=Mock(side_effect=lambda t: [[0.1] * 10 for _ in t]),
-    )
-    mock_vector.return_value = Mock(query=Mock(return_value=_mock_vector_results()))
-    mock_llm.return_value = Mock(
-        generate=Mock(return_value='{"intent_type":"factoid","confidence":0.9,"complexity":"simple"}'),
-        stream_generate=Mock(return_value=iter([])),
-    )
-    mock_doc_proc.return_value = Mock()
-    mock_cohere_cls.return_value = Mock(is_available=Mock(return_value=False))
-    mock_bge_cls.return_value = Mock(is_available=Mock(return_value=False))
-
-    engine = RAGEngine(config)
-    engine.bm25_retriever = Mock(search=Mock(return_value=[]))
-
-    # 高置信度事实型 + HyDE 文档
-    engine.classifier.classify = Mock(return_value={
+    # 高置信度事实型
+    infra.classifier.classify = Mock(return_value={
         "intent_type": "factoid", "confidence": 0.9, "complexity": "simple"
     })
-    engine.hyde_generator.generate_hypothetical_document = Mock(return_value="假设性文档不应被使用")
-    engine.multi_query_generator.generate_queries = Mock(return_value=["Python 的 GIL 是什么", "变体1"])
 
-    # spy on embedding encode
+    # 设置路由: factoid + simple → use_hyde=False
+    infra.router.route.return_value = {
+        "use_hyde": False, "num_queries": 2,
+        "rerank_top_k": 30,
+        "weights": {"vector": 0.6, "bm25": 0.4},
+    }
+
+    # Mock rewriters - HyDE 应该不被调用
+    infra.rewriters["hyde"].rewrite_sync.return_value = ["假设性文档不应被使用"]
+    infra.rewriters["multi_query"].rewrite_sync.return_value = ["变体1"]
+
+    engine = RAGEngine(config)
+
+    # spy on embedding encode (use infra.embedding_service which is the same object)
     encode_calls = []
-    original_encode = engine.embedding_service.encode
+    original_encode = infra.embedding_service.encode
 
     def spy_encode(texts):
         encode_calls.extend(texts)
         return original_encode(texts)
 
-    engine.embedding_service.encode = spy_encode
+    infra.embedding_service.encode = spy_encode
 
     engine.full_retrieve("Python 的 GIL 是什么")
 
-    # factoid + confidence > 0.85 → hyde_doc 被置为 None
-    # 所以搜索查询只有原始查询 + 变体，不应包含假设文档
+    # factoid + use_hyde=False → HyDE rewriter 不应被调用
+    # 所以搜索查询不应包含假设文档
     assert "假设性文档不应被使用" not in encode_calls
     assert "Python 的 GIL 是什么" in encode_calls

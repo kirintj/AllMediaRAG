@@ -101,11 +101,15 @@ async def chat(
                 # 使用完整检索管线（异步版本，查询理解并行化）
                 contexts_data = await retrieval.full_retrieve_async(body.message)
                 if contexts_data["documents"]:
+                    seen_sources = set()
                     for meta in contexts_data["metadatas"]:
-                        sources.append({
-                            "source": meta["source"],
-                            "section": meta["section"]
-                        })
+                        src = meta["source"]
+                        if src not in seen_sources:
+                            seen_sources.add(src)
+                            sources.append({
+                                "source": src,
+                                "section": meta["section"]
+                            })
                     context_list = []
                     for doc, meta in zip(contexts_data["documents"], contexts_data["metadatas"]):
                         context_list.append({"text": doc, "metadata": meta})
@@ -137,7 +141,35 @@ async def chat(
                 }, ensure_ascii=False)
                 yield f"data: {data}\n\n"
 
-            # 引用核查（仅 RAG 模式且有上下文）
+            # 持久化对话（verification 暂为 None，后续异步补充）
+            conv_id = body.conversation_id or str(uuid.uuid4())[:8]
+            title = body.history[0].content[:30] if body.history else body.message[:30]
+            if len(title) > 30:
+                title = title[:30] + "..."
+            username = current_user["username"]
+
+            all_messages = [
+                {"role": m.role, "content": m.content} for m in body.history
+            ]
+            all_messages.append({"role": "user", "content": body.message})
+            all_messages.append({"role": "assistant", "content": full_answer, "sources": sources, "verification": None})
+
+            from api.conversations import save_conversation as _save
+            await asyncio.to_thread(
+                _save, conv_id, username, title, all_messages, body.mode
+            )
+
+            # 发送完成标记（verification 后续异步补充，不阻塞响应）
+            done_data = json.dumps({
+                "done": True,
+                "full_answer": full_answer,
+                "sources": sources,
+                "verification": None,
+                "conversation_id": conv_id,
+            }, ensure_ascii=False)
+            yield f"data: {done_data}\n\n"
+
+            # 引用核查（仅 RAG 模式且有上下文）—— 异步执行，不阻塞响应
             citation_verify_enabled = infra.settings.CITATION_VERIFY_ENABLED
             logger.info("Citation verify check: mode=%s, enabled=%s, contexts=%d, answer=%s",
                        body.mode, citation_verify_enabled, len(contexts), bool(full_answer.strip()))
@@ -149,37 +181,19 @@ async def chat(
                     )
                     logger.info("Citation verification: confidence=%.2f, risk=%s",
                                verification["confidence"], verification["hallucination_risk"])
+                    # verification 完成后更新对话文件
+                    all_messages[-1]["verification"] = verification
+                    await asyncio.to_thread(
+                        _save, conv_id, username, title, all_messages, body.mode
+                    )
+                    # 通过独立 SSE 事件推送 verification 结果到前端
+                    verify_data = json.dumps({
+                        "verification": verification,
+                        "conversation_id": conv_id,
+                    }, ensure_ascii=False)
+                    yield f"event: verification\ndata: {verify_data}\n\n"
                 except Exception as e:
                     logger.warning("Citation verification failed: %s", e)
-
-            # 持久化对话（合并历史 + 本轮消息）
-            conv_id = body.conversation_id or str(uuid.uuid4())[:8]
-            title = body.history[0].content[:30] if body.history else body.message[:30]
-            if len(title) > 30:
-                title = title[:30] + "..."
-            username = current_user["username"]
-
-            # 合并前端传来的历史 + 本轮新消息
-            all_messages = [
-                {"role": m.role, "content": m.content} for m in body.history
-            ]
-            all_messages.append({"role": "user", "content": body.message})
-            all_messages.append({"role": "assistant", "content": full_answer, "sources": sources})
-
-            from api.conversations import save_conversation as _save
-            await asyncio.to_thread(
-                _save, conv_id, username, title, all_messages, body.mode
-            )
-
-            # 发送完成标记（包含 verification）
-            done_data = json.dumps({
-                "done": True,
-                "full_answer": full_answer,
-                "sources": sources,
-                "verification": verification,
-                "conversation_id": conv_id,
-            }, ensure_ascii=False)
-            yield f"data: {done_data}\n\n"
 
         except Exception as e:
             logger.exception("SSE流式生成失败")

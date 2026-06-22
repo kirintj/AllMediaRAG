@@ -104,6 +104,10 @@ class L1Cache:
         if key in self.timestamps:
             del self.timestamps[key]
 
+    def size(self) -> int:
+        """返回当前缓存条目数"""
+        return len(self.cache)
+
     def _evict(self) -> None:
         """淘汰最久未使用的条目"""
         if self.cache:

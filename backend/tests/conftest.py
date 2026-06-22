@@ -6,7 +6,7 @@
 import sys
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,29 +29,51 @@ def _reset_rate_limiter():
 def _mock_engine(monkeypatch):
     """Mock 掉 RAG 引擎初始化，避免加载真实模型。
 
-    同时 mock 用户存储，确保 testuser 可通过 JWT 认证。
+    Patches ``create_infra`` so the lifespan initialisation path
+    (InfraBundle + 3 services + RAGEngine facade) receives mock objects.
+    Also mocks the user store so testuser can authenticate via JWT.
     """
-    mock_engine = MagicMock()
-    mock_engine.ingest_document = MagicMock(return_value=5)
-    mock_engine.delete_by_source = MagicMock()
-    mock_engine.delete_all = MagicMock()
-    mock_engine.vector_store = MagicMock()
-    mock_engine.vector_store.get_all_sources = MagicMock(return_value=[])
-    mock_engine.vector_store.get_document_count = MagicMock(return_value=0)
-    mock_engine.get_index_stats = MagicMock(return_value={
-        "indexed_documents": 0,
-        "vector_count": 0,
-        "bm25_ready": False,
-    })
+    # -- Build a mock InfraBundle with all attributes the services need ----
+    mock_infra = MagicMock()
+    mock_infra.embedding_service = MagicMock()
+    mock_infra.vector_store = MagicMock()
+    mock_infra.vector_store.get_all_sources = MagicMock(return_value=[])
+    mock_infra.vector_store.get_document_count = MagicMock(return_value=0)
+    mock_infra.vector_store.close = MagicMock()
+    mock_infra.llm_client = MagicMock()
+    mock_infra.document_processor = MagicMock()
+    mock_infra.bm25_retriever = MagicMock()
+    mock_infra.rerank_manager = MagicMock()
+    mock_infra.cache_manager = MagicMock()
+    mock_infra.index_manager = MagicMock()
+    mock_infra.index_manager.close = MagicMock()
+    mock_infra.classifier = MagicMock()
+    mock_infra.router = MagicMock()
+    mock_infra.rewriters = {}
+    mock_infra.confidence_evaluator = MagicMock()
+    mock_infra.citation_verifier = MagicMock()
+    mock_infra.self_rag_reflector = MagicMock()
+    mock_infra.executor = MagicMock()
+    mock_infra.bm25_ready = True
+    # settings attributes accessed by RAGEngine and services
+    mock_infra.settings.TOP_K = 5
+    mock_infra.settings.BM25_TOP_K = 6
+    mock_infra.settings.RRF_K = 60
+    mock_infra.settings.RRF_WEIGHT_VECTOR = 0.7
+    mock_infra.settings.RRF_WEIGHT_BM25 = 0.3
+    mock_infra.settings.SIMILARITY_THRESHOLD = 0.5
+    mock_infra.settings.USE_HYDE = False
+    mock_infra.settings.MULTI_QUERY_ENABLED = False
+    mock_infra.settings.MULTI_QUERY_COUNT = 3
+    mock_infra.settings.RERANK_TOP_K = 40
+    mock_infra.settings.RERANK_GATE_THRESHOLD = 0.3
+    mock_infra.settings.RETRIEVAL_REFETCH_ENABLED = False
+    mock_infra.settings.CITATION_VERIFY_ENABLED = False
+    mock_infra.settings.SELF_RAG_ENABLED = False
 
-    mock_config = MagicMock()
-    mock_config.DATA_DIR = "/tmp/test_data_dir"
-
-    # 导入 main 并注入 mock
+    # Patch create_infra in the main module so lifespan gets the mock
     import main
-    monkeypatch.setattr(main, "rag_engine", mock_engine)
-    from api import documents as docs_module
-    docs_module.set_engine(mock_engine, mock_config)
+    monkeypatch.setattr(main, "create_infra", lambda config: mock_infra)
 
     # Mock 用户存储，使 testuser 通过认证
     from core import auth

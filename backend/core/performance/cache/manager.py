@@ -144,7 +144,7 @@ class CacheManager:
         """获取缓存统计信息"""
         stats = {
             "enabled": self.enabled,
-            "l1_size": len(self.l1_cache._cache) if hasattr(self.l1_cache, '_cache') else 0,
+            "l1_size": self.l1_cache.size(),
         }
 
         if self.l2_cache:

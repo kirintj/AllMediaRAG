@@ -41,7 +41,7 @@
             :key="idx"
             class="hm-filter-chip source-chip"
           >
-            {{ source.section || source.source }}
+            {{ (source.section && source.section !== '概述') ? source.section : cleanSourceName(source.source) }}
           </span>
         </div>
       </div>
@@ -63,7 +63,7 @@
         <div v-if="showVerification" class="verification-details">
           <div class="verification-item">
             <span class="label">置信度:</span>
-            <span class="value">{{ (message.verification.confidence * 100).toFixed(0) }}%</span>
+            <span class="value span-end">{{ (message.verification.confidence * 100).toFixed(0) }}%</span>
           </div>
 
           <!-- 检索质量指标 -->
@@ -71,7 +71,7 @@
             <div class="metrics-title">检索质量</div>
             <div class="verification-item">
               <span class="label">文档数量:</span>
-              <span class="value">{{ message.verification.retrieval_metrics.doc_count }}</span>
+              <span class="value span-end">{{ message.verification.retrieval_metrics.doc_count }}</span>
             </div>
             <div v-if="message.verification.retrieval_metrics.max_similarity != null" class="verification-item">
               <span class="label">最高相似度:</span>
@@ -108,7 +108,7 @@
             </div>
             <div v-if="message.verification.faithfulness_metrics.claim_count != null" class="verification-item">
               <span class="label">有支撑断言:</span>
-              <span class="value">{{ message.verification.faithfulness_metrics.supported_count }}/{{ message.verification.faithfulness_metrics.claim_count }}</span>
+              <span class="value span-end">{{ message.verification.faithfulness_metrics.supported_count }}/{{ message.verification.faithfulness_metrics.claim_count }}</span>
             </div>
           </div>
 
@@ -126,7 +126,7 @@
 
           <div v-if="message.verification.unsupported_claims && message.verification.unsupported_claims.length > 0" class="verification-item">
             <span class="label">无支撑断言:</span>
-            <span class="value warning">{{ message.verification.unsupported_claims.length }} 条</span>
+            <span class="value warning span-end">{{ message.verification.unsupported_claims.length }} 条</span>
           </div>
           <div v-if="message.verification.suggested_disclaimer" class="verification-disclaimer">
             {{ message.verification.suggested_disclaimer }}
@@ -161,6 +161,11 @@ const showVerification = ref(false)
 
 function toggleVerification() {
   showVerification.value = !showVerification.value
+}
+
+function cleanSourceName(name) {
+  if (!name) return ''
+  return name.replace(/\.[^.]+$/, '')
 }
 
 const verificationRiskClass = computed(() => {
@@ -508,23 +513,33 @@ const formattedElapsed = computed(() => {
 }
 
 .verification-item {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 80px 1fr 40px;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .verification-item .label {
   color: var(--hm-font-tertiary);
+  white-space: nowrap;
+  text-align: right;
 }
 
 .verification-item .value {
   color: var(--hm-font-primary);
   font-weight: 500;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .verification-item .value.warning {
   color: #e6a23c;
+}
+
+.verification-item .value.span-end {
+  grid-column: 2 / 4;
 }
 
 .verification-disclaimer {
@@ -552,11 +567,10 @@ const formattedElapsed = computed(() => {
 }
 
 .progress-bar {
-  flex: 1;
+  width: 100%;
   height: 6px;
   background: var(--hm-bg-container-secondary);
   border-radius: 3px;
-  margin: 0 8px;
   overflow: hidden;
 }
 

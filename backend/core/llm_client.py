@@ -1,7 +1,10 @@
 from openai import OpenAI, APIError, RateLimitError
 from typing import Generator
 
-class LLMClient:
+from core.providers.base import LLMProvider
+
+
+class LLMClient(LLMProvider):
     """LLM 客户端：封装 MiMo API 调用"""
 
     def __init__(self, api_key: str, api_base: str, model: str):

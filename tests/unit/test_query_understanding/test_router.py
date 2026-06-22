@@ -42,7 +42,7 @@ def test_router_simple_factoid():
 
     assert config["use_hyde"] is False
     assert config["num_queries"] == 2
-    assert config["rerank_top_k"] == 15
+    assert config["rerank_top_k"] == 30
 
 
 def test_router_analytical_complex():
@@ -61,7 +61,7 @@ def test_router_analytical_complex():
 
     assert config["use_hyde"] is True
     assert config["num_queries"] == 5
-    assert config["rerank_top_k"] == 20
+    assert config["rerank_top_k"] == 40
 
 
 def test_router_unknown_intent():

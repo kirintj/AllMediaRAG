@@ -69,6 +69,14 @@ class TaskProgress:
         Returns:
             Dictionary containing all task progress fields.
         """
+        elapsed = round(time.time() - self.started_at, 1) if self.started_at else 0
+        estimated_remaining = None
+        if self.status == TaskStatus.RUNNING and self.upload_current > 0:
+            # 基于上传阶段进度估算剩余时间
+            progress = self.upload_current / self.total if self.total > 0 else 0
+            if progress > 0:
+                estimated_remaining = round(elapsed * (1 - progress) / progress, 1)
+
         return {
             "task_id": self.task_id,
             "status": self.status.value,
@@ -76,13 +84,23 @@ class TaskProgress:
             "total": self.total,
             "upload": {
                 "current": self.upload_current,
-                "failed_count": len(self.upload_failed),
+                "total": self.total,
+                "failed": [
+                    {"name": f.filename, "reason": f.error}
+                    for f in self.upload_failed
+                ],
             },
             "index": {
                 "current": self.index_current,
+                "total": self.total,
                 "success": self.index_success,
-                "failed_count": len(self.index_failed),
+                "failed": [
+                    {"name": f.filename, "reason": f.error}
+                    for f in self.index_failed
+                ],
             },
+            "elapsed_seconds": elapsed,
+            "estimated_remaining": estimated_remaining,
             "started_at": self.started_at,
             "error": self.error,
         }
