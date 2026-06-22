@@ -6,12 +6,10 @@
 """
 
 import uuid
-import json
 from datetime import datetime, timezone
-from typing import List
 
 from sqlalchemy import (
-    Column, String, Integer, Text, DateTime, ForeignKey, Index, UniqueConstraint, TypeDecorator
+    String, Integer, Text, DateTime, ForeignKey, Index, TypeDecorator
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship

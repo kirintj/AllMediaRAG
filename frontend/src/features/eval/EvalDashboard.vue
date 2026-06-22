@@ -180,13 +180,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { useEvalStore } from '../../stores/useEvalStore.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
 })
-const emit = defineEmits(['update:modelValue'])
+defineEmits(['update:modelValue'])
 
 const evalStore = useEvalStore()
 const activeTab = ref('reports')

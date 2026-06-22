@@ -4,7 +4,6 @@
 """
 
 import logging
-from typing import Optional
 
 from ..base import FileReader
 

@@ -11,7 +11,6 @@ from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import sessionmaker, Session
 
 from core.providers.base import VectorStoreProvider
-from core.db.base import Base
 from core.db.models import DocumentModel, DocumentChunkModel
 
 logger = logging.getLogger(__name__)
