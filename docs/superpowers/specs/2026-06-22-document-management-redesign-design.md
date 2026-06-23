@@ -66,7 +66,7 @@
 | 布局块 | 组件 Reference | 变体 | 职责 |
 |--------|---------------|------|------|
 | Titlebar | `titlebar.md` | `secondary` + 1 action | 标题「文档管理」+ 副标题「X 个文档 · Y 块向量」+ 关闭按钮 |
-| Stats Header Card | `cardview.md` + 自定义 | 白色圆角卡片 | 3 列统计数字展示 |
+| Stats Header Card | `cardview.md` + 自定义 | 白色圆角卡片 (r=16, padding=12px) | 3 列统计数字展示（文档块/文档数/总大小） |
 | Upload Area | 页面级自定义 + Element Plus | 拖拽区域 | 文件上传交互 |
 | Search Bar | `search.md` | `off/normal` | 搜索输入 + 清除按钮 |
 | Chips Tabs | `chipstab.md` | 文件类型筛选 | 全部/PDF/DOCX/MD/图片 |
@@ -98,6 +98,8 @@
 - **元数据**：类型标签 chip + 块数 + 文件大小，用 `·` 分隔
 
 ### 5.3 类型色彩语义 Token
+
+> 以下色值为视觉参考，实现时必须使用 CSS 变量，禁止硬编码十六进制值。
 
 | 文件类型 | 图标背景 | 文字色 | Token 映射 |
 |---------|---------|--------|-----------|
