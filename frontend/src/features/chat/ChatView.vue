@@ -10,21 +10,26 @@
           <span class="typing-dot"></span>
         </span>
       </div>
-      <!-- HM Tab Bar 模式切换 -->
-      <div class="hm-tab-bar">
-        <button
-          class="hm-tab-item"
-          :class="{ active: store.mode === 'rag' }"
-          @click="store.mode = 'rag'"
-        >
-          RAG 模式
+      <button
+        class="harmony-icon-btn docs-btn"
+        @click="$emit('open-docs')"
+        title="文档管理"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <!-- 系统按钮组 -->
+      <div class="system-btns">
+        <button class="harmony-icon-btn" @click="$emit('toggle-dashboard')" title="评测与性能">
+          <span style="font-size: 16px">&#128202;</span>
         </button>
-        <button
-          class="hm-tab-item"
-          :class="{ active: store.mode === 'direct' }"
-          @click="store.mode = 'direct'"
-        >
-          直接对话
+        <button class="harmony-icon-btn" @click="$emit('toggle-dark')" :title="isDark ? '切换浅色模式' : '切换深色模式'">
+          <span v-if="isDark" style="font-size: 18px">&#9728;&#65039;</span>
+          <span v-else style="font-size: 18px">&#127769;</span>
+        </button>
+        <button class="harmony-icon-btn logout-btn" @click="$emit('logout')" title="退出登录">
+          <span style="font-size: 16px">&#x23FB;</span>
         </button>
       </div>
     </div>
@@ -32,13 +37,13 @@
     <!-- 消息列表 -->
     <div class="messages-container cus-scroll" ref="messagesRef">
       <!-- 空状态 -->
-      <div v-if="store.messages.length === 0" class="empty-chat hm-animate-in-scale">
+      <div v-if="store.messages.length === 0" class="empty-chat harmony-animate-in-scale">
         <div class="empty-icon-wrap">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="4" y="4" width="56" height="56" rx="20" fill="var(--hm-brand-light)" stroke="var(--hm-brand)" stroke-width="2"/>
-            <path d="M22 26h20M22 32h14M22 38h18" stroke="var(--hm-brand)" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="46" cy="42" r="8" fill="var(--hm-brand)" opacity="0.2"/>
-            <path d="M43 42h6M46 39v6" stroke="var(--hm-brand)" stroke-width="2" stroke-linecap="round"/>
+            <rect x="4" y="4" width="56" height="56" rx="20" fill="var(--harmony-brand-light)" stroke="var(--harmony-brand)" stroke-width="2"/>
+            <path d="M22 26h20M22 32h14M22 38h18" stroke="var(--harmony-brand)" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="46" cy="42" r="8" fill="var(--harmony-brand)" opacity="0.2"/>
+            <path d="M43 42h6M46 39v6" stroke="var(--harmony-brand)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
         <h3>开始你的智能问答之旅</h3>
@@ -56,28 +61,28 @@
         :key="index"
         :message="msg"
         :style="{ animationDelay: `${Math.min(index * 0.06, 0.3)}s` }"
-        class="hm-animate-in"
+        class="harmony-animate-in"
       />
     </div>
 
     <!-- 输入框区域 -->
     <div class="input-area">
-      <div class="input-wrapper hm-input-box">
+      <div class="input-wrapper harmony-input-box">
         <input
           ref="inputRef"
           v-model="inputMessage"
           class="chat-input"
-          placeholder="输入你的 Python 问题..."
+          placeholder="输入你的问题..."
           @keydown.enter.exact.prevent="handleSend"
           :disabled="store.loading"
         />
         <button
-          class="send-btn hm-action-btn primary"
+          class="send-btn harmony-action-btn primary"
           @click="handleSend"
           :disabled="store.loading || !inputMessage.trim()"
           :class="{ pulsing: inputMessage.trim() && !store.loading }"
         >
-          <span v-if="store.loading" class="hm-loading-spinner"></span>
+          <span v-if="store.loading" class="harmony-loading-spinner"></span>
           <span v-else class="send-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -86,8 +91,24 @@
         </button>
       </div>
       <div class="input-footer">
-        <button class="hm-action-btn footer-btn" @click="store.clearChatHistory()">清空对话</button>
-        <button class="hm-action-btn footer-btn" @click="store.clearChatHistory()">清空历史</button>
+        <button class="harmony-action-btn footer-btn" @click="store.clearChatHistory()">清空对话</button>
+        <!-- 模式切换 -->
+        <div class="harmony-tab-bar">
+          <button
+            class="harmony-tab-item"
+            :class="{ active: store.mode === 'rag' }"
+            @click="store.mode = 'rag'"
+          >
+            RAG 模式
+          </button>
+          <button
+            class="harmony-tab-item"
+            :class="{ active: store.mode === 'direct' }"
+            @click="store.mode = 'direct'"
+          >
+            直接对话
+          </button>
+        </div>
         <span class="mode-hint">
           {{ store.mode === 'rag' ? 'RAG 检索增强模式' : '直接对话模式' }}
         </span>
@@ -102,6 +123,10 @@ import { useChatStore } from '../../stores/useChatStore.js'
 import ChatMessage from './ChatMessage.vue'
 
 const store = useChatStore()
+const props = defineProps({
+  isDark: { type: Boolean, default: false }
+})
+defineEmits(['open-docs', 'toggle-dashboard', 'toggle-dark', 'logout'])
 const inputMessage = ref('')
 const messagesRef = ref(null)
 const inputRef = ref(null)
@@ -156,7 +181,7 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--hm-bg-primary);
+  background: var(--harmony-background-secondary);
 }
 
 /* ── 顶部栏 ── */
@@ -164,9 +189,9 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--hm-divider);
-  background: var(--hm-bg-primary);
+  padding: var(--harmony-padding-level6) var(--harmony-padding-level12);
+  border-bottom: none;
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -176,10 +201,46 @@ watch(
   gap: 10px;
 }
 
+.docs-btn {
+  margin-right: 8px;
+}
+
+.system-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.system-btns .harmony-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--harmony-comp-background-primary);
+  border: 1px solid var(--harmony-comp-divider);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s var(--harmony-ease-out);
+}
+
+.system-btns .harmony-icon-btn:hover {
+  background: var(--harmony-interactive-hover);
+}
+
+.system-btns .logout-btn {
+  color: var(--harmony-font-secondary);
+}
+
+.system-btns .logout-btn:hover {
+  color: var(--harmony-warning);
+}
+
 .chat-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-subtitle-l);
+  font-weight: var(--harmony-font-weight-title-s);
+  color: var(--harmony-font-primary);
 }
 
 .chat-status {
@@ -192,8 +253,8 @@ watch(
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--hm-brand);
-  animation: hm-pulse-dot 1.4s ease-in-out infinite;
+  background: var(--harmony-brand);
+  animation: harmony-pulse-dot 1.4s ease-in-out infinite;
 }
 
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -203,7 +264,7 @@ watch(
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: var(--harmony-padding-level12);
   scroll-behavior: smooth;
 }
 
@@ -223,56 +284,67 @@ watch(
 }
 
 .empty-chat h3 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--hm-font-primary);
-  margin-bottom: 8px;
+  font-size: var(--harmony-font-size-title-s);
+  font-weight: var(--harmony-font-weight-title-s);
+  color: var(--harmony-font-primary);
+  margin-bottom: var(--harmony-padding-level4);
 }
 
 .empty-sub {
-  font-size: 14px;
-  color: var(--hm-font-secondary);
+  font-size: var(--harmony-font-size-body-m);
+  color: var(--harmony-font-secondary);
   margin-bottom: 24px;
 }
 
 .empty-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   justify-content: center;
 }
 
 .suggestion-chip {
-  padding: 8px 16px;
-  border: 1px solid var(--hm-border);
-  border-radius: var(--hm-radius-full);
-  background: var(--hm-bg-glass);
-  color: var(--hm-font-secondary);
-  font-size: 13px;
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level8);
+  height: 36px;
+  line-height: 20px;
+  border: 1px solid var(--harmony-comp-divider);
+  border-radius: var(--harmony-corner-radius-level10);
+  background: var(--harmony-comp-background-primary);
+  color: var(--harmony-font-secondary);
+  font-size: var(--harmony-font-size-subtitle-s);
+  font-weight: var(--harmony-font-weight-subtitle-s);
   cursor: pointer;
-  transition: all 0.3s var(--hm-spring);
+  transition: all 0.2s var(--harmony-ease-out);
 }
 
 .suggestion-chip:hover {
-  border-color: var(--hm-brand);
-  color: var(--hm-brand);
-  transform: translateY(-2px);
-  box-shadow: var(--hm-glow-brand);
+  background: var(--harmony-interactive-hover);
+  color: var(--harmony-font-primary);
 }
 
 /* ── 输入区域 ── */
 .input-area {
-  padding: 16px 24px 20px;
-  background: var(--hm-bg-primary);
-  border-top: 1px solid var(--hm-divider);
+  padding: var(--harmony-padding-level8) var(--harmony-padding-level12) var(--harmony-padding-level10);
+  background: var(--harmony-background-secondary);
+  border-top: none;
   flex-shrink: 0;
 }
 
 .input-wrapper {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 16px;
+  gap: var(--harmony-padding-level5);
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  height: 40px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: var(--harmony-corner-radius-level12);
+  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
+}
+
+.input-wrapper:focus-within {
+  box-shadow: 0 0 0 2px var(--harmony-brand);
 }
 
 .chat-input {
@@ -280,14 +352,14 @@ watch(
   border: none;
   outline: none;
   background: transparent;
-  font-size: 14px;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-body-l);
+  color: var(--harmony-font-primary);
   font-family: inherit;
   line-height: 1.5;
 }
 
 .chat-input::placeholder {
-  color: var(--hm-font-tertiary);
+  color: var(--harmony-font-secondary);
 }
 
 .send-btn {
@@ -299,16 +371,16 @@ watch(
   align-items: center;
   justify-content: center;
   border-radius: 50% !important;
-  opacity: 0.5;
-  transition: all 0.3s var(--hm-spring);
+  opacity: 0.4;
+  transition: opacity 0.2s var(--harmony-ease-out);
 }
 
 .send-btn:not(:disabled) {
   opacity: 1;
 }
 
-.send-btn.pulsing {
-  animation: hm-glow-pulse var(--hm-breathe-duration) ease-in-out infinite;
+.send-btn:not(:disabled):hover {
+  background: var(--harmony-brand-hover);
 }
 
 .send-icon {
@@ -325,14 +397,14 @@ watch(
 }
 
 .footer-btn {
-  padding: 6px 14px;
-  font-size: 12px;
-  color: var(--hm-font-tertiary);
+  padding: var(--harmony-padding-level3) var(--harmony-padding-level7);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-tertiary);
 }
 
 .mode-hint {
   margin-left: auto;
-  font-size: 12px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-tertiary);
 }
 </style>
