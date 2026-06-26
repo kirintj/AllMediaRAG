@@ -149,6 +149,27 @@ class AppSettings(BaseSettings):
     ALERT_ERROR_RATE_THRESHOLD: float = 0.05
     ALERT_QUALITY_THRESHOLD: float = 0.6
 
+    # -- VLM Extractor（新版统一提取器，替代 OCR+VLM 分离管线）--
+    # 为什么单独的 API Key：Qwen-VL-Max 使用 DashScope API，
+    # 与现有 MIMO_API_KEY（SiliconFlow）是不同的服务商。
+    USE_VLM_EXTRACTOR: bool = False
+    VLM_EXTRACTOR_MODEL: str = "qwen-vl-max"
+    VLM_EXTRACTOR_API_BASE: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    VLM_EXTRACTOR_API_KEY: str = ""
+    VLM_EXTRACTOR_MAX_TOKENS: int = 4096
+    VLM_EXTRACTOR_TIMEOUT: int = 60
+    VLM_EXTRACTOR_MAX_IMAGE_SIZE: int = 1024
+
+    # -- 图片存储 --
+    IMAGE_STORE_ENABLED: bool = True
+    IMAGE_STORE_DIR: str = "./data/images"
+
+    # -- 查询时多模态 --
+    # 为什么限制图片数：单次生成附带太多图片会超过 LLM 的 context 限制，
+    # 且增加延迟和成本。3 张通常足够覆盖一次检索命中的图表。
+    MULTIMODAL_GENERATION: bool = True
+    MULTIMODAL_MAX_IMAGES: int = 3
+
     # -- Computed properties ------------------------------------------
 
     @property
