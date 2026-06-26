@@ -11,7 +11,8 @@ class DocumentProcessor:
     IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'}
 
     def __init__(self, config, ocr_provider=None, vlm_provider=None,
-                 file_reader_registry=None, chunking_strategy=None):
+                 file_reader_registry=None, chunking_strategy=None,
+                 image_pipeline=None, image_store=None):
         """初始化
 
         Args:
@@ -20,6 +21,8 @@ class DocumentProcessor:
             vlm_provider: VLM 提供者（可选），用于图表理解
             file_reader_registry: 文件读取器注册表（可选），格式为 {ext: reader}
             chunking_strategy: 切分策略实例（可选），实现 ChunkingStrategy 接口
+            image_pipeline: VLM 图片处理管线（可选），用于图片/PDF 的新处理流程
+            image_store: 图片存储服务（可选），配合 image_pipeline 保存图片区域
         """
         self.percentile = config.SEMANTIC_CHUNK_PERCENTILE
         self.min_sentences = config.SEMANTIC_CHUNK_MIN_SENTENCES
@@ -29,6 +32,8 @@ class DocumentProcessor:
         self.vlm_provider = vlm_provider
         self.file_reader_registry = file_reader_registry or {}
         self.chunking_strategy = chunking_strategy
+        self._image_pipeline = image_pipeline
+        self._image_store = image_store
 
     def set_embedding_service(self, embedding_service):
         """注入 embedding 服务（由 RAGEngine 调用）"""
@@ -463,12 +468,34 @@ class DocumentProcessor:
 
         return all_chunks, all_embeddings
 
+    def _process_with_vlm_extractor(self, file_path: str) -> tuple[list[dict], list[list[float] | None]]:
+        """使用 VLMExtractor + RegionChunker 处理图片/PDF"""
+        from .chunking.region_chunker import RegionChunker
+
+        # VLM 提取图片中的结构化区域（文字、图表等）
+        regions = self._image_pipeline.extract(file_path)
+        if not regions:
+            return [], []
+
+        source = os.path.basename(file_path)
+        # 按空间位置将区域聚合为语义 chunk
+        chunker = RegionChunker(text_chunking_strategy=self.chunking_strategy)
+        chunks = chunker.chunk(regions, source=source, image_store=self._image_store)
+        # 新管线不预计算 embedding，由调用方后续批量编码
+        embeddings: list[list[float] | None] = [None] * len(chunks)
+        return chunks, embeddings
+
     def process_file(self, file_path: str) -> tuple[list[dict], list[list[float] | None]]:
         """处理文件，自动识别格式
 
         Returns:
             (chunks, chunk_embeddings)
         """
+        ext = os.path.splitext(file_path)[1].lower()
+        # 新管线：图片和 PDF 使用 VLMExtractor 提取结构化区域
+        if self._image_pipeline and ext in (self.IMAGE_EXTENSIONS | {'.pdf'}):
+            return self._process_with_vlm_extractor(file_path)
+        # 旧管线：走原有 HTML 解析 + 语义分块逻辑
         content = self.read_file(file_path)
         source = os.path.basename(file_path)
         return self.process_document(content, source)
