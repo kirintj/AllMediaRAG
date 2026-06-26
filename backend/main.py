@@ -15,6 +15,7 @@ os.chdir(project_root)
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 import uvicorn
@@ -23,6 +24,8 @@ from core.config import config
 from core.rate_limit import limiter
 from core.rag_engine import RAGEngine
 from core.services import create_infra, InfraBundle
+
+logger = logging.getLogger(__name__)
 from core.services.retrieval_pipeline import RetrievalPipeline
 from core.services.ingestion_service import IngestionService
 from core.services.generation_service import GenerationService
@@ -82,6 +85,17 @@ app = FastAPI(title="知识库智能问答助手 API", lifespan=lifespan)
 # 速率限制
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# 全局异常处理——防止未捕获异常泄露堆栈信息到客户端
+# 为什么需要这个：生产环境中未处理的异常会返回 FastAPI 默认的 HTML 错误页，
+# 包含完整的 Python 堆栈信息，这是安全风险（信息泄露）。
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "服务器内部错误，请稍后重试"},
+    )
 
 # CORS 配置（生产环境应通过 CORS_ORIGINS 环境变量配置）
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
