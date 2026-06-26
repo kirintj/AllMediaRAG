@@ -18,6 +18,8 @@ class IngestionService:
         self._bm25_retriever = infra.bm25_retriever
         self._index_manager = infra.index_manager
         self._cache_manager = infra.cache_manager
+        # 支持 ImageStore 的惰性注入，老版本 infra 可能没有该属性
+        self._image_store = getattr(infra, "image_store", None)
 
     # ------------------------------------------------------------------
     # Public API
@@ -71,10 +73,24 @@ class IngestionService:
         return len(chunks)
 
     def delete_by_source(self, source: str):
-        """按来源删除文档（向量库 + BM25 + 缓存失效）"""
+        """按来源删除文档（图片 → 向量库 → BM25 → 缓存）
+
+        为什么先删图片再删向量库：
+        ImageStore.cleanup_by_source 需要从向量库 metadata 中
+        查询该来源的所有 image_path。如果先删了向量库数据，
+        metadata 丢失，图片文件就变成孤儿文件永远留在磁盘上。
+        """
+        # 1. 先清理图片文件——依赖向量库 metadata 定位文件路径
+        if self._image_store:
+            try:
+                self._image_store.cleanup_by_source(source)
+            except Exception as e:
+                logger.warning("Image cleanup failed for %s: %s", source, e)
+
+        # 2. 再删向量库和 BM25（此时图片已清理完毕，metadata 可安全丢弃）
         self._vector_store.delete_by_source(source)
         self._bm25_retriever.delete_by_source(source)
-        # 缓存失效
+        # 3. 缓存失效——避免检索端命中已删除文档的陈旧结果
         self._cache_manager.invalidate_by_source(source)
 
     def delete_all(self):
