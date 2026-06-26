@@ -13,10 +13,10 @@
 ## 项目亮点
 
 - **5 阶段检索管线**：查询理解 → 多路召回（向量 + BM25 并行） → 加权 RRF 融合 → Cross-Encoder 重排序 → 置信度评估与自适应补召回，端到端命中率显著优于单路检索
-- **多模态文档全链路**：原生支持 PDF / DOCX / Markdown / HTML / 图片，集成 PaddleOCR、Tesseract、VLM 视觉语言模型三级 OCR 引擎，图表亦可检索
+- **多模态文档全链路**：原生支持 PDF / DOCX / Markdown / HTML / 图片，集成 PaddleOCR、Tesseract、VLM 视觉语言模型三级 OCR 引擎；支持 Qwen-VL-Max 统一版面分析 + OCR + 图表理解，按区域类型（文本 / 表格 / 图片 / 公式）智能分块，查询时原图附带给多模态 LLM 生成更准确的回答
 - **可插拔组件工厂**：Embedding（本地 BGE-M3 / SiliconFlow 云端）、向量存储（ChromaDB / pgvector）、重排序（Cohere / BGE / SiliconFlow / 混合）均通过 Provider 模式热切换，零代码更换底层实现
 - **全链路评测框架**：内置 RAGAS 标准评测 + 自定义检索指标（Hit Rate / MRR / NDCG / MAP），支持 A/B 配对 t 检验、自动配置对比、分维度（查询类型 × 难度）分析，评测数据集可由 LLM 自动生成
-- **生产级基础设施**：L1 内存 + L2 Redis 多级缓存（含语义去重）、结构化 JSON 日志、延迟 P95 / 缓存命中率 / 错误率实时指标、可配置告警阈值、JWT 认证与速率限制
+- **生产级基础设施**：L1 内存 + L2 Redis 多级缓存（含语义去重）、结构化 JSON 日志、关联 ID 请求追踪、30s 端到端超时保护、Embedding 模型启动预加载、错误率实时告警、优雅关闭与请求排空、JWT 认证与速率限制
 
 ---
 
@@ -30,7 +30,7 @@
 | **后端框架** | FastAPI + Uvicorn | 异步高性能 Python API |
 | **流式传输** | SSE (sse-starlette) | Server-Sent Events 逐 token 推送 |
 | **大语言模型** | MiMo-v2.5（OpenAI 兼容协议） | SiliconFlow 云端推理 |
-| **视觉语言模型** | MiMo-v2.5 VLM | 图表 / 流程图理解 |
+| **视觉语言模型** | MiMo-v2.5 VLM / Qwen-VL-Max | 图表 / 流程图理解；新版统一提取器（版面分析 + OCR + 理解） |
 | **文本向量化** | BGE-M3（本地 sentence-transformers）/ SiliconFlow 云端 | 多语言稠密向量 |
 | **关键词检索** | jieba + rank-bm25 | 中文分词 BM25 |
 | **向量数据库** | ChromaDB / PostgreSQL + pgvector | 嵌入式 / 生产级双后端 |
@@ -63,8 +63,9 @@
 │   │   ├── rag_engine.py                 # RAG 引擎门面（三服务编排）
 │   │   ├── embedding_service.py          # Embedding 服务（GPU 自动检测 + LRU 缓存）
 │   │   ├── vector_store.py               # ChromaDB 向量存储封装
-│   │   ├── llm_client.py                 # OpenAI 兼容 LLM 客户端
-│   │   ├── document_processor.py         # 文档解析、OCR、分块
+│   │   ├── llm_client.py                 # OpenAI 兼容 LLM 客户端（支持多模态图片输入）
+│   │   ├── document_processor.py         # 文档解析、OCR、分块（双管线：新 VLM 提取 / 旧 OCR+VLM）
+│   │   ├── image_store.py                # 原图文件系统存储（MD5 去重，查询时多模态 LLM 使用）
 │   │   ├── bm25_retriever.py             # BM25 关键词检索（jieba 分词 + 持久化）
 │   │   ├── auth.py                       # JWT 认证核心逻辑
 │   │   ├── task_manager.py               # 异步任务状态追踪
@@ -78,7 +79,8 @@
 │   │   │   ├── fixed_size_strategy.py    # 固定大小分块
 │   │   │   ├── recursive_strategy.py     # 递归文本分块
 │   │   │   ├── semantic_strategy.py      # 语义相似度分块
-│   │   │   └── parent_child_strategy.py  # 层级 Parent-Child 分块
+│   │   │   ├── parent_child_strategy.py  # 层级 Parent-Child 分块
+│   │   │   └── region_chunker.py         # 按区域类型分块（VLM 提取专用）
 │   │   ├── query_understanding/          # 查询理解模块
 │   │   │   ├── classifier.py             # 意图分类器（规则引擎，零 LLM 调用）
 │   │   │   ├── router.py                 # 动态路由
@@ -114,6 +116,13 @@
 │   │   │   ├── l2_cache.py               # L2 Redis 缓存
 │   │   │   └── manager.py                # 缓存管理器（语义去重）
 │   │   ├── ocr/                          # OCR 引擎
+│   │   │   ├── base.py                   # OCRProvider 抽象基类
+│   │   │   ├── paddle_provider.py        # PaddleOCR 引擎
+│   │   │   ├── tesseract_provider.py     # Tesseract 引擎
+│   │   │   ├── vlm_provider.py           # VLM 视觉语言模型（图表描述）
+│   │   │   └── vlm_extractor.py          # VLM 统一提取器（版面分析 + OCR + 理解一体化）
+│   │   ├── models/                       # 数据模型
+│   │   │   └── document_region.py        # 文档区域数据模型（VLM 提取结果）
 │   │   └── db/                           # 数据库模型与引擎
 │   ├── eval/                             # 评测框架
 │   │   ├── run_eval.py                   # 评测主入口
@@ -321,6 +330,35 @@ CHUNK_OVERLAP=50                 # 分块重叠
 
 可选策略：`semantic`（语义相似度）、`fixed_size`（固定大小）、`recursive`（递归分割）、`parent_child`（层级分块）
 
+### VLM 统一提取器（图片优化）
+
+新版图片处理管线，使用 Qwen-VL-Max 一次性完成版面分析 + OCR + 图表理解，替代原有的 OCR + VLM 分离管线。
+
+```bash
+# 启用 VLM 统一提取器
+USE_VLM_EXTRACTOR=true
+VLM_EXTRACTOR_API_KEY=your_dashscope_api_key
+VLM_EXTRACTOR_MODEL=qwen-vl-max
+
+# 启用查询时多模态生成（检索命中图片时附带给 LLM）
+MULTIMODAL_GENERATION=true
+MULTIMODAL_MAX_IMAGES=3
+```
+
+**处理流程：**
+
+```
+图片/PDF → VLMExtractor（版面分析 + 结构化 JSON）
+  ├─ text 区域 → 语义分块 → 文本向量
+  ├─ table 区域 → 整表不切 → 文本向量
+  ├─ figure 区域 → 图片描述 + 原图保存 → 文本向量
+  └─ equation 区域 → 整公式不切 → 文本向量
+
+查询时：命中 figure chunk → 取出原图 → 附带给多模态 LLM 生成回答
+```
+
+通过 `USE_VLM_EXTRACTOR` 开关控制，`false` 时走旧管线（PaddleOCR + VLM 描述），全程向后兼容。
+
 ### 重排序策略
 
 ```bash
@@ -421,7 +459,7 @@ python eval/generate_dataset.py --count 5 --output eval_dataset_auto.json
 | `/api/metrics` | GET | 运行时性能指标（延迟百分位、缓存命中率） | 是 |
 | `/api/eval/reports` | GET | 评测报告列表 | 是 |
 | `/api/eval/reports/{filename}` | GET | 评测报告详情 | 是 |
-| `/health` | GET | 健康检查（含 P95 延迟、缓存命中率） | 否 |
+| `/health` | GET | 健康检查（含依赖检查：向量库 / BM25 / Embedding） | 否 |
 
 ### 核心环境变量参数表
 
@@ -460,8 +498,16 @@ python eval/generate_dataset.py --count 5 --output eval_dataset_auto.json
 | `OCR_PROVIDER` | string | 否 | OCR 引擎：`paddle` / `tesseract` / `none` | `paddle` |
 | `OCR_LANG` | string | 否 | OCR 语言 | `ch` |
 | `OCR_USE_GPU` | bool | 否 | OCR 使用 GPU | `false` |
-| `USE_VLM` | bool | 否 | 启用视觉语言模型 | `false` |
+| `USE_VLM` | bool | 否 | 启用视觉语言模型（旧管线） | `false` |
 | `VLM_MODEL` | string | 否 | VLM 模型名称 | - |
+| `USE_VLM_EXTRACTOR` | bool | 否 | 启用 VLM 统一提取器（新版，替代 OCR+VLM 分离管线） | `false` |
+| `VLM_EXTRACTOR_MODEL` | string | 否 | VLM Extractor 模型（推荐 `qwen-vl-max`） | `qwen-vl-max` |
+| `VLM_EXTRACTOR_API_BASE` | string | 否 | VLM Extractor API 地址 | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `VLM_EXTRACTOR_API_KEY` | string | 否 | VLM Extractor API Key（DashScope） | - |
+| `IMAGE_STORE_ENABLED` | bool | 否 | 保留原图供查询时多模态 LLM 使用 | `true` |
+| `MULTIMODAL_GENERATION` | bool | 否 | 查询时附带原图给多模态 LLM 生成回答（需 USE_VLM_EXTRACTOR=true） | `true` |
+| `MULTIMODAL_MAX_IMAGES` | int | 否 | 单次生成最多附带图片数 | `3` |
+| `REQUEST_TIMEOUT_SECONDS` | int | 否 | 端到端请求超时（秒） | `30` |
 | `USE_CACHE` | bool | 否 | 启用缓存 | `true` |
 | `USE_REDIS` | bool | 否 | 启用 Redis L2 缓存 | `false` |
 | `CACHE_L1_MAX_SIZE` | int | 否 | L1 内存缓存容量 | `1000` |
@@ -547,8 +593,12 @@ python eval/dimensional_eval.py
 | 语义缓存去重 | `SEMANTIC_CACHE_ENABLED=true` | 相似度 > 0.95 的查询直接返回缓存结果 |
 | 并行检索 | `PARALLEL_RETRIEVAL=true` | 向量检索与 BM25 通过 ThreadPoolExecutor 并行执行 |
 | Embedding 批处理 | `BATCH_SIZE=32` | 批量向量化减少 API 调用次数 |
-| 模型懒加载 | 默认启用 | Embedding / Reranker 模型首次调用时才加载，减少启动时间 |
+| 模型预加载 | 默认启用 | Embedding 模型在启动时预加载，消除首个请求冷启动延迟 |
 | GPU 自动检测 | 默认启用 | 有 CUDA 则自动使用 FP16 加速 |
+| 请求超时保护 | `REQUEST_TIMEOUT_SECONDS=30` | 端到端超时，LLM 卡死自动断开返回 504 |
+| 结构化日志 | 默认启用 | JSON 格式日志 + 关联 ID（X-Request-ID），支持 ELK/Loki 采集 |
+| 错误率告警 | 默认启用 | 错误率超过 5% 自动告警日志 |
+| 优雅关闭 | 默认启用 | 收到 SIGTERM 后等待活跃请求排空（最多 15s），再释放资源 |
 
 ### 低配环境适配
 
@@ -562,9 +612,11 @@ SEMANTIC_CACHE_ENABLED=false
 SELF_RAG_ENABLED=false
 CACHE_L1_MAX_SIZE=200
 
-# 最小资源模式：关闭 OCR 和 VLM
+# 最小资源模式：关闭 OCR、VLM 和多模态生成
 OCR_PROVIDER=none
 USE_VLM=false
+USE_VLM_EXTRACTOR=false
+MULTIMODAL_GENERATION=false
 ```
 
 ---
