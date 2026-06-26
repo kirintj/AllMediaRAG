@@ -55,6 +55,11 @@ def _mock_engine(monkeypatch):
     mock_infra.self_rag_reflector = MagicMock()
     mock_infra.executor = MagicMock()
     mock_infra.bm25_ready = True
+    # 新增字段：VLM Extractor 和 ImageStore（默认禁用，不影响旧测试）
+    mock_infra.image_store = None
+    mock_infra.settings.USE_VLM_EXTRACTOR = False
+    mock_infra.settings.MULTIMODAL_GENERATION = False
+    mock_infra.settings.MULTIMODAL_MAX_IMAGES = 3
     # settings attributes accessed by RAGEngine and services
     mock_infra.settings.TOP_K = 5
     mock_infra.settings.BM25_TOP_K = 6

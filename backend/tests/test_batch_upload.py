@@ -47,7 +47,7 @@ class TestBatchUpload:
         )
 
         assert response.status_code == 400
-        assert "最多上传 100 个文件" in response.json()["detail"]
+        assert "最多上传 200 个文件" in response.json()["detail"]
 
     def test_empty_files(self, client, auth_headers):
         """测试空文件列表"""
