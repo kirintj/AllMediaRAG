@@ -25,6 +25,11 @@ class GenerationService:
         self._self_rag_reflector = infra.self_rag_reflector
         self._self_rag_enabled = infra.settings.SELF_RAG_ENABLED
         self._retrieval = retrieval_pipeline  # cross-service dependency
+        # 为什么在 init 而非运行时获取：image_store 和多模态配置在服务生命周期内不变，
+        # 提前注入避免每次查询时重复访问 infra，同时便于单元测试 mock。
+        self._image_store = getattr(infra, "image_store", None)
+        self._multimodal_enabled = getattr(infra.settings, "MULTIMODAL_GENERATION", False)
+        self._max_images = getattr(infra.settings, "MULTIMODAL_MAX_IMAGES", 3)
 
     # ------------------------------------------------------------------
     # Prompt building (pure function, no external state)
@@ -105,6 +110,30 @@ class GenerationService:
         return prompt
 
     # ------------------------------------------------------------------
+    # Multimodal image extraction
+    # ------------------------------------------------------------------
+
+    def _extract_images_from_contexts(self, contexts: list[dict]) -> list[str]:
+        """从检索结果中取出 figure chunk 的原图 base64
+
+        为什么在 GenerationService 而非 RetrievalPipeline 中做：
+        检索阶段只关心文本匹配度，不应因为加载图片增加延迟；
+        图片加载只在确定要生成回答时才需要。
+        """
+        if not self._multimodal_enabled or not self._image_store:
+            return []
+
+        images = []
+        for ctx in contexts:
+            meta = ctx.get("metadata", {})
+            if meta.get("has_image") and meta.get("image_path"):
+                img_b64 = self._image_store.load_base64(meta["image_path"])
+                if img_b64:
+                    images.append(img_b64)
+
+        return images[:self._max_images]
+
+    # ------------------------------------------------------------------
     # Streaming query (SSE generator)
     # ------------------------------------------------------------------
 
@@ -152,7 +181,12 @@ class GenerationService:
                 })
 
         full_answer = ""
-        for chunk in self._llm_client.stream_generate(prompt):
+        # 提取图片（仅在启用多模态时）
+        images = self._extract_images_from_contexts(contexts)
+
+        # 为什么传 images 参数：当 contexts 包含 figure chunk 时，
+        # LLM 能同时看到图表描述和原图，生成更准确的回答。
+        for chunk in self._llm_client.stream_generate(prompt, images=images):
             full_answer += chunk
             yield {
                 "answer_chunk": chunk,
