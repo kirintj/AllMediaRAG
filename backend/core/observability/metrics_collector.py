@@ -8,9 +8,12 @@
     metrics_collector.record_retrieval({"classify_ms": 50, "search_ms": 120, ...})
 """
 
+import logging
 import threading
 from collections import deque
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _percentile(sorted_data: list[float], p: float) -> Optional[float]:
@@ -79,11 +82,18 @@ class MetricsCollector:
             self._generation_latencies.append(duration_ms)
 
     def record_request(self, success: bool, duration_ms: float = 0) -> None:
-        """记录一次请求（成功/失败）"""
+        """记录一次请求（成功/失败）
+
+        为什么同时检查告警：每次请求后立即评估错误率，
+        比定时任务更及时发现问题。最低样本量 20 避免早期请求误报。
+        """
         with self._lock:
             self._total_requests += 1
             if success:
                 self._success_requests += 1
+            # 错误率告警（每 10 个请求检查一次，避免频繁计算）
+            if self._total_requests >= 20 and self._total_requests % 10 == 0:
+                self._check_error_rate_alert()
 
     def record_cache_hit(self, hit: bool) -> None:
         """记录缓存命中/未命中"""
@@ -94,6 +104,25 @@ class MetricsCollector:
                 self._cache_misses += 1
 
     # ── 查询方法 ─────────────────────────────────────────────────────────
+
+    def _check_error_rate_alert(self) -> None:
+        """评估错误率是否超过阈值，超过则记录告警日志
+
+        为什么用日志而非告警系统：项目当前无 AlertManager/PagerDuty 集成，
+        日志是最基础但最可靠的告警通道——会被 ELK/Loki 采集并触发告警规则。
+        阈值 5% 是经验值：低于此值通常是偶发错误，高于此值说明系统性问题。
+        """
+        if self._total_requests == 0:
+            return
+        error_rate = 1.0 - (self._success_requests / self._total_requests)
+        threshold = 0.05  # 5%
+        if error_rate >= threshold:
+            logger.warning(
+                "Error rate alert: %.1f%% (threshold: %.1f%%, total: %d, failed: %d)",
+                error_rate * 100, threshold * 100,
+                self._total_requests,
+                self._total_requests - self._success_requests,
+            )
 
     def get_stats(self) -> dict:
         """返回完整的性能统计（供 /api/metrics）"""

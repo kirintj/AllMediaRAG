@@ -1,6 +1,9 @@
 import sys
 import os
+import uuid
+import asyncio
 import logging
+import signal
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -24,6 +27,7 @@ from core.config import config
 from core.rate_limit import limiter
 from core.rag_engine import RAGEngine
 from core.services import create_infra, InfraBundle
+from core.observability.logger import JSONFormatter
 
 logger = logging.getLogger(__name__)
 from core.services.retrieval_pipeline import RetrievalPipeline
@@ -41,13 +45,44 @@ if not config.MIMO_API_KEY:
 
 
 # ---------------------------------------------------------------------------
+# 结构化日志初始化
+# 为什么在应用级而非模块级配置日志：统一所有模块的日志格式，
+# 避免各模块自行配置导致格式不一致。
+# ---------------------------------------------------------------------------
+def _setup_logging():
+    """激活 JSONFormatter 作为根日志格式化器
+
+    为什么用 JSON 格式：生产环境日志需要被 ELK/Loki 等工具解析，
+    JSON 格式比纯文本更易解析和查询。
+    """
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(JSONFormatter())
+        root.addHandler(handler)
+    root.setLevel(getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
+
+_setup_logging()
+logger = logging.getLogger(__name__)
+
+# 全局活跃请求计数器（用于优雅关闭时等待请求排空）
+_active_requests: int = 0
+_active_requests_lock = __import__("threading").Lock()
+
+# 请求超时配置（秒）
+# 为什么 30 秒：RAG 查询通常 2-5 秒完成，30 秒是合理的上限，
+# 超过说明系统异常（如 LLM API 卡死），应主动断开避免连接泄漏。
+REQUEST_TIMEOUT_SECONDS = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "30"))
+
+
+# ---------------------------------------------------------------------------
 # Lifespan (startup / shutdown)
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup creates infra + services, shutdown cleans up."""
-    logging.info("Initializing RAG engine (models will be loaded on first use)...")
+    logging.info("Initializing RAG engine...")
 
     # Create infra bundle + three services
     infra = create_infra(config)
@@ -66,14 +101,47 @@ async def lifespan(app: FastAPI):
     app.state.generation = generation
     app.state.rag_engine = rag_engine
 
-    logging.info("RAG engine initialized. Server ready!")
+    # Embedding 模型预加载
+    # 为什么预加载：模型懒加载会导致第一个请求延迟 5-10 秒（加载模型到内存/GPU），
+    # 预加载将这个成本转移到启动阶段，用户无感知。
+    if infra.embedding_service:
+        try:
+            logger.info("Pre-loading embedding model...")
+            infra.embedding_service.encode(["warmup"])
+            logger.info("Embedding model loaded successfully")
+        except Exception as e:
+            logger.warning("Embedding model pre-load failed (will lazy-load): %s", e)
+
+    logger.info("RAG engine initialized. Server ready!")
 
     yield  # --- application runs ---
 
-    # Shutdown: release resources
-    logging.info("Shutting down: releasing RAG engine resources...")
+    # 优雅关闭：等待活跃请求排空
+    # 为什么等待：Kubernetes 发送 SIGTERM 后有 terminationGracePeriodSeconds（默认 30s），
+    # 在此期间应正常处理完进行中的请求，而非强制断开。
+    logger.info("Shutdown: waiting for active requests to drain...")
+    import time
+    deadline = time.time() + 15  # 最多等 15 秒
+    while time.time() < deadline:
+        with _active_requests_lock:
+            if _active_requests == 0:
+                break
+        await asyncio.sleep(0.5)
+
+    with _active_requests_lock:
+        remaining = _active_requests
+    if remaining > 0:
+        logger.warning("Shutdown: %d requests still active after timeout", remaining)
+    else:
+        logger.info("Shutdown: all requests drained")
+
+    # 关闭连接池和线程池
+    logger.info("Shutdown: releasing resources...")
     if hasattr(rag_engine, 'close'):
         rag_engine.close()
+    if infra.executor:
+        infra.executor.shutdown(wait=False)
+    logger.info("Shutdown complete")
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +174,47 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    """关联 ID 中间件 — 为每个请求注入唯一追踪 ID
+
+    为什么需要关联 ID：生产环境多请求并发，日志交错时无法区分
+    哪条日志属于哪个请求。X-Request-ID 将整个请求链路串联起来。
+    客户端也可以传入自己的请求 ID（如前端生成的 UUID）。
+    """
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+    # 绑定到 request.state，下游可通过 request.state.request_id 获取
+    request.state.request_id = request_id
+
+    # 为什么用 logging.LoggerAdapter：自动在所有日志中附加 request_id，
+    # 无需每个 logger.info 手动传 extra。
+    request_logger = logging.LoggerAdapter(logger, {"request_id": request_id})
+
+    with _active_requests_lock:
+        global _active_requests
+        _active_requests += 1
+
+    try:
+        response = await asyncio.wait_for(
+            call_next(request),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except asyncio.TimeoutError:
+        request_logger.warning(
+            "Request timeout after %ds: %s %s",
+            REQUEST_TIMEOUT_SECONDS, request.method, request.url.path,
+        )
+        return JSONResponse(
+            status_code=504,
+            content={"error": "请求超时，请稍后重试", "request_id": request_id},
+        )
+    finally:
+        with _active_requests_lock:
+            _active_requests -= 1
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +270,44 @@ async def root():
 
 @app.get("/health")
 async def health(request: Request):
+    """健康检查端点 — 检查所有关键依赖的状态
+
+    为什么检查依赖而非只返回 "ok"：负载均衡器（如 K8s liveness probe）
+    需要知道服务是否真正可用，而非只是进程活着。
+    一个进程活着但向量库连不上，应返回 unhealthy。
+    """
     infra = getattr(request.app.state, "infra", None)
-    if infra and infra.metrics_collector:
-        return infra.metrics_collector.get_health()
-    return {"status": "ok"}
+    checks = {}
+    overall_healthy = True
+
+    if infra:
+        # 向量库连通性
+        try:
+            infra.vector_store.get_document_count()
+            checks["vector_store"] = "ok"
+        except Exception as e:
+            checks["vector_store"] = f"error: {e}"
+            overall_healthy = False
+
+        # BM25 索引就绪
+        checks["bm25"] = "ok" if infra.bm25_ready else "not_ready"
+
+        # Embedding 模型加载
+        try:
+            infra.embedding_service.encode(["healthcheck"])
+            checks["embedding"] = "ok"
+        except Exception as e:
+            checks["embedding"] = f"error: {e}"
+            overall_healthy = False
+
+        # 指标数据
+        if hasattr(infra, "metrics_collector") and infra.metrics_collector:
+            checks["metrics"] = infra.metrics_collector.get_health()
+
+    return {
+        "status": "ok" if overall_healthy else "degraded",
+        "checks": checks,
+    }
 
 
 if __name__ == "__main__":
