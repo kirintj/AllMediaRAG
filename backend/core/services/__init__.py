@@ -51,6 +51,7 @@ class InfraBundle:
     self_rag_reflector: Any = None
     metrics_collector: Any = None
     executor: Any = None  # ThreadPoolExecutor
+    image_store: Any = None
     bm25_ready: bool = False
 
 
@@ -107,6 +108,56 @@ def _init_vlm_provider(config):
         return provider
     except Exception as e:
         logger.warning("Failed to init VLM: %s", e)
+        return None
+
+
+def _init_vlm_extractor(config):
+    """初始化 VLMExtractor（新版统一提取器）
+
+    为什么与 _init_vlm_provider 分开：
+    两者使用不同的 API（DashScope vs SiliconFlow/MIMO），
+    配置项也不同，分开初始化避免混淆。
+    """
+    if not config.USE_VLM_EXTRACTOR:
+        logger.info("VLM Extractor disabled by config")
+        return None
+    if not config.VLM_EXTRACTOR_API_KEY:
+        logger.warning("VLM_EXTRACTOR_API_KEY not configured, VLM Extractor disabled")
+        return None
+    try:
+        from core.ocr.vlm_extractor import VLMExtractor
+        extractor = VLMExtractor(
+            api_key=config.VLM_EXTRACTOR_API_KEY,
+            api_base=config.VLM_EXTRACTOR_API_BASE,
+            model=config.VLM_EXTRACTOR_MODEL,
+            max_tokens=config.VLM_EXTRACTOR_MAX_TOKENS,
+            timeout=config.VLM_EXTRACTOR_TIMEOUT,
+            max_image_size=config.VLM_EXTRACTOR_MAX_IMAGE_SIZE,
+        )
+        logger.info("VLM Extractor initialized (model=%s)", config.VLM_EXTRACTOR_MODEL)
+        return extractor
+    except Exception as e:
+        logger.warning("Failed to init VLM Extractor: %s", e)
+        return None
+
+
+def _init_image_store(config):
+    """初始化 ImageStore
+
+    为什么与 VLMExtractor 分开初始化：
+    ImageStore 的生命周期独立于 VLMExtractor，
+    即使 VLMExtractor 未启用，旧管线未来也可能需要图片存储。
+    """
+    if not config.IMAGE_STORE_ENABLED:
+        logger.info("ImageStore disabled by config")
+        return None
+    try:
+        from core.image_store import ImageStore
+        store = ImageStore(base_dir=config.IMAGE_STORE_DIR)
+        logger.info("ImageStore initialized (dir=%s)", config.IMAGE_STORE_DIR)
+        return store
+    except Exception as e:
+        logger.warning("Failed to init ImageStore: %s", e)
         return None
 
 
@@ -224,12 +275,23 @@ def create_infra(settings) -> InfraBundle:
     file_reader_registry = _build_file_reader_registry(ocr_provider, vlm_provider)
     chunking_strategy = _init_chunking_strategy(config)
 
+    vlm_extractor = _init_vlm_extractor(config)
+    image_store = _init_image_store(config)
+
+    # 为什么配置依赖检查：MULTIMODAL_GENERATION 需要 USE_VLM_EXTRACTOR=True
+    # 才能生效，因为旧管线不产出 figure chunk 的 image_path。
+    if getattr(config, "MULTIMODAL_GENERATION", False) and not config.USE_VLM_EXTRACTOR:
+        logger.warning("MULTIMODAL_GENERATION=True but USE_VLM_EXTRACTOR=False, "
+                        "multimodal generation will have no effect")
+
     document_processor = DocumentProcessor(
         config,
         ocr_provider,
         vlm_provider,
         file_reader_registry=file_reader_registry,
         chunking_strategy=chunking_strategy,
+        image_pipeline=vlm_extractor,
+        image_store=image_store,
     )
     document_processor.set_embedding_service(embedding_service)
 
@@ -311,6 +373,7 @@ def create_infra(settings) -> InfraBundle:
         self_rag_reflector=self_rag_reflector,
         metrics_collector=metrics_collector,
         executor=executor,
+        image_store=image_store,
         bm25_ready=bm25_loaded,
     )
 
