@@ -1,9 +1,18 @@
-"""RAG Engine: thin facade over InfraBundle + 3 services.
+"""RAG Engine: thin facade over InfraBundle + domain Bundles.
 
 After refactoring, this class constructs the infrastructure bundle and
-delegates all business logic to RetrievalPipeline, IngestionService, and
-GenerationService.  Backward-compatible attributes are exposed via the
-infra bundle so that legacy code (tests, API routes) can still access
+uses BundleFactory to create the three domain Bundles
+(RetrievalBundle, ProcessingBundle, GenerationBundle).
+
+Why use BundleFactory instead of constructing services directly:
+    BundleFactory encapsulates all Bundle wiring in one place.  Adding
+    a new Bundle type only requires a new factory method, not changes
+    to RAGEngine.  This also satisfies the Dependency Inversion
+    Principle -- RAGEngine depends on the factory abstraction rather
+    than knowing each Bundle's constructor signature.
+
+Backward-compatible attributes are exposed via the infra bundle so
+that legacy code (tests, API routes) can still access
 ``engine.embedding_service``, ``engine.vector_store``, etc.
 """
 
@@ -11,6 +20,7 @@ import logging
 from typing import Generator
 
 from core.services import create_infra
+from core.services.bundle_factory import BundleFactory
 from core.services.retrieval_pipeline import RetrievalPipeline
 from core.services.ingestion_service import IngestionService
 from core.services.generation_service import GenerationService
@@ -19,11 +29,19 @@ logger = logging.getLogger(__name__)
 
 
 class RAGEngine:
-    """RAG engine -- thin facade that composes InfraBundle + 3 services.
+    """RAG engine -- thin facade that composes InfraBundle + domain Bundles.
 
     Supports two initialization modes (backward compat):
     1. Direct mode: instantiate concrete implementations (default)
     2. Factory mode: use ProviderFactory for pluggable components
+
+    After the Bundle refactoring (Tasks 3-7), the engine uses
+    BundleFactory to create RetrievalBundle, ProcessingBundle, and
+    GenerationBundle.  These are exposed as public attributes
+    (``engine.retrieval_bundle``, etc.) for callers that want the
+    slim Bundle protocol.  Legacy callers that access
+    ``engine.retrieval``, ``engine.ingestion``, ``engine.generation``
+    continue to work unchanged.
     """
 
     def __init__(self, config, use_factory: bool = False):
@@ -39,7 +57,18 @@ class RAGEngine:
         # Build shared infrastructure
         self._infra = create_infra(config)
 
-        # Instantiate the three services
+        # Use BundleFactory to create the three domain Bundles.
+        # Why BundleFactory: centralises Bundle wiring so that adding
+        # a new Bundle type only requires a new factory method.
+        self._bundle_factory = BundleFactory(self._infra)
+        self.retrieval_bundle = self._bundle_factory.create_retrieval_bundle()
+        self.processing_bundle = self._bundle_factory.create_processing_bundle()
+        self.generation_bundle = self._bundle_factory.create_generation_bundle()
+
+        # Instantiate the three legacy services (backward compat).
+        # These still exist because some callers (IngestionService,
+        # build_prompt, query_stream) use the full service API rather
+        # than the slim Bundle protocol.
         self.retrieval = RetrievalPipeline(self._infra)
         self.ingestion = IngestionService(self._infra)
         self.generation = GenerationService(self._infra, self.retrieval)
@@ -52,11 +81,24 @@ class RAGEngine:
 
         Avoids duplicate ``create_infra()`` calls when the caller already
         owns the infrastructure (e.g. lifespan startup in main.py).
+
+        Note: When using from_services, domain Bundles are also created
+        from the InfraBundle via BundleFactory to maintain the full
+        facade contract.
         """
         instance = cls.__new__(cls)
         instance._config = config
         instance._use_factory = False
         instance._infra = infra
+
+        # Create domain Bundles via BundleFactory even when pre-existing
+        # services are provided, so that engine.retrieval_bundle etc. are
+        # always available for callers using the slim Bundle protocol.
+        instance._bundle_factory = BundleFactory(infra)
+        instance.retrieval_bundle = instance._bundle_factory.create_retrieval_bundle()
+        instance.processing_bundle = instance._bundle_factory.create_processing_bundle()
+        instance.generation_bundle = instance._bundle_factory.create_generation_bundle()
+
         instance.retrieval = retrieval
         instance.ingestion = ingestion
         instance.generation = generation
@@ -166,14 +208,21 @@ class RAGEngine:
     def retrieve(self, query: str, top_k: int = None) -> dict:
         """Retrieve relevant documents (full pipeline).
 
+        Why delegate to RetrievalBundle instead of RetrievalPipeline directly:
+            RetrievalBundle implements the slim RetrievalBundleProtocol and
+            adds bundle-level caching and error wrapping.  Using the bundle
+            ensures callers benefit from these improvements while the
+            RetrievalPipeline reference (self.retrieval) remains available
+            for legacy callers that bypass the bundle.
+
         Args:
             query: user query
             top_k: unused, kept for interface compat
 
         Returns:
-            Retrieval results
+            Retrieval results (RetrievalResult dataclass)
         """
-        return self.retrieval.full_retrieve(query)
+        return self.retrieval_bundle.retrieve(query)
 
     def full_retrieve(self, query: str) -> dict:
         """Full retrieval pipeline (sync)."""
