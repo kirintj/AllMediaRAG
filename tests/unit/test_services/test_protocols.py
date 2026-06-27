@@ -223,14 +223,14 @@ class TestGenerationBundleProtocol:
         )
 
     def test_verify_citation_method_signature(self):
-        """verify_citation(self, answer: str, sources: list[...]) -> dict[str, Any]
+        """verify_citation(self, query: str, answer: str, sources: list[...]) -> dict[str, Any]
 
-        Must accept exactly 2 positional params: answer (str) and sources (list)."""
+        Must accept exactly 3 positional params: query (str), answer (str) and sources (list)."""
         sig = inspect.signature(GenerationBundleProtocol.verify_citation)
         params = [p for p in sig.parameters.values()
                   if p.name != "self"]
-        assert len(params) == 2, (
-            f"verify_citation should accept 2 params (answer, sources), got {len(params)}"
+        assert len(params) == 3, (
+            f"verify_citation should accept 3 params (query, answer, sources), got {len(params)}"
         )
         ann = params[0].annotation
         assert ann is str or ann == "str", (
