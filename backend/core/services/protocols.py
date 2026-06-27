@@ -26,6 +26,17 @@ Design decisions:
        than generics to keep the surface approachable for the team.
        Narrower return types (e.g. RetrievalResult instead of dict)
        are used where the contract is unambiguous.
+
+    4. Migration path: existing concrete services (RetrievalPipeline,
+       DocumentProcessor, GenerationService) keep their current method
+       names unchanged.  Bundle wrapper adapters (planned for Tasks
+       3-5) will implement these Protocols and delegate to the concrete
+       services, bridging the naming gap without disrupting callers.
+
+.. note::
+    These Protocols define the **target interface** for the Bundle
+    wrappers (Tasks 3-5).  They do NOT match the current concrete
+    service method names.  The Bundle adapters will bridge the gap.
 """
 
 from __future__ import annotations
