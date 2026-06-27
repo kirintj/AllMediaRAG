@@ -555,10 +555,193 @@ class RAGEngine:
 
 ---
 
-**审查清单**：
+## 10. 自审发现与改进
+
+### 10.1 自审发现的问题
+
+#### 问题1：Bundle创建顺序和依赖关系不明确
+
+**现状**：文档中没有明确说明Bundle的创建顺序，GenerationBundle需要RetrievalBundle但没有说明如何注入。
+
+**改进方案**：
+```python
+class RAGEngine:
+    def __init__(self, config):
+        # 创建顺序：先创建独立Bundle，再创建有依赖的Bundle
+        self._retrieval = self._create_retrieval_bundle(config)
+        self._processing = self._create_processing_bundle(config)
+        
+        # GenerationBundle依赖RetrievalBundle，通过构造函数注入
+        self._generation = self._create_generation_bundle(config, self._retrieval)
+```
+
+#### 问题2：错误处理设计不详细
+
+**现状**：第4.2节只提到了错误处理改进，但没有详细的异常层次结构设计。
+
+**改进方案**：
+```python
+# 定义Bundle异常层次结构
+class BundleError(Exception):
+    """Bundle基础异常"""
+    pass
+
+class RetrievalError(BundleError):
+    """检索相关异常"""
+    pass
+
+class ProcessingError(BundleError):
+    """文档处理异常"""
+    pass
+
+class GenerationError(BundleError):
+    """生成相关异常"""
+    pass
+
+# 每个Bundle内部使用统一的错误处理
+class RetrievalBundle:
+    def retrieve(self, query, **kwargs):
+        try:
+            # 检索逻辑
+            pass
+        except Exception as e:
+            logger.error("Retrieval failed: %s", e)
+            raise RetrievalError(f"Failed to retrieve: {e}") from e
+```
+
+#### 问题3：性能监控设计缺失
+
+**现状**：文档中没有提到性能监控的设计，没有说明如何追踪每个阶段的耗时。
+
+**改进方案**：
+```python
+from contextlib import contextmanager
+import time
+
+@contextmanager
+def track_duration(operation_name: str):
+    """追踪操作耗时的上下文管理器
+    
+    为什么使用上下文管理器：自动开始和结束计时，避免遗漏。
+    为什么记录到metrics_collector：统一的监控入口。
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        duration_ms = (time.perf_counter() - start) * 1000
+        metrics_collector.record_duration(operation_name, duration_ms)
+        logger.debug("%s completed in %.2fms", operation_name, duration_ms)
+
+# 在Bundle方法中使用
+class RetrievalBundle:
+    def retrieve(self, query, **kwargs):
+        with track_duration("retrieval.total"):
+            with track_duration("retrieval.embedding"):
+                embedding = self._embedding_service.encode(query)
+            with track_duration("retrieval.vector_search"):
+                vector_results = self._vector_store.search(embedding)
+            # ... 其他步骤
+```
+
+#### 问题4：Bundle间通信的实现细节不完整
+
+**现状**：虽然提到了通信机制，但没有具体的代码示例，没有说明如何避免循环依赖。
+
+**改进方案**：
+```python
+# 使用依赖注入容器避免循环依赖
+from typing import Optional
+
+class RetrievalBundle:
+    def __init__(self, cache_manager: CacheManager, **kwargs):
+        self._cache_manager = cache_manager
+
+class GenerationBundle:
+    def __init__(
+        self,
+        retrieval_bundle: RetrievalBundle,  # 通过构造函数注入
+        cache_manager: CacheManager,
+        **kwargs
+    ):
+        self._retrieval = retrieval_bundle
+        self._cache_manager = cache_manager
+
+# Bundle工厂负责创建和注入
+class BundleFactory:
+    def create_bundles(self, config):
+        # 创建共享组件
+        cache_manager = CacheManager(config)
+        
+        # 创建Bundle，注入共享组件
+        retrieval = RetrievalBundle(cache_manager=cache_manager)
+        generation = GenerationBundle(
+            retrieval_bundle=retrieval,
+            cache_manager=cache_manager,
+        )
+        
+        return retrieval, generation
+```
+
+#### 问题5：测试示例缺失
+
+**现状**：第5节只提到了测试策略，但没有具体的测试示例，没有说明如何mock Bundle接口。
+
+**改进方案**：
+```python
+# 测试示例：使用mock测试RetrievalBundle
+from unittest.mock import Mock, MagicMock
+import pytest
+
+class TestRetrievalBundle:
+    def test_retrieve_should_cache_results(self):
+        # 创建mock依赖
+        mock_embedding_service = Mock()
+        mock_embedding_service.encode.return_value = [0.1, 0.2, 0.3]
+        
+        mock_vector_store = Mock()
+        mock_vector_store.search.return_value = [
+            RetrievalResult(content="test", metadata={}, score=0.9)
+        ]
+        
+        mock_cache_manager = Mock()
+        mock_cache_manager.get.return_value = None  # 缓存未命中
+        
+        # 创建Bundle实例
+        bundle = RetrievalBundle(
+            embedding_service=mock_embedding_service,
+            vector_store=mock_vector_store,
+            cache_manager=mock_cache_manager,
+            # ... 其他依赖
+        )
+        
+        # 执行测试
+        result = bundle.retrieve("test query", top_k=5)
+        
+        # 验证缓存被调用
+        mock_cache_manager.set.assert_called_once()
+        assert len(result) == 1
+        assert result[0].content == "test"
+```
+
+### 10.2 改进建议汇总
+
+| 问题 | 优先级 | 改进方案 |
+|------|--------|----------|
+| Bundle创建顺序 | 高 | 明确创建顺序，通过构造函数注入依赖 |
+| 错误处理设计 | 高 | 定义异常层次结构，统一错误处理模式 |
+| 性能监控设计 | 中 | 添加上下文管理器追踪耗时 |
+| Bundle间通信 | 中 | 使用依赖注入容器，明确通信方式 |
+| 测试示例 | 中 | 添加mock测试示例，说明测试策略 |
+
+---
+
+**最终审查清单**：
 - [x] 架构设计是否清晰？✅ 通过架构图和详细说明
 - [x] 接口契约是否完整？✅ Protocol定义清晰
 - [x] 分阶段计划是否可行？✅ 4个阶段，渐进式重构
 - [x] 向后兼容性是否保证？✅ 完整的兼容层和迁移路径
-- [x] 测试策略是否充分？✅ 单元/集成/性能测试
+- [x] 测试策略是否充分？✅ 单元/集成/性能测试 + 测试示例
 - [x] 风险是否识别并缓解？✅ 3个主要风险及缓解措施
+- [x] 错误处理是否设计？✅ 异常层次结构和处理模式
+- [x] 性能监控是否设计？✅ 上下文管理器追踪耗时
