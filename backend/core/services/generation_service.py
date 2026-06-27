@@ -134,20 +134,105 @@ class GenerationService:
         return images[:self._max_images]
 
     # ------------------------------------------------------------------
+    # Post-generation checks (Self-RAG reflection + citation verification)
+    # ------------------------------------------------------------------
+
+    def _run_post_generation_checks(
+        self, question: str, answer: str, contexts: list[dict], sources: list[dict],
+    ) -> tuple:
+        """并行执行 Self-RAG 反思和引用核查，返回 (reflection, verification)。
+
+        为什么合并三个分支为一个方法：
+        原先 run_self_rag && run_citation / run_self_rag / run_citation 三个分支
+        中反思结果处理和 verification 日志完全相同，仅并行/串行调度不同。
+        合并后由条件判断决定并行还是串行，消除 ~30 行重复代码。
+        """
+        reflection = None
+        verification = None
+
+        run_self_rag = (
+            self._self_rag_enabled
+            and self._self_rag_reflector.should_reflect("factoid")
+            and contexts and answer.strip()
+        )
+        run_citation = self._citation_verify_enabled and contexts and answer.strip()
+
+        if run_self_rag and run_citation:
+            # 并行：Self-RAG 和 Citation 同时执行
+            future_rag = _post_gen_executor.submit(
+                self._self_rag_reflector.reflect, question, answer, contexts,
+            )
+            future_cite = _post_gen_executor.submit(
+                self._citation_verifier.verify, question, answer, contexts,
+            )
+            try:
+                reflection = future_rag.result()
+            except Exception as e:
+                logger.warning("Self-RAG reflection failed: %s", e)
+            try:
+                verification = future_cite.result()
+                logger.info(
+                    "Citation verification: confidence=%.2f, risk=%s",
+                    verification["confidence"], verification["hallucination_risk"],
+                )
+            except Exception as e:
+                logger.warning("Citation verification failed: %s", e)
+        elif run_self_rag:
+            try:
+                reflection = self._self_rag_reflector.reflect(question, answer, contexts)
+            except Exception as e:
+                logger.warning("Self-RAG reflection failed: %s", e)
+        elif run_citation:
+            try:
+                verification = self._citation_verifier.verify(question, answer, contexts)
+                logger.info(
+                    "Citation verification: confidence=%.2f, risk=%s",
+                    verification["confidence"], verification["hallucination_risk"],
+                )
+            except Exception as e:
+                logger.warning("Citation verification failed: %s", e)
+
+        return reflection, verification
+
+    # ------------------------------------------------------------------
     # Streaming query (SSE generator)
     # ------------------------------------------------------------------
 
-    def query_stream(self, question: str, history: list[dict] = None) -> Generator[dict, None, None]:
+    def query_stream(self, question: str, history: list[dict] = None,
+                     contexts: list[dict] | None = None) -> Generator[dict, None, None]:
         """流式查询，返回 {answer_chunk, sources, verification}
 
         Args:
             question: 用户问题
             history: 对话历史 [{role, content}, ...]
+            contexts: 预检索到的上下文列表，每个 dict 至少包含 "text" 和 "metadata" 键。
+                为什么接受 contexts 参数：
+                GenerationBundleProtocol.generate() 要求调用方传入 contexts
+                （由 RetrievalBundle.retrieve() 产出），Bundle 层不应再触发
+                一次重复检索。当 contexts 非空时，跳过内部 full_retrieve 直接
+                使用调用方提供的结果，避免冗余的向量/BM25 查询和不必要的延迟。
+                当 contexts 为 None 时，保持原有行为——自行调用检索管线。
 
         Yields:
             包含 answer_chunk、sources 和 verification 的字典
         """
-        results = self._retrieval.full_retrieve(question)
+        # 当调用方已提供检索结果时，跳过内部检索以避免冗余查询；
+        # 仅在调用方未提供 contexts 时才自行检索（保持向后兼容）。
+        if contexts is not None:
+            # 调用方提供的 contexts 格式与内部构造一致：{"text": str, "metadata": dict}
+            # 直接使用，不需要 Parent-Child 替换（调用方已完成此步骤）。
+            pass
+        else:
+            results = self._retrieval.full_retrieve(question)
+            # 将 results 转换为 contexts 格式
+            # Parent-Child 策略：如果 metadata 中有 parent_text，用 parent 替换 child
+            contexts = []
+            for doc, meta in zip(results["documents"], results["metadatas"]):
+                text = meta.get("parent_text", doc)
+                contexts.append({
+                    "text": text,
+                    "metadata": meta
+                })
 
         # 查询分类（用于决定是否启用 Self-RAG）
         try:
@@ -155,16 +240,6 @@ class GenerationService:
             intent_type = intent.get("intent_type", "factoid")
         except Exception:
             intent_type = "factoid"
-
-        # 将 results 转换为 contexts 格式
-        # Parent-Child 策略：如果 metadata 中有 parent_text，用 parent 替换 child
-        contexts = []
-        for doc, meta in zip(results["documents"], results["metadatas"]):
-            text = meta.get("parent_text", doc)
-            contexts.append({
-                "text": text,
-                "metadata": meta
-            })
 
         prompt = self.build_prompt(question, contexts, history=history)
 
@@ -195,58 +270,17 @@ class GenerationService:
             }
 
         # Self-RAG 反思 + 引用核查（并行执行）
-        reflection = None
-        verification = None
-
-        run_self_rag = (self._self_rag_enabled
-                        and self._self_rag_reflector.should_reflect(intent_type)
-                        and contexts and full_answer.strip())
-        run_citation = self._citation_verify_enabled and contexts and full_answer.strip()
-
-        if run_self_rag and run_citation:
-            # 并行：Self-RAG 和 Citation 同时执行
-            future_rag = _post_gen_executor.submit(
-                self._self_rag_reflector.reflect, question, full_answer, contexts)
-            future_cite = _post_gen_executor.submit(
-                self._citation_verifier.verify, question, full_answer, contexts)
-            try:
-                reflection = future_rag.result()
-                if reflection and reflection.get("has_gaps") and reflection.get("supplement"):
-                    supplement = reflection["supplement"]
-                    full_answer += f"\n\n**补充说明：**\n{supplement}"
-                    yield {
-                        "answer_chunk": f"\n\n**补充说明：**\n{supplement}",
-                        "full_answer": full_answer,
-                        "sources": sources,
-                    }
-            except Exception as e:
-                logger.warning("Self-RAG reflection failed: %s", e)
-            try:
-                verification = future_cite.result()
-                logger.info("Citation verification: confidence=%.2f, risk=%s",
-                            verification["confidence"], verification["hallucination_risk"])
-            except Exception as e:
-                logger.warning("Citation verification failed: %s", e)
-        elif run_self_rag:
-            try:
-                reflection = self._self_rag_reflector.reflect(question, full_answer, contexts)
-                if reflection and reflection.get("has_gaps") and reflection.get("supplement"):
-                    supplement = reflection["supplement"]
-                    full_answer += f"\n\n**补充说明：**\n{supplement}"
-                    yield {
-                        "answer_chunk": f"\n\n**补充说明：**\n{supplement}",
-                        "full_answer": full_answer,
-                        "sources": sources,
-                    }
-            except Exception as e:
-                logger.warning("Self-RAG reflection failed: %s", e)
-        elif run_citation:
-            try:
-                verification = self._citation_verifier.verify(question, full_answer, contexts)
-                logger.info("Citation verification: confidence=%.2f, risk=%s",
-                            verification["confidence"], verification["hallucination_risk"])
-            except Exception as e:
-                logger.warning("Citation verification failed: %s", e)
+        reflection, verification = self._run_post_generation_checks(
+            question, full_answer, contexts, sources
+        )
+        if reflection and reflection.get("has_gaps") and reflection.get("supplement"):
+            supplement = reflection["supplement"]
+            full_answer += f"\n\n**补充说明：**\n{supplement}"
+            yield {
+                "answer_chunk": f"\n\n**补充说明：**\n{supplement}",
+                "full_answer": full_answer,
+                "sources": sources,
+            }
 
         # 最终结果包含 verification
         yield {

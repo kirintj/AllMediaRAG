@@ -48,13 +48,14 @@ from typing import Any, Generator
 
 from core.services.exceptions import GenerationError
 from core.services.generation_service import GenerationService
+from core.services.protocols import GenerationBundleProtocol
 from core.services.retrieval_pipeline import RetrievalPipeline
 from core.verification.citation_verifier import CitationVerifier
 
 logger = logging.getLogger(__name__)
 
 
-class GenerationBundle:
+class GenerationBundle(GenerationBundleProtocol):
     """Adapter that satisfies GenerationBundleProtocol by delegating to
     GenerationService and CitationVerifier from the shared InfraBundle.
 
@@ -124,7 +125,7 @@ class GenerationBundle:
                 fails.  The original exception is chained for debugging.
         """
         try:
-            yield from self._service.query_stream(question, history)
+            yield from self._service.query_stream(question, history, contexts=contexts)
         except GenerationError:
             # Already wrapped -- re-raise as-is
             raise

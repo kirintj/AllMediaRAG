@@ -213,3 +213,69 @@ class TestGenerationBundle:
         MockCitationVerifier.return_value.verify.assert_called_once_with(
             "The answer", sources,
         )
+
+    @patch("core.services.generation_bundle.CitationVerifier")
+    @patch("core.services.generation_bundle.GenerationService")
+    def test_verify_citation_wraps_unexpected_errors(
+        self, MockGenService, MockCitationVerifier,
+    ):
+        """verify_citation() must wrap non-GenerationError exceptions as
+        GenerationError so the API layer has a single exception type to
+        catch, consistent with the Bundle contract.
+
+        Why this test matters:
+            CitationVerifier.verify may raise raw infrastructure errors
+            (e.g. LLM provider timeout, network failure).  The Bundle
+            must convert these into GenerationError so the API error
+            handler produces a clean JSON response instead of a stack
+            trace.
+        """
+        from core.services.generation_bundle import GenerationBundle
+
+        MockCitationVerifier.return_value.verify.side_effect = (
+            RuntimeError("LLM provider timeout")
+        )
+
+        infra = _make_infra()
+        bundle = GenerationBundle(infra)
+
+        with pytest.raises(GenerationError) as exc_info:
+            bundle.verify_citation("The answer", [{"text": "src"}])
+
+        # The original cause must be preserved for debugging
+        assert exc_info.value.__cause__ is not None, (
+            "GenerationError should chain the original exception"
+        )
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    @patch("core.services.generation_bundle.CitationVerifier")
+    @patch("core.services.generation_bundle.GenerationService")
+    def test_verify_citation_passes_through_existing_generation_error(
+        self, MockGenService, MockCitationVerifier,
+    ):
+        """verify_citation() must re-raise an existing GenerationError
+        as-is (not double-wrap it) so that the error chain stays clean
+        and callers see a single GenerationError, not
+        GenerationError(GenerationError(...)).
+
+        Why this test matters:
+            If an upstream component (e.g. a future LLM wrapper) already
+            raises GenerationError, re-wrapping would corrupt the error
+            chain and make debugging harder.
+        """
+        from core.services.generation_bundle import GenerationBundle
+
+        original_error = GenerationError("upstream generation failure")
+        MockCitationVerifier.return_value.verify.side_effect = original_error
+
+        infra = _make_infra()
+        bundle = GenerationBundle(infra)
+
+        with pytest.raises(GenerationError) as exc_info:
+            bundle.verify_citation("The answer", [{"text": "src"}])
+
+        # Must be the exact same exception object, not a new wrapper
+        assert exc_info.value is original_error, (
+            "verify_citation should pass through existing GenerationError "
+            "without double-wrapping"
+        )
