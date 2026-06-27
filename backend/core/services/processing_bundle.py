@@ -44,11 +44,12 @@ import logging
 from typing import Any
 
 from core.services.exceptions import ProcessingError
+from core.services.protocols import ProcessingBundleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-class ProcessingBundle:
+class ProcessingBundle(ProcessingBundleProtocol):
     """Adapter that satisfies ProcessingBundleProtocol by delegating to
     DocumentProcessor and the shared InfraBundle components.
 
