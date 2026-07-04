@@ -10,6 +10,9 @@
           <span class="typing-dot"></span>
         </span>
       </div>
+      
+      <!-- 系统按钮组 -->
+      <div class="system-btns">
       <button
         class="harmony-icon-btn docs-btn"
         @click="$emit('open-docs')"
@@ -19,8 +22,16 @@
           <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <!-- 系统按钮组 -->
-      <div class="system-btns">
+        <button
+          class="harmony-icon-btn"
+          @click="$emit('open-settings')"
+          title="API 配置"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button class="harmony-icon-btn" @click="$emit('toggle-dashboard')" title="评测与性能">
           <span style="font-size: 16px">&#128202;</span>
         </button>
@@ -38,14 +49,7 @@
     <div class="messages-container cus-scroll" ref="messagesRef">
       <!-- 空状态 -->
       <div v-if="store.messages.length === 0" class="empty-chat harmony-animate-in-scale">
-        <div class="empty-icon-wrap">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="4" y="4" width="56" height="56" rx="20" fill="var(--harmony-brand-light)" stroke="var(--harmony-brand)" stroke-width="2"/>
-            <path d="M22 26h20M22 32h14M22 38h18" stroke="var(--harmony-brand)" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="46" cy="42" r="8" fill="var(--harmony-brand)" opacity="0.2"/>
-            <path d="M43 42h6M46 39v6" stroke="var(--harmony-brand)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
+        
         <h3>开始你的智能问答之旅</h3>
         <p class="empty-sub">基于 RAG 检索增强，精准回答知识库问题</p>
         <div class="empty-suggestions">
@@ -91,7 +95,6 @@
         </button>
       </div>
       <div class="input-footer">
-        <button class="harmony-action-btn footer-btn" @click="store.clearChatHistory()">清空对话</button>
         <!-- 模式切换 -->
         <div class="harmony-tab-bar">
           <button
@@ -126,7 +129,7 @@ const store = useChatStore()
 const props = defineProps({
   isDark: { type: Boolean, default: false }
 })
-defineEmits(['open-docs', 'toggle-dashboard', 'toggle-dark', 'logout'])
+defineEmits(['open-docs', 'open-settings', 'toggle-dashboard', 'toggle-dark', 'logout'])
 const inputMessage = ref('')
 const messagesRef = ref(null)
 const inputRef = ref(null)

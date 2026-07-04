@@ -3,37 +3,26 @@
   <LoginView v-if="!authStore.isAuthenticated" @login-success="onLoginSuccess" />
 
   <!-- 已认证：显示主界面 -->
-  <div v-else class="app-container" :class="{ dark: isDark }">
+  <div v-else class="app-container">
     <el-container class="app-layout">
       <!-- 左侧栏 -->
-      <el-aside :width="isDark ? '260px' : '260px'" class="sidebar hm-animate-in">
+      <el-aside :width="'260px'" class="sidebar harmony-animate-in">
         <ChatSidebar />
       </el-aside>
 
       <!-- 中间对话区 -->
       <el-main class="main-content">
-        <ChatView />
+        <ChatView
+          :is-dark="isDark"
+          @open-docs="showDocs = true"
+          @open-settings="showSettings = true"
+          @toggle-dashboard="showDashboard = true"
+          @toggle-dark="toggleDark"
+          @logout="handleLogout"
+        />
       </el-main>
 
-      <!-- 右侧栏 -->
-      <el-aside width="280px" class="docs-panel hm-animate-in" style="animation-delay: 0.1s">
-        <DocumentPanel />
-      </el-aside>
     </el-container>
-
-    <!-- 工具栏：深色模式 + 仪表盘 + 退出登录 -->
-    <div class="toolbar">
-      <button class="dashboard-btn hm-icon-btn" @click="showDashboard = true" title="评测与性能">
-        <span style="font-size: 16px">&#128202;</span>
-      </button>
-      <button class="dark-toggle hm-icon-btn" @click="toggleDark" :title="isDark ? '切换浅色模式' : '切换深色模式'">
-        <span v-if="isDark" style="font-size: 18px">&#9728;&#65039;</span>
-        <span v-else style="font-size: 18px">&#127769;</span>
-      </button>
-      <button class="logout-btn hm-icon-btn" @click="handleLogout" title="退出登录">
-        <span style="font-size: 16px">&#x23FB;</span>
-      </button>
-    </div>
 
     <!-- 评测仪表盘对话框 -->
     <EvalDashboard v-model="showDashboard" />
@@ -49,6 +38,12 @@
         {{ toast.msg }}
       </div>
     </div>
+
+    <!-- 文档抽屉 -->
+    <DocumentDrawer v-model="showDocs" />
+
+    <!-- 设置抽屉 -->
+    <SettingsDrawer v-model="showSettings" />
   </div>
 </template>
 
@@ -58,18 +53,21 @@ import { useAuthStore } from './stores/useAuthStore.js'
 import { useToastStore } from './stores/useToastStore.js'
 import ChatSidebar from './features/chat/ChatSidebar.vue'
 import ChatView from './features/chat/ChatView.vue'
-import DocumentPanel from './features/documents/DocumentPanel.vue'
+import DocumentDrawer from './features/documents/DocumentDrawer.vue'
 import LoginView from './features/auth/LoginView.vue'
 import EvalDashboard from './features/eval/EvalDashboard.vue'
+import SettingsDrawer from './features/settings/SettingsDrawer.vue'
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const isDark = ref(false)
 const showDashboard = ref(false)
+const showDocs = ref(false)
+const showSettings = ref(false)
 
 function toggleDark() {
   isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
+  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
 }
 
 function onLoginSuccess() {
@@ -108,8 +106,8 @@ onUnmounted(() => {
 }
 
 .sidebar {
-  background: var(--hm-bg-primary);
-  border-right: 1px solid var(--hm-divider);
+  background: var(--harmony-comp-background-primary);
+  border-right: 1px solid var(--harmony-comp-divider);
   overflow-y: auto;
 }
 
@@ -118,53 +116,7 @@ onUnmounted(() => {
   flex-direction: column;
   padding: 0;
   overflow: hidden;
-  background: var(--hm-bg-primary);
-}
-
-.docs-panel {
-  background: var(--hm-bg-primary);
-  border-left: 1px solid var(--hm-divider);
-  overflow-y: auto;
-}
-
-.toolbar {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 100;
-  display: flex;
-  gap: 8px;
-}
-
-.dark-toggle,
-.logout-btn,
-.dashboard-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--hm-radius-full);
-  background: var(--hm-bg-glass);
-  border: 1px solid var(--hm-border-glass);
-  box-shadow: var(--hm-shadow-sm);
-  backdrop-filter: blur(12px);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s var(--hm-ease-out);
-}
-
-.dark-toggle:hover,
-.logout-btn:hover {
-  box-shadow: var(--hm-shadow-md);
-  background: var(--hm-hover-bg);
-}
-
-.logout-btn {
-  color: var(--hm-font-secondary);
-}
-
-.logout-btn:hover {
-  color: var(--hm-error);
+  background: var(--harmony-background-secondary);
 }
 
 /* ── Toast 容器 ── */
@@ -180,35 +132,35 @@ onUnmounted(() => {
 
 .toast-item {
   padding: 10px 20px;
-  border-radius: var(--hm-radius-md);
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--hm-shadow-md);
-  animation: toast-in 0.3s var(--hm-spring);
+  border-radius: var(--harmony-corner-radius-level8);
+  font-size: var(--harmony-font-size-caption-l);
+  font-weight: var(--harmony-font-weight-subtitle-m);
+  box-shadow: var(--harmony-shadow-md);
+  animation: toast-in 0.3s var(--harmony-ease-out);
 }
 
 .toast-item.success {
-  background: #f0f9eb;
-  color: #67c23a;
-  border: 1px solid #e1f3d8;
+  background: rgba(100, 187, 92, 0.1);
+  color: var(--harmony-confirm);
+  border: 1px solid rgba(100, 187, 92, 0.2);
 }
 
 .toast-item.error {
-  background: #fef0f0;
-  color: #f56c6c;
-  border: 1px solid #fde2e2;
+  background: rgba(232, 64, 38, 0.1);
+  color: var(--harmony-warning);
+  border: 1px solid rgba(232, 64, 38, 0.2);
 }
 
 .toast-item.warning {
-  background: #fdf6ec;
-  color: #e6a23c;
-  border: 1px solid #faecd8;
+  background: rgba(237, 111, 33, 0.1);
+  color: var(--harmony-alert);
+  border: 1px solid rgba(237, 111, 33, 0.2);
 }
 
 .toast-item.info {
-  background: #f4f4f5;
-  color: #909399;
-  border: 1px solid #e9e9eb;
+  background: var(--harmony-comp-background-tertiary);
+  color: var(--harmony-font-secondary);
+  border: 1px solid var(--harmony-comp-divider);
 }
 
 @keyframes toast-in {
