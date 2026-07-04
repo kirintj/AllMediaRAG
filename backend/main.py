@@ -38,6 +38,7 @@ from api.documents import router as documents_router
 from api.conversations import router as conversations_router
 from api.auth import router as auth_router
 from api.eval import router as eval_router
+from api.settings import router as settings_router
 
 # 启动时校验关键配置
 if not config.MIMO_API_KEY:
@@ -100,6 +101,15 @@ async def lifespan(app: FastAPI):
     app.state.ingestion = ingestion
     app.state.generation = generation
     app.state.rag_engine = rag_engine
+
+    # Seed 系统配置默认值
+    from core.settings_service import seed_defaults
+    from core.db import SessionLocal
+    db = SessionLocal()
+    try:
+        seed_defaults(db)
+    finally:
+        db.close()
 
     # Embedding 模型预加载
     # 为什么预加载：模型懒加载会导致第一个请求延迟 5-10 秒（加载模型到内存/GPU），
@@ -261,6 +271,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(conversations_router, prefix="/api")
 app.include_router(eval_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 
 
 @app.get("/")
