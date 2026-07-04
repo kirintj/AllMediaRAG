@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    String, Integer, Text, DateTime, ForeignKey, Index, TypeDecorator
+    String, Integer, Text, DateTime, ForeignKey, Index, TypeDecorator, func
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -151,3 +151,33 @@ class DocumentChunkModel(Base):
 
     def __repr__(self):
         return f"<DocumentChunk(id={self.id}, source='{self.source}', section='{self.section}')>"
+
+
+class SystemSetting(Base):
+    """系统配置键值对，支持热更新"""
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(
+        String(100), primary_key=True, comment="配置键，如 llm.api_key"
+    )
+    value: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="配置值（字符串存储）"
+    )
+    group_name: Mapped[str] = mapped_column(
+        String(50), nullable=False, comment="分组：llm / embedding / reranking / rag"
+    )
+    description: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="字段说明"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        server_default=func.now(), onupdate=func.now(),
+        comment="更新时间"
+    )
+
+    __table_args__ = (
+        {"comment": "系统配置键值对"},
+    )
+
+    def __repr__(self):
+        return f"<SystemSetting(key='{self.key}', group='{self.group_name}')>"
