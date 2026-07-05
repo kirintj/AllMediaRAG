@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "type": "cross_law",
+    "query": "数据安全法和个人信息保护法在数据出境方面的规定有什么异同？",
+    "expected_entities": ["中华人民共和国数据安全法", "中华人民共和国个人信息保护法"],
+    "expected_resolved": ["中华人民共和国数据安全法", "中华人民共和国个人信息保护法"],
+    "expected_graph_contribution": true,
+    "relevant_sources": ["中华人民共和国数据安全法.txt", "中华人民共和国个人信息保护法.txt"]
+  },
+  {
+    "id": 2,
+    "type": "multi_hop",
+    "query": "制定数据安全法的机构还制定了哪些法律？",
+    "expected_entities": ["全国人大常委会"],
+    "expected_resolved": ["中华人民共和国数据安全法"],
+    "expected_graph_contribution": true,
+    "relevant_sources": ["中华人民共和国数据安全法.txt"]
+  },
+  {
+    "id": 3,
+    "type": "alias",
+    "query": "数安法对重要数据的定义是什么？",
+    "expected_entities": ["中华人民共和国数据安全法"],
+    "expected_resolved": ["中华人民共和国数据安全法"],
+    "expected_graph_contribution": true,
+    "relevant_sources": ["中华人民共和国数据安全法.txt"]
+  },
+  {
+    "id": 4,
+    "type": "negative",
+    "query": "你好",
+    "expected_entities": [],
+    "expected_resolved": [],
+    "expected_graph_contribution": false,
+    "relevant_sources": []
+  },
+  {
+    "id": 5,
+    "type": "negative",
+    "query": "今天天气怎么样？",
+    "expected_entities": [],
+    "expected_resolved": [],
+    "expected_graph_contribution": false,
+    "relevant_sources": []
+  }
+]
