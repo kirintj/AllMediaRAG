@@ -246,13 +246,28 @@ class RetrievalPipeline:
 
         vec_f = executor.submit(vector_search)
         bm25_f = executor.submit(bm25_search)
+
+        # Graph candidate expansion (parallel with vector/BM25)
+        graph_retriever = getattr(self.infra, "graph_retriever", None)
+        graph_f = None
+        if graph_retriever:
+            def graph_search():
+                try:
+                    return graph_retriever.search(query, max_chunks=self.top_k * 4)
+                except Exception as e:
+                    logger.warning("Graph retrieval failed: %s", e)
+                    return []
+            graph_f = executor.submit(graph_search)
+
         all_vector_results = vec_f.result()
         all_bm25_results = bm25_f.result()
+        graph_chunk_ids = graph_f.result() if graph_f else []
 
         t_search = time.time()
-        logger.debug("Retrieval: %.0fms (queries=%d, vec=%d, bm25=%d)",
+        logger.debug("Retrieval: %.0fms (queries=%d, vec=%d, bm25=%d, graph=%d)",
                       (t_search - t0) * 1000, len(search_queries),
-                      len(all_vector_results), len(all_bm25_results))
+                      len(all_vector_results), len(all_bm25_results),
+                      len(graph_chunk_ids))
 
         # RRF fusion
         fused = self.reciprocal_rank_fusion(
@@ -260,6 +275,42 @@ class RetrievalPipeline:
             weights=[vector_weight, bm25_weight],
             k=self.rrf_k,
         )
+
+        # Inject graph candidates (bypass RRF, go straight to candidate pool)
+        if graph_chunk_ids:
+            existing_ids = {doc["id"] for doc in fused}
+            for cid in graph_chunk_ids:
+                # Check if this chunk is already in the fused results
+                already_present = False
+                for doc in fused:
+                    if cid in doc.get("id", ""):
+                        already_present = True
+                        break
+                if not already_present:
+                    # Look up chunk text from document_chunks table via infra
+                    try:
+                        from core.db.models import DocumentChunkModel
+                        from core.db.base import SessionLocal
+                        session = SessionLocal()
+                        try:
+                            chunk_row = session.query(DocumentChunkModel).filter(
+                                DocumentChunkModel.id == cid
+                            ).first()
+                            if chunk_row:
+                                fused.append({
+                                    "id": f"graph_{cid}",
+                                    "text": chunk_row.text,
+                                    "metadata": {
+                                        "source": chunk_row.source,
+                                        "section": chunk_row.section,
+                                        "chunk_index": chunk_row.chunk_index,
+                                        "retrieval_source": "knowledge_graph",
+                                    },
+                                })
+                        finally:
+                            session.close()
+                    except Exception:
+                        pass  # Skip if chunk not found
 
         # Chunk-level dedup (max 2 chunks per source)
         source_counts = Counter()
@@ -397,35 +448,80 @@ class RetrievalPipeline:
         result = self._do_retrieve(search_queries, query, vector_weight, bm25_weight, retrieve_top_k)
 
         # 6.5 Confidence evaluation + refetch
-        if self._refetch_enabled:
-            eval_result = self.infra.confidence_evaluator.evaluate(result)
-            if eval_result["needs_refetch"]:
-                logger.info("Low confidence (%.2f), refetching: %s",
-                            eval_result["confidence"], eval_result["reason"])
-                expanded_top_k = eval_result["suggested_top_k"]
-                # Generate more query variants
-                try:
-                    if "multi_query" in self.infra.rewriters:
-                        extra_variants = self.infra.rewriters["multi_query"].rewrite_sync(
-                            query, {"num_queries": 5}
-                        )
-                        extra_queries = [query] + extra_variants
-                    else:
-                        extra_queries = search_queries
-                    expanded_search_queries = list(set(search_queries + extra_queries))
-                except Exception as e:
-                    logger.warning("Extra query generation failed: %s", e)
-                    expanded_search_queries = search_queries
+        result = self._evaluate_and_refetch(
+            result, query, search_queries, vector_weight, bm25_weight,
+            retrieve_fn=self._do_retrieve,
+        )
 
-                # Refetch (heavier BM25 weight, looser keyword matching)
-                refetch_result = self._do_retrieve(
-                    expanded_search_queries, query,
-                    vector_weight * 0.5, bm25_weight * 1.5,
-                    expanded_top_k
+        # 7. Write to cache
+        try:
+            self.infra.cache_manager.set(cache_key, result)
+        except Exception as e:
+            logger.warning("Cache write failed: %s", e)
+
+        logger.debug("full_retrieve total: %.0fms", (time.time() - t_total) * 1000)
+        return result
+
+    def _evaluate_and_refetch(
+        self,
+        result: dict,
+        query: str,
+        search_queries: list,
+        vector_weight: float,
+        bm25_weight: float,
+        retrieve_fn,
+    ) -> dict:
+        """低置信度时扩展查询并重新检索，合并结果。
+
+        为什么抽取为独立方法：
+        full_retrieve 和 full_retrieve_async 中的 refetch 逻辑完全相同，
+        唯一区别是 retrieve_fn 调用方式（同步 vs 通过 asyncio.to_thread 包装）。
+        将检索函数作为参数注入，消除两个版本间约 30 行重复代码。
+
+        Args:
+            result: 初次检索结果
+            query: 原始查询
+            search_queries: 初次检索使用的查询列表
+            vector_weight: 向量检索权重
+            bm25_weight: BM25 检索权重
+            retrieve_fn: 检索函数，签名 (queries, query, vec_w, bm25_w, top_k) -> dict
+        """
+        if not self._refetch_enabled:
+            return result
+
+        eval_result = self.infra.confidence_evaluator.evaluate(result)
+        if not eval_result["needs_refetch"]:
+            return result
+
+        logger.info(
+            "Low confidence (%.2f), refetching: %s",
+            eval_result["confidence"], eval_result["reason"],
+        )
+        expanded_top_k = eval_result["suggested_top_k"]
+
+        # 生成更多查询变体
+        try:
+            if "multi_query" in self.infra.rewriters:
+                extra_variants = self.infra.rewriters["multi_query"].rewrite_sync(
+                    query, {"num_queries": 5},
                 )
-                # Merge results (dedup)
-                result = self.infra.confidence_evaluator.merge_results(result, refetch_result)
-                logger.info("Refetch merged: %d documents", len(result["documents"]))
+                extra_queries = [query] + extra_variants
+            else:
+                extra_queries = search_queries
+            expanded_search_queries = list(set(search_queries + extra_queries))
+        except Exception as e:
+            logger.warning("Extra query generation failed: %s", e)
+            expanded_search_queries = search_queries
+
+        # Refetch（加大 BM25 权重，放松关键词匹配）
+        refetch_result = retrieve_fn(
+            expanded_search_queries, query,
+            vector_weight * 0.5, bm25_weight * 1.5,
+            expanded_top_k,
+        )
+        result = self.infra.confidence_evaluator.merge_results(result, refetch_result)
+        logger.info("Refetch merged: %d documents", len(result["documents"]))
+        return result
 
         # 7. Write to cache
         try:
@@ -535,14 +631,16 @@ class RetrievalPipeline:
             vector_weight, bm25_weight, retrieve_top_k
         )
 
-        # 6.5 Confidence evaluation + refetch
+        # 6.5 Confidence evaluation + refetch（async 版本使用 to_thread 包装检索函数）
+        async def _async_retrieve(queries, q, vw, bw, top_k):
+            return await asyncio.to_thread(self._do_retrieve, queries, q, vw, bw, top_k)
+
         if self._refetch_enabled:
             eval_result = self.infra.confidence_evaluator.evaluate(result)
             if eval_result["needs_refetch"]:
                 logger.info("Low confidence (%.2f), refetching: %s",
                             eval_result["confidence"], eval_result["reason"])
                 expanded_top_k = eval_result["suggested_top_k"]
-                # Generate more query variants
                 try:
                     if "multi_query" in self.infra.rewriters:
                         extra_variants = await asyncio.to_thread(
@@ -557,13 +655,11 @@ class RetrievalPipeline:
                     logger.warning("Extra query generation failed: %s", e)
                     expanded_search_queries = search_queries
 
-                # Refetch (heavier BM25 weight)
-                refetch_result = await asyncio.to_thread(
-                    self._do_retrieve, expanded_search_queries, query,
+                refetch_result = await _async_retrieve(
+                    expanded_search_queries, query,
                     vector_weight * 0.5, bm25_weight * 1.5,
-                    expanded_top_k
+                    expanded_top_k,
                 )
-                # Merge results
                 result = self.infra.confidence_evaluator.merge_results(result, refetch_result)
                 logger.info("Refetch merged: %d documents", len(result["documents"]))
 
