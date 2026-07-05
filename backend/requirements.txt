@@ -56,5 +56,8 @@ slowapi>=0.1.9
 # python-docx>=1.0    # Word (.docx) 文件解析
 # requests>=2.31.0    # 脚本：文档抓取 (scripts/fetch_docs.py)
 
+# === Knowledge Graph ===
+neo4j>=5.0
+
 # === 开发/测试依赖 ===
 # pytest>=7.0         # 运行测试

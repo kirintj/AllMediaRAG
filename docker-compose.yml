@@ -68,6 +68,17 @@ services:
     networks:
       - multimodal-rag-network
 
+  # ---------- Neo4j (Knowledge Graph) ----------
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4jtest}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+
   # ---------- 前端 + Nginx ----------
   frontend:
     build:
@@ -89,6 +100,8 @@ volumes:
   multimodal_rag_redis_data:
     driver: local
   multimodal_rag_postgres_data:
+    driver: local
+  neo4j_data:
     driver: local
 
 networks:

@@ -144,6 +144,14 @@ class AppSettings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
 
+    # -- Knowledge Graph ----------------------------------------------
+    USE_KNOWLEDGE_GRAPH: bool = False
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "neo4jtest"
+    GRAPH_MAX_CHUNKS: int = 20
+    KG_EXTRACTOR_MODEL: str = "cheap"
+
     # -- Alert thresholds ---------------------------------------------
     ALERT_LATENCY_THRESHOLD_MS: int = 1000
     ALERT_ERROR_RATE_THRESHOLD: float = 0.05
