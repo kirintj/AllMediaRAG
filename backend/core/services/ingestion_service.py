@@ -70,6 +70,21 @@ class IngestionService:
         ]
         self._bm25_retriever.add_documents(bm25_docs)
 
+        # KG extraction + ingest (after vector/BM25 writes)
+        graph_store = getattr(self._infra, "graph_store", None)
+        kg_extractor = getattr(self._infra, "kg_extractor", None)
+        if graph_store and kg_extractor:
+            import asyncio
+            for chunk, meta in zip(chunks, metadatas):
+                try:
+                    chunk_id = meta.get("chunk_id", str(uuid.uuid4()))
+                    meta["chunk_id"] = chunk_id
+                    entities = asyncio.run(kg_extractor.extract_entities(chunk["text"]))
+                    relations = asyncio.run(kg_extractor.extract_relations(chunk["text"], entities))
+                    graph_store.ingest(chunk_id, source, entities, relations)
+                except Exception as e:
+                    logger.warning("KG extraction failed for chunk in %s: %s", source, e)
+
         return len(chunks)
 
     def delete_by_source(self, source: str):
@@ -92,6 +107,14 @@ class IngestionService:
         self._bm25_retriever.delete_by_source(source)
         # 3. 缓存失效——避免检索端命中已删除文档的陈旧结果
         self._cache_manager.invalidate_by_source(source)
+
+        # 4. 清理图谱数据
+        graph_store = getattr(self._infra, "graph_store", None)
+        if graph_store:
+            try:
+                graph_store.delete_by_source(source)
+            except Exception as e:
+                logger.warning("Graph cleanup failed for %s: %s", source, e)
 
     def delete_all(self):
         """清空所有文档"""

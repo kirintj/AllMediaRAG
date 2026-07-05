@@ -26,8 +26,33 @@ from core.observability.metrics_collector import metrics_collector
 from core.ocr.paddle_provider import PaddleOCRProvider
 from core.ocr.tesseract_provider import TesseractOCRProvider
 from core.ocr.vlm_provider import VLMProvider
+from core.kg.graph_store import Neo4jGraphStore
 
 logger = logging.getLogger(__name__)
+
+
+def _try_init(name: str, factory, *args, **kwargs):
+    """通用组件初始化辅助函数，统一 try/except + 日志模式。
+
+    为什么抽取：_init_ocr_provider、_init_vlm_provider、_init_vlm_extractor、
+    _init_image_store 四个函数都有相同的 try/init/log-success-or-warning 结构，
+    用工厂函数 + 名称参数消除重复。
+
+    Args:
+        name: 组件名称（用于日志）
+        factory: 工厂函数/类构造器
+        *args, **kwargs: 传给 factory 的参数
+
+    Returns:
+        factory 的返回值，失败时返回 None
+    """
+    try:
+        component = factory(*args, **kwargs)
+        logger.info("%s initialized", name)
+        return component
+    except Exception as e:
+        logger.warning("Failed to init %s: %s", name, e)
+        return None
 
 
 @dataclass
@@ -53,6 +78,9 @@ class InfraBundle:
     executor: Any = None  # ThreadPoolExecutor
     image_store: Any = None
     bm25_ready: bool = False
+    graph_store: Any = None
+    graph_retriever: Any = None
+    kg_extractor: Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -68,24 +96,17 @@ def _init_ocr_provider(config):
         logger.info("OCR disabled by config")
         return None
     if ocr_type == "paddle":
-        try:
-            provider = PaddleOCRProvider(
-                lang=config.OCR_LANG,
-                use_gpu=config.OCR_USE_GPU,
-            )
-            logger.info("PaddleOCR provider initialized")
-            return provider
-        except Exception as e:
-            logger.warning("Failed to init PaddleOCR: %s", e)
-            return None
+        provider = _try_init(
+            "PaddleOCR provider",
+            lambda: PaddleOCRProvider(lang=config.OCR_LANG, use_gpu=config.OCR_USE_GPU),
+        )
+        return provider
     elif ocr_type == "tesseract":
-        try:
-            provider = TesseractOCRProvider(lang="chi_sim+eng")
-            logger.info("TesseractOCR provider initialized")
-            return provider
-        except Exception as e:
-            logger.warning("Failed to init TesseractOCR: %s", e)
-            return None
+        provider = _try_init(
+            "TesseractOCR provider",
+            lambda: TesseractOCRProvider(lang="chi_sim+eng"),
+        )
+        return provider
     logger.warning("Unknown OCR_PROVIDER: %s", ocr_type)
     return None
 
@@ -98,17 +119,17 @@ def _init_vlm_provider(config):
     if not config.VLM_MODEL or not config.VLM_API_BASE:
         logger.warning("VLM_MODEL or VLM_API_BASE not configured")
         return None
-    try:
-        provider = VLMProvider(
+    provider = _try_init(
+        "VLM provider",
+        lambda: VLMProvider(
             api_key=config.MIMO_API_KEY,
             api_base=config.VLM_API_BASE,
             model=config.VLM_MODEL,
-        )
-        logger.info("VLM provider initialized (model=%s)", config.VLM_MODEL)
-        return provider
-    except Exception as e:
-        logger.warning("Failed to init VLM: %s", e)
-        return None
+        ),
+    )
+    if provider:
+        logger.info("VLM provider model=%s", config.VLM_MODEL)
+    return provider
 
 
 def _init_vlm_extractor(config):
@@ -124,9 +145,10 @@ def _init_vlm_extractor(config):
     if not config.VLM_EXTRACTOR_API_KEY:
         logger.warning("VLM_EXTRACTOR_API_KEY not configured, VLM Extractor disabled")
         return None
-    try:
+
+    def _create_extractor():
         from core.ocr.vlm_extractor import VLMExtractor
-        extractor = VLMExtractor(
+        return VLMExtractor(
             api_key=config.VLM_EXTRACTOR_API_KEY,
             api_base=config.VLM_EXTRACTOR_API_BASE,
             model=config.VLM_EXTRACTOR_MODEL,
@@ -134,11 +156,11 @@ def _init_vlm_extractor(config):
             timeout=config.VLM_EXTRACTOR_TIMEOUT,
             max_image_size=config.VLM_EXTRACTOR_MAX_IMAGE_SIZE,
         )
-        logger.info("VLM Extractor initialized (model=%s)", config.VLM_EXTRACTOR_MODEL)
-        return extractor
-    except Exception as e:
-        logger.warning("Failed to init VLM Extractor: %s", e)
-        return None
+
+    extractor = _try_init("VLM Extractor", _create_extractor)
+    if extractor:
+        logger.info("VLM Extractor model=%s", config.VLM_EXTRACTOR_MODEL)
+    return extractor
 
 
 def _init_image_store(config):
@@ -151,14 +173,15 @@ def _init_image_store(config):
     if not config.IMAGE_STORE_ENABLED:
         logger.info("ImageStore disabled by config")
         return None
-    try:
+
+    def _create_store():
         from core.image_store import ImageStore
-        store = ImageStore(base_dir=config.IMAGE_STORE_DIR)
-        logger.info("ImageStore initialized (dir=%s)", config.IMAGE_STORE_DIR)
-        return store
-    except Exception as e:
-        logger.warning("Failed to init ImageStore: %s", e)
-        return None
+        return ImageStore(base_dir=config.IMAGE_STORE_DIR)
+
+    store = _try_init("ImageStore", _create_store)
+    if store:
+        logger.info("ImageStore dir=%s", config.IMAGE_STORE_DIR)
+    return store
 
 
 def _init_chunking_strategy(config):
@@ -354,6 +377,23 @@ def create_infra(settings) -> InfraBundle:
         min_docs=2,
     )
 
+    # ── Knowledge Graph ─────────────────────────────────────
+    graph_store = None
+    graph_retriever = None
+    kg_extractor = None
+
+    if config.USE_KNOWLEDGE_GRAPH:
+        graph_store = _try_init(
+            "Neo4j graph store",
+            lambda: Neo4jGraphStore(config.NEO4J_URI, config.NEO4J_USER, config.NEO4J_PASSWORD),
+        )
+        if graph_store:
+            from core.kg.extractor import KGExtractor
+            from core.kg.graph_retriever import GraphRetriever
+            kg_extractor = KGExtractor(llm_client)
+            graph_retriever = GraphRetriever(graph_store)
+            graph_retriever.load_aliases()
+
     # ---- assemble bundle ----------------------------------------------
     infra = InfraBundle(
         settings=config,
@@ -375,6 +415,9 @@ def create_infra(settings) -> InfraBundle:
         executor=executor,
         image_store=image_store,
         bm25_ready=bm25_loaded,
+        graph_store=graph_store,
+        graph_retriever=graph_retriever,
+        kg_extractor=kg_extractor,
     )
 
     # Kick off background BM25 rebuild if the on-disk index was not found.
