@@ -138,6 +138,7 @@ class GenerationBundle(GenerationBundleProtocol):
 
     def verify_citation(
         self,
+        query: str,
         answer: str,
         sources: list[dict[str, Any]],
     ) -> dict[str, Any]:
@@ -153,6 +154,8 @@ class GenerationBundle(GenerationBundleProtocol):
         re-checks) without re-running a full generation.
 
         Args:
+            query: The original user question.  Needed by
+                CitationVerifier.verify for faithful claim analysis.
             answer: The generated answer text.
             sources: Context dicts from retrieval (each with at least
                 ``text`` and ``metadata``).
@@ -167,7 +170,10 @@ class GenerationBundle(GenerationBundleProtocol):
                 The original exception is chained for debugging.
         """
         try:
-            return self._citation_verifier.verify(answer, sources)
+            # CitationVerifier.verify requires (query, answer, contexts, retrieval_results).
+            # sources here maps to contexts; query was missing in the original
+            # call, causing a TypeError at runtime.
+            return self._citation_verifier.verify(query, answer, sources)
         except GenerationError:
             raise
         except Exception as exc:

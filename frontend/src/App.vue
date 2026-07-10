@@ -15,7 +15,6 @@
         <ChatView
           :is-dark="isDark"
           @open-docs="showDocs = true"
-          @open-settings="showSettings = true"
           @toggle-dashboard="showDashboard = true"
           @toggle-dark="toggleDark"
           @logout="handleLogout"
@@ -41,9 +40,6 @@
 
     <!-- 文档抽屉 -->
     <DocumentDrawer v-model="showDocs" />
-
-    <!-- 设置抽屉 -->
-    <SettingsDrawer v-model="showSettings" />
   </div>
 </template>
 
@@ -56,14 +52,12 @@ import ChatView from './features/chat/ChatView.vue'
 import DocumentDrawer from './features/documents/DocumentDrawer.vue'
 import LoginView from './features/auth/LoginView.vue'
 import EvalDashboard from './features/eval/EvalDashboard.vue'
-import SettingsDrawer from './features/settings/SettingsDrawer.vue'
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const isDark = ref(false)
 const showDashboard = ref(false)
 const showDocs = ref(false)
-const showSettings = ref(false)
 
 function toggleDark() {
   isDark.value = !isDark.value
@@ -108,6 +102,7 @@ onUnmounted(() => {
 .sidebar {
   background: var(--harmony-comp-background-primary);
   border-right: 1px solid var(--harmony-comp-divider);
+  box-shadow: 1px 0 0 var(--harmony-comp-divider);
   overflow-y: auto;
 }
 
@@ -122,16 +117,16 @@ onUnmounted(() => {
 /* ── Toast 容器 ── */
 .toast-container {
   position: fixed;
-  top: 60px;
-  right: 16px;
+  top: calc(var(--harmony-titlebar-height) + var(--harmony-padding-level4));
+  right: var(--harmony-padding-level8);
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--harmony-padding-level4);
 }
 
 .toast-item {
-  padding: 10px 20px;
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level10);
   border-radius: var(--harmony-corner-radius-level8);
   font-size: var(--harmony-font-size-caption-l);
   font-weight: var(--harmony-font-weight-subtitle-m);
@@ -140,21 +135,21 @@ onUnmounted(() => {
 }
 
 .toast-item.success {
-  background: rgba(100, 187, 92, 0.1);
+  background: var(--harmony-confirm-light);
   color: var(--harmony-confirm);
-  border: 1px solid rgba(100, 187, 92, 0.2);
+  border: 1px solid var(--harmony-confirm-border);
 }
 
 .toast-item.error {
-  background: rgba(232, 64, 38, 0.1);
+  background: var(--harmony-warning-light);
   color: var(--harmony-warning);
-  border: 1px solid rgba(232, 64, 38, 0.2);
+  border: 1px solid var(--harmony-warning-border);
 }
 
 .toast-item.warning {
-  background: rgba(237, 111, 33, 0.1);
+  background: var(--harmony-alert-light);
   color: var(--harmony-alert);
-  border: 1px solid rgba(237, 111, 33, 0.2);
+  border: 1px solid var(--harmony-alert-border);
 }
 
 .toast-item.info {

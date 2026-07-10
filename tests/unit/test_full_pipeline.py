@@ -247,7 +247,7 @@ def test_full_retrieve_cache_hit(mock_create_infra):
 
     # 使用归一化后的 key 预热缓存
     import hashlib
-    normalized = engine._normalize_query("test query")
+    normalized = engine.retrieval._normalize_query("test query")
     cache_key = f"rag:{hashlib.md5(normalized.encode()).hexdigest()}"
     cached_result = {
         "documents": ["cached doc"],

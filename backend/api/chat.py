@@ -12,6 +12,7 @@ from core.auth import get_current_user
 from core.services import InfraBundle
 from core.services.retrieval_pipeline import RetrievalPipeline
 from core.services.generation_service import GenerationService
+from api.deps import get_infra, get_retrieval, get_generation
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +22,6 @@ router = APIRouter()
 _executor = ThreadPoolExecutor(max_workers=4)
 
 _SENTINEL = "__STREAM_END__"
-
-
-# ---------------------------------------------------------------------------
-# Dependency providers (read from app.state, no circular import)
-# ---------------------------------------------------------------------------
-
-def _get_infra(request: Request) -> InfraBundle:
-    return request.app.state.infra
-
-
-def _get_retrieval(request: Request) -> RetrievalPipeline:
-    return request.app.state.retrieval
-
-
-def _get_generation(request: Request) -> GenerationService:
-    return request.app.state.generation
 
 
 # ---------------------------------------------------------------------------
@@ -64,9 +49,9 @@ async def chat(
     request: Request,
     body: ChatRequest,
     current_user: dict = Depends(get_current_user),
-    infra: InfraBundle = Depends(_get_infra),
-    retrieval: RetrievalPipeline = Depends(_get_retrieval),
-    generation: GenerationService = Depends(_get_generation),
+    infra: InfraBundle = Depends(get_infra),
+    retrieval: RetrievalPipeline = Depends(get_retrieval),
+    generation: GenerationService = Depends(get_generation),
 ):
     """流式对话接口"""
     # 将前端传来的 history 转为 build_prompt 需要的格式

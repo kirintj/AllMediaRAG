@@ -1,3 +1,10 @@
+/**
+ * 聊天状态管理。
+ *
+ * 职责划分：
+ * - api/chat.js — 负责 SSE 连接建立和流式数据解析
+ * - 本 store — 仅负责响应式状态更新（消息追加/替换、loading 标记）
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { chatStream } from '../api/chat.js'
@@ -19,7 +26,7 @@ export const useChatStore = defineStore('chat', () => {
       .map(m => ({ role: m.role, content: m.content }))
   }
 
-  // 发送消息
+  // 发送消息（SSE 解析由 api/chat.js 处理，此处只更新状态）
   async function sendMessage(content) {
     if (!content.trim() || loading.value) return
 

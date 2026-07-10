@@ -20,7 +20,8 @@ os.chdir(project_dir)
 from sqlalchemy import create_engine
 from core.config import config
 from core.db.base import Base
-from core.db.user_models import UserModel, ConversationModel, MessageModel
+from core.db.models import DocumentModel, DocumentChunkModel  # noqa: F401
+from core.db.user_models import UserModel, ConversationModel, MessageModel  # noqa: F401
 
 def main():
     print("=" * 60)
@@ -48,7 +49,7 @@ def main():
     inspector = inspect(engine)
 
     tables = inspector.get_table_names()
-    expected_tables = ['users', 'conversations', 'messages']
+    expected_tables = ['users', 'conversations', 'messages', 'documents', 'document_chunks']
 
     for table_name in expected_tables:
         if table_name in tables:

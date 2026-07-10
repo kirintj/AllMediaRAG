@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, Depends, HTTPException
 from core.auth import get_current_user
 from core.services import InfraBundle
+from api.deps import get_infra
 
 router = APIRouter()
 
@@ -18,16 +19,12 @@ router = APIRouter()
 EVAL_DIR = Path(__file__).parent.parent / "eval"
 
 
-def _get_infra(request: Request) -> InfraBundle:
-    return request.app.state.infra
-
-
 # ── /api/metrics ─────────────────────────────────────────────────────────
 
 @router.get("/metrics")
 async def get_metrics(
     current_user: dict = Depends(get_current_user),
-    infra: InfraBundle = Depends(_get_infra),
+    infra: InfraBundle = Depends(get_infra),
 ):
     """返回运行时工程性能指标"""
     collector = infra.metrics_collector

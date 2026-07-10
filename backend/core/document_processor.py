@@ -1,7 +1,10 @@
 import os
 import re
+import logging
 import numpy as np
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentProcessor:
@@ -44,9 +47,6 @@ class DocumentProcessor:
 
     def read_file(self, file_path: str) -> str:
         """读取文件内容，支持多种格式"""
-        import logging
-        logger = logging.getLogger(__name__)
-
         ext = os.path.splitext(file_path)[1].lower()
 
         # Try registry first
@@ -97,9 +97,6 @@ class DocumentProcessor:
 
     def _read_pdf(self, file_path: str) -> str:
         """读取 PDF 文件，支持 OCR 降级"""
-        import logging
-        logger = logging.getLogger(__name__)
-
         from PyPDF2 import PdfReader
         reader = PdfReader(file_path)
         text = ""
@@ -130,9 +127,6 @@ class DocumentProcessor:
 
     def _read_pdf_with_ocr(self, file_path: str) -> str:
         """使用 OCR 提取扫描件 PDF 的文字"""
-        import logging
-        logger = logging.getLogger(__name__)
-
         if not self.ocr_provider or not self.ocr_provider.is_available():
             logger.warning("OCR provider not available")
             return ""
@@ -145,9 +139,6 @@ class DocumentProcessor:
 
     def _read_image(self, file_path: str) -> str:
         """读取图片文件，使用 OCR 提取文字"""
-        import logging
-        logger = logging.getLogger(__name__)
-
         if not self.ocr_provider or not self.ocr_provider.is_available():
             logger.warning("OCR provider not available for image: %s", file_path)
             return ""

@@ -23,6 +23,8 @@ class RerankManager:
                 - RERANK_TOP_K: int
         """
         self.config = config
+        # 注意：RERANK_STRATEGY 每次调用 rerank 时会从 config 重新读取，
+        # 以支持前端 Settings Drawer 的热更新；此处只保留首次启动时的值。
         self.strategy = config.RERANK_STRATEGY
 
         # 初始化重排序器
@@ -58,6 +60,13 @@ class RerankManager:
 
         if not documents:
             return []
+
+        # 支持热更新：重新从 config 读取当前策略
+        current_strategy = self.config.RERANK_STRATEGY
+        if current_strategy != self.strategy:
+            logger.info("Rerank strategy updated: %s -> %s",
+                        self.strategy, current_strategy)
+            self.strategy = current_strategy
 
         # 根据策略选择重排序器
         reranker = self._select_reranker()

@@ -31,7 +31,7 @@
       <div v-if="message.sources && message.sources.length > 0" class="message-sources">
         <div class="sources-header">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5" stroke="var(--hm-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5" stroke="var(--harmony-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span>参考来源</span>
         </div>
@@ -39,7 +39,7 @@
           <span
             v-for="(source, idx) in message.sources"
             :key="idx"
-            class="hm-filter-chip source-chip"
+            class="harmony-filter-chip source-chip"
           >
             {{ (source.section && source.section !== '概述') ? source.section : cleanSourceName(source.source) }}
           </span>
@@ -207,8 +207,8 @@ const formattedElapsed = computed(() => {
 <style scoped>
 .message {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--harmony-padding-level6);
+  margin-bottom: var(--harmony-padding-level10);
   max-width: 100%;
 }
 
@@ -224,27 +224,26 @@ const formattedElapsed = computed(() => {
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: var(--hm-radius-md);
+  border-radius: var(--harmony-corner-radius-level8);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.3s var(--hm-spring);
+  transition: transform 0.2s var(--harmony-ease-out);
 }
 
 .avatar:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .avatar.user {
-  background: var(--hm-brand-gradient);
-  color: white;
-  box-shadow: var(--hm-shadow-brand);
+  background: var(--harmony-comp-background-emphasize);
+  color: var(--harmony-font-on-primary);
 }
 
 .avatar.assistant {
-  background: var(--hm-bg-container-secondary);
-  border: 1px solid var(--hm-border);
-  color: var(--hm-brand);
+  background: var(--harmony-comp-background-secondary);
+  border: 1px solid var(--harmony-comp-divider);
+  color: var(--harmony-brand);
 }
 
 /* ── 消息体 ── */
@@ -259,29 +258,23 @@ const formattedElapsed = computed(() => {
 
 /* ── 气泡 ── */
 .message-bubble {
-  padding: 14px 18px;
-  border-radius: var(--hm-radius-lg);
-  font-size: 14px;
+  padding: var(--harmony-padding-level7) var(--harmony-padding-level9);
+  border-radius: var(--harmony-corner-radius-level16);
+  font-size: var(--harmony-font-size-body-m);
   line-height: 1.7;
-  transition: box-shadow 0.3s var(--hm-spring);
 }
 
 .message-bubble.assistant {
-  background: var(--hm-bg-glass);
-  border: 1px solid var(--hm-border-glass);
-  box-shadow: var(--hm-shadow-layered);
-  border-top-left-radius: var(--hm-radius-sm);
-}
-
-.message-bubble.assistant:hover {
-  box-shadow: var(--hm-shadow-layered-hover);
+  background: var(--harmony-comp-background-primary);
+  border: 1px solid var(--harmony-comp-divider);
+  box-shadow: var(--harmony-shadow-sm);
+  border-top-left-radius: var(--harmony-corner-radius-level4);
 }
 
 .message-bubble.user {
-  background: var(--hm-brand-gradient);
-  color: var(--hm-font-on-brand);
-  border-top-right-radius: var(--hm-radius-sm);
-  box-shadow: var(--hm-shadow-brand);
+  background: var(--harmony-comp-background-emphasize);
+  color: var(--harmony-font-on-primary);
+  border-top-right-radius: var(--harmony-corner-radius-level4);
 }
 
 /* ── 文本内容 ── */
@@ -290,37 +283,37 @@ const formattedElapsed = computed(() => {
 }
 
 .message-text :deep(pre) {
-  background: #1a1b26;
-  color: #c0caf5;
-  padding: 14px 16px;
-  border-radius: var(--hm-radius-md);
+  background: var(--harmony-background-tertiary);
+  color: var(--harmony-font-primary);
+  padding: var(--harmony-padding-level7) var(--harmony-padding-level8);
+  border-radius: var(--harmony-corner-radius-level8);
   margin: 10px 0 6px;
   overflow-x: auto;
   font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--harmony-font-size-body-s);
   line-height: 1.6;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--harmony-comp-divider);
 }
 
 .message-bubble.user .message-text :deep(pre) {
-  background: rgba(0, 0, 0, 0.2);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--harmony-comp-background-secondary);
+  border-color: var(--harmony-comp-divider);
 }
 
 .message-text :deep(code) {
-  background: var(--hm-pressed-bg);
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: var(--harmony-interactive-pressed);
+  padding: var(--harmony-padding-level1) var(--harmony-padding-level3);
+  border-radius: var(--harmony-corner-radius-level2);
   font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--harmony-font-size-body-s);
 }
 
 .message-bubble.user .message-text :deep(code) {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--harmony-comp-background-secondary);
 }
 
 .message-text :deep(strong) {
-  font-weight: 600;
+  font-weight: var(--harmony-font-weight-subtitle-m);
 }
 
 /* ── Markdown 标题 ── */
@@ -329,14 +322,14 @@ const formattedElapsed = computed(() => {
 .message-text :deep(h3),
 .message-text :deep(h4) {
   margin: 12px 0 6px;
-  font-weight: 600;
+  font-weight: var(--harmony-font-weight-title-s);
   line-height: 1.4;
 }
 
-.message-text :deep(h1) { font-size: 18px; }
-.message-text :deep(h2) { font-size: 16px; }
-.message-text :deep(h3) { font-size: 15px; }
-.message-text :deep(h4) { font-size: 14px; }
+.message-text :deep(h1) { font-size: var(--harmony-font-size-subtitle-l); }
+.message-text :deep(h2) { font-size: var(--harmony-font-size-subtitle-m); }
+.message-text :deep(h3) { font-size: var(--harmony-font-size-subtitle-s); }
+.message-text :deep(h4) { font-size: var(--harmony-font-size-body-l); }
 
 /* ── Markdown 段落 ── */
 .message-text :deep(p) {
@@ -365,43 +358,43 @@ const formattedElapsed = computed(() => {
 /* ── Markdown 引用块 ── */
 .message-text :deep(blockquote) {
   margin: 8px 0;
-  padding: 4px 12px;
-  border-left: 3px solid var(--hm-brand);
-  color: var(--hm-font-secondary);
-  background: var(--hm-bg-container-secondary);
-  border-radius: 0 var(--hm-radius-sm) var(--hm-radius-sm) 0;
+  padding: var(--harmony-padding-level2) var(--harmony-padding-level6);
+  border-left: 3px solid var(--harmony-brand);
+  color: var(--harmony-font-secondary);
+  background: var(--harmony-comp-background-secondary);
+  border-radius: 0 var(--harmony-corner-radius-level4) var(--harmony-corner-radius-level4) 0;
 }
 
 /* ── Markdown 表格 ── */
 .message-text :deep(table) {
   border-collapse: collapse;
   margin: 8px 0;
-  font-size: 13px;
+  font-size: var(--harmony-font-size-body-s);
   width: 100%;
 }
 
 .message-text :deep(th),
 .message-text :deep(td) {
-  border: 1px solid var(--hm-border);
-  padding: 6px 10px;
+  border: 1px solid var(--harmony-comp-divider);
+  padding: var(--harmony-padding-level3) var(--harmony-padding-level5);
   text-align: left;
 }
 
 .message-text :deep(th) {
-  background: var(--hm-bg-container-secondary);
-  font-weight: 600;
+  background: var(--harmony-comp-background-secondary);
+  font-weight: var(--harmony-font-weight-subtitle-s);
 }
 
 /* ── Markdown 分割线 ── */
 .message-text :deep(hr) {
   border: none;
-  border-top: 1px solid var(--hm-border);
+  border-top: 1px solid var(--harmony-comp-divider);
   margin: 12px 0;
 }
 
 /* ── Markdown 链接 ── */
 .message-text :deep(a) {
-  color: var(--hm-brand);
+  color: var(--harmony-brand);
   text-decoration: none;
 }
 
@@ -419,31 +412,31 @@ const formattedElapsed = computed(() => {
 
 /* ── 参考来源 ── */
 .message-sources {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--hm-bg-container-secondary);
-  border-radius: var(--hm-radius-md);
-  border: 1px solid var(--hm-border);
+  margin-top: var(--harmony-padding-level5);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level6);
+  background: var(--harmony-comp-background-secondary);
+  border-radius: var(--harmony-corner-radius-level8);
+  border: 1px solid var(--harmony-comp-divider);
 }
 
 .sources-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--hm-font-secondary);
-  margin-bottom: 8px;
+  gap: var(--harmony-padding-level3);
+  font-size: var(--harmony-font-size-caption-l);
+  font-weight: var(--harmony-font-weight-caption-l);
+  color: var(--harmony-font-secondary);
+  margin-bottom: var(--harmony-padding-level4);
 }
 
 .sources-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--harmony-padding-level3);
 }
 
 .source-chip {
-  font-size: 11px;
+  font-size: var(--harmony-font-size-caption-l);
   cursor: default;
 }
 
@@ -453,49 +446,49 @@ const formattedElapsed = computed(() => {
 
 /* ── 引用核查 ── */
 .verification-block {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--hm-bg-container-secondary);
-  border-radius: var(--hm-radius-md);
-  border: 1px solid var(--hm-border);
+  margin-top: var(--harmony-padding-level5);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level6);
+  background: var(--harmony-comp-background-secondary);
+  border-radius: var(--harmony-corner-radius-level8);
+  border: 1px solid var(--harmony-comp-divider);
 }
 
 .verification-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--hm-font-secondary);
+  gap: var(--harmony-padding-level3);
+  font-size: var(--harmony-font-size-caption-l);
+  font-weight: var(--harmony-font-weight-caption-l);
+  color: var(--harmony-font-secondary);
   cursor: pointer;
   user-select: none;
 }
 
 .verification-header:hover {
-  color: var(--hm-font-primary);
+  color: var(--harmony-font-primary);
 }
 
 .verification-badge {
   margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 600;
+  padding: var(--harmony-padding-level1) var(--harmony-padding-level4);
+  border-radius: var(--harmony-corner-radius-level5);
+  font-size: var(--harmony-font-size-caption-m);
+  font-weight: var(--harmony-font-weight-caption-l);
 }
 
 .verification-badge.risk-low {
-  background: rgba(100, 187, 92, 0.1);
-  color: var(--hm-success);
+  background: var(--harmony-confirm-light);
+  color: var(--harmony-confirm);
 }
 
 .verification-badge.risk-medium {
-  background: rgba(255, 183, 77, 0.1);
-  color: #e6a23c;
+  background: var(--harmony-alert-light);
+  color: var(--harmony-alert);
 }
 
 .verification-badge.risk-high {
-  background: rgba(245, 108, 108, 0.1);
-  color: #f56c6c;
+  background: var(--harmony-warning-light);
+  color: var(--harmony-warning);
 }
 
 .chevron {
@@ -509,7 +502,7 @@ const formattedElapsed = computed(() => {
 .verification-details {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--hm-border);
+  border-top: 1px solid var(--harmony-comp-divider);
 }
 
 .verification-item {
@@ -517,25 +510,25 @@ const formattedElapsed = computed(() => {
   grid-template-columns: 80px 1fr 40px;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--harmony-font-size-body-s);
   margin-bottom: 6px;
 }
 
 .verification-item .label {
-  color: var(--hm-font-tertiary);
+  color: var(--harmony-font-tertiary);
   white-space: nowrap;
   text-align: right;
 }
 
 .verification-item .value {
-  color: var(--hm-font-primary);
-  font-weight: 500;
+  color: var(--harmony-font-primary);
+  font-weight: var(--harmony-font-weight-subtitle-s);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .verification-item .value.warning {
-  color: #e6a23c;
+  color: var(--harmony-alert);
 }
 
 .verification-item .value.span-end {
@@ -543,12 +536,12 @@ const formattedElapsed = computed(() => {
 }
 
 .verification-disclaimer {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255, 183, 77, 0.05);
-  border-radius: var(--hm-radius-sm);
-  font-size: 11px;
-  color: var(--hm-font-secondary);
+  margin-top: var(--harmony-padding-level4);
+  padding: var(--harmony-padding-level4);
+  background: var(--harmony-alert-subtle);
+  border-radius: var(--harmony-corner-radius-level4);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-secondary);
   line-height: 1.5;
 }
 
@@ -556,39 +549,39 @@ const formattedElapsed = computed(() => {
 .metrics-section {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--hm-border);
+  border-top: 1px solid var(--harmony-comp-divider);
 }
 
 .metrics-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--hm-font-secondary);
+  font-size: var(--harmony-font-size-caption-l);
+  font-weight: var(--harmony-font-weight-caption-l);
+  color: var(--harmony-font-secondary);
   margin-bottom: 6px;
 }
 
 .progress-bar {
   width: 100%;
   height: 6px;
-  background: var(--hm-bg-container-secondary);
-  border-radius: 3px;
+  background: var(--harmony-comp-background-secondary);
+  border-radius: var(--harmony-corner-radius-level3);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--hm-brand);
-  border-radius: 3px;
-  transition: width 0.3s ease;
+  background: var(--harmony-brand);
+  border-radius: var(--harmony-corner-radius-level3);
+  transition: width 0.3s var(--harmony-ease-out);
 }
 
 /* ── 耗时 ── */
 .message-timing {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--harmony-padding-level2);
   margin-top: 6px;
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-tertiary);
   opacity: 0.7;
 }
 
@@ -608,9 +601,9 @@ const formattedElapsed = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--hm-brand);
+  background: var(--harmony-brand);
   opacity: 0.6;
-  animation: hm-pulse-dot 1.4s ease-in-out infinite;
+  animation: harmony-pulse-dot 1.4s ease-in-out infinite;
 }
 
 .thinking-dot:nth-child(2) { animation-delay: 0.2s; }

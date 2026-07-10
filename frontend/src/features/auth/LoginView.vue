@@ -1,9 +1,14 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
+    <div class="login-card harmony-animate-in-scale">
       <!-- Logo / 标题 -->
       <div class="login-header">
-        <div class="login-icon">🤖</div>
+        <div class="login-icon">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <rect width="56" height="56" rx="16" fill="var(--harmony-brand)"/>
+            <path d="M16 20h24M16 28h16M16 36h20" stroke="var(--harmony-font-on-primary)" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
         <h1 class="login-title">AI 知识问答助手</h1>
         <p class="login-subtitle">登录以开始对话</p>
       </div>
@@ -72,9 +77,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { login as apiLogin, register as apiRegister, getMe } from '../../api/auth.js'
+import { useAuthStore } from '../../stores/useAuthStore.js'
+import { getMe } from '../../api/auth.js'
 
 const emit = defineEmits(['login-success'])
+const authStore = useAuthStore()
 
 const mode = ref('login')
 const username = ref('')
@@ -103,14 +110,11 @@ async function handleSubmit() {
   errorMsg.value = ''
 
   try {
-    let data
     if (mode.value === 'login') {
-      data = await apiLogin(username.value, password.value)
+      await authStore.login(username.value, password.value)
     } else {
-      data = await apiRegister(username.value, password.value)
+      await authStore.register(username.value, password.value)
     }
-
-    localStorage.setItem('token', data.access_token)
     emit('login-success')
   } catch (err) {
     if (err.response?.data?.detail) {
@@ -130,152 +134,164 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--hm-bg-primary);
+  background: var(--harmony-background-tertiary);
 }
 
 .login-card {
   width: 380px;
-  padding: 40px 36px;
-  background: var(--hm-bg-glass);
-  border: 1px solid var(--hm-border-glass);
-  border-radius: var(--hm-radius-xl);
-  box-shadow: var(--hm-shadow-layered);
-  backdrop-filter: blur(20px);
+  padding: var(--harmony-padding-level16) var(--harmony-padding-level13);
+  box-shadow: var(--harmony-shadow-md);
+  background: var(--harmony-comp-background-primary);
+  border-radius: var(--harmony-corner-radius-level10);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--harmony-padding-level16);
 }
 
 .login-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
+  margin-bottom: var(--harmony-padding-level6);
 }
 
 .login-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--hm-font-primary);
-  margin: 0 0 6px;
+  font-size: var(--harmony-font-size-title-m);
+  font-weight: var(--harmony-font-weight-title-m);
+  color: var(--harmony-font-primary);
+  margin: 0 0 var(--harmony-padding-level3);
 }
 
 .login-subtitle {
-  font-size: 14px;
-  color: var(--hm-font-secondary);
+  font-size: var(--harmony-font-size-body-m);
+  color: var(--harmony-font-secondary);
   margin: 0;
 }
 
 .login-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 24px;
-  background: var(--hm-bg-container-secondary);
-  border-radius: var(--hm-radius-sm);
-  padding: 4px;
+  gap: var(--harmony-padding-level3);
+  margin-bottom: var(--harmony-padding-level12);
+  background: var(--harmony-comp-background-secondary);
+  border-radius: var(--harmony-corner-radius-level10);
+  padding: var(--harmony-padding-level2);
 }
 
 .tab-btn {
   flex: 1;
-  padding: 8px 0;
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level8);
+  height: var(--harmony-control-height-36);
+  line-height: 20px;
   border: none;
   background: transparent;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--hm-font-secondary);
+  border-radius: var(--harmony-corner-radius-level10);
+  font-size: var(--harmony-font-size-body-m);
+  font-weight: var(--harmony-font-weight-subtitle-m);
+  color: var(--harmony-font-secondary);
   cursor: pointer;
-  transition: all 0.2s var(--hm-ease-out);
+  transition: all 0.2s var(--harmony-ease-out);
+}
+
+.tab-btn:hover:not(.active) {
+  background: var(--harmony-interactive-hover);
+  color: var(--harmony-font-primary);
 }
 
 .tab-btn.active {
-  background: white;
-  color: var(--hm-brand);
-  box-shadow: var(--hm-shadow-sm);
+  background: var(--harmony-comp-background-emphasize);
+  color: var(--harmony-font-on-primary);
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--harmony-padding-level8);
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--harmony-padding-level3);
 }
 
 .field-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-body-m);
+  font-weight: var(--harmony-font-weight-subtitle-s);
+  color: var(--harmony-font-primary);
 }
 
 .field-input {
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--hm-border);
-  border-radius: var(--hm-radius-sm);
-  font-size: 14px;
-  color: var(--hm-font-primary);
-  background: var(--hm-bg-secondary);
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  border: none;
+  border-radius: var(--harmony-corner-radius-level12);
+  font-size: var(--harmony-font-size-body-l);
+  color: var(--harmony-font-primary);
+  background: var(--harmony-input-glass-bg);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--harmony-input-glass-shadow);
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: box-shadow 0.2s var(--harmony-ease-out);
   box-sizing: border-box;
+  height: 40px;
+  line-height: 24px;
 }
 
 .field-input:focus {
-  border-color: var(--hm-brand);
-  box-shadow: var(--hm-focus-ring);
+  box-shadow: 0 0 0 2px var(--harmony-brand);
 }
 
 .field-input::placeholder {
-  color: var(--hm-font-tertiary);
+  color: var(--harmony-font-secondary);
 }
 
 .error-msg {
-  font-size: 13px;
-  color: var(--hm-error);
-  background: rgba(232, 64, 38, 0.06);
-  padding: 8px 12px;
-  border-radius: 6px;
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-warning);
+  background: var(--harmony-warning-subtle);
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  border-radius: var(--harmony-corner-radius-level4);
 }
 
 .submit-btn {
   width: 100%;
-  padding: 11px 0;
+  padding: var(--harmony-padding-level5) 0;
+  height: 40px;
   border: none;
-  border-radius: var(--hm-radius-sm);
-  background: var(--hm-brand-gradient);
-  color: var(--hm-font-on-brand);
-  font-size: 15px;
-  font-weight: 600;
+  border-radius: var(--harmony-corner-radius-level10);
+  background: var(--harmony-comp-background-emphasize);
+  color: var(--harmony-font-on-primary);
+  font-size: var(--harmony-font-size-subtitle-m);
+  font-weight: var(--harmony-font-weight-subtitle-m);
   cursor: pointer;
-  transition: opacity 0.2s, box-shadow 0.2s;
+  transition: background 0.2s var(--harmony-ease-out);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--harmony-padding-level4);
+  margin-top: var(--harmony-padding-level2);
 }
 
 .submit-btn:hover:not(:disabled) {
-  box-shadow: var(--hm-shadow-brand);
+  background: var(--harmony-brand-hover);
+}
+
+.submit-btn:active:not(:disabled) {
+  background: var(--harmony-brand-pressed);
+  transition-duration: 0.08s;
 }
 
 .submit-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--harmony-font-on-tertiary);
+  border-top-color: var(--harmony-font-on-primary);
   border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {

@@ -29,7 +29,7 @@ class SiliconFlowEmbeddingAdapter(EmbeddingProvider):
                  api_base: str = "https://api.siliconflow.cn/v1"):
         """
         Args:
-            api_key: SiliconFlow API Key
+            api_key: SiliconFlow API Key（首次启动时用；后续请求会从 config 重新读取以支持热更新）
             model: 模型名称（默认 BAAI/bge-m3，免费）
             api_base: API 基础地址
         """
@@ -38,21 +38,48 @@ class SiliconFlowEmbeddingAdapter(EmbeddingProvider):
         self._api_base = api_base
         self._client = None
         self._initialization_failed = False
+        # 延迟加载，避免 import 时的循环依赖
+        self._config = None
+
+    def _get_config(self):
+        if self._config is None:
+            from core.config import config  # noqa: WPS433
+            self._config = config
+        return self._config
 
     def _ensure_client(self):
-        """延迟初始化 OpenAI 客户端"""
-        if self._client is None and not self._initialization_failed:
-            try:
-                import openai
-                self._client = openai.OpenAI(
-                    api_key=self._api_key,
-                    base_url=self._api_base,
-                )
-                logger.info("SiliconFlow embedding client initialized: %s @ %s",
-                            self._model, self._api_base)
-            except Exception as e:
-                logger.warning("Failed to initialize SiliconFlow embedding client: %s", e)
-                self._initialization_failed = True
+        """延迟初始化 + 热更新感知的 OpenAI 客户端"""
+        cfg = self._get_config()
+        expected_key = cfg.SILICONFLOW_API_KEY or self._api_key
+        expected_base = self._api_base
+        # 模型名：SETTINGS_SCHEMA 里 embedding group 有 model 字段；
+        # 这里优先读 config.SILICONFLOW_EMBEDDING_MODEL（若存在）。
+        expected_model = getattr(cfg, "SILICONFLOW_EMBEDDING_MODEL", self._model) or self._model
+
+        needs_rebuild = (
+            self._client is None
+            or self._api_key != expected_key
+            or self._model != expected_model
+        )
+        if not needs_rebuild:
+            return
+        if self._initialization_failed:
+            # 失败过就不再重试，避免每次请求都抛异常
+            return
+
+        try:
+            import openai
+            self._api_key = expected_key
+            self._model = expected_model
+            self._client = openai.OpenAI(
+                api_key=expected_key,
+                base_url=expected_base,
+            )
+            logger.info("SiliconFlow embedding client initialized: %s @ %s",
+                        self._model, expected_base)
+        except Exception as e:
+            logger.warning("Failed to initialize SiliconFlow embedding client: %s", e)
+            self._initialization_failed = True
 
     def encode(self, texts: list[str], show_progress: bool = False) -> list[list[float]]:
         """批量编码文本为向量

@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.db.base import Base
 from core.db.models import DocumentModel, DocumentChunkModel  # noqa: F401
+from core.db.user_models import UserModel, ConversationModel, MessageModel  # noqa: F401
 
 # Alembic Config 对象
 config = context.config

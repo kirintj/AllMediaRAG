@@ -26,7 +26,6 @@
             stripe
             highlight-current-row
             @row-click="onReportClick"
-            style="width: 100%"
           >
             <el-table-column prop="filename" label="文件名" min-width="180" />
             <el-table-column prop="framework" label="框架" width="100">
@@ -120,7 +119,7 @@
             <el-card shadow="hover" class="stat-card">
               <el-statistic title="成功率">
                 <template #default>
-                  <span :style="{ color: successRateColor, fontSize: '28px', fontWeight: '600' }">
+                  <span :class="['stat-metric-value', successRateClass]">
                     {{ successRateText }}
                   </span>
                 </template>
@@ -129,7 +128,7 @@
             <el-card shadow="hover" class="stat-card">
               <el-statistic title="P95 延迟">
                 <template #default>
-                  <span style="font-size: 28px; font-weight: 600">
+                  <span class="stat-metric-value">
                     {{ evalStore.metrics.latency?.total?.p95 != null ? evalStore.metrics.latency.total.p95 + 'ms' : 'N/A' }}
                   </span>
                 </template>
@@ -138,7 +137,7 @@
             <el-card shadow="hover" class="stat-card">
               <el-statistic title="缓存命中率">
                 <template #default>
-                  <span :style="{ color: cacheRateColor, fontSize: '28px', fontWeight: '600' }">
+                  <span :class="['stat-metric-value', cacheRateClass]">
                     {{ cacheRateText }}
                   </span>
                 </template>
@@ -147,16 +146,16 @@
           </div>
 
           <!-- 延迟详情表格 -->
-          <el-card shadow="never" style="margin-top: 16px">
+          <el-card shadow="never" class="eval-section-card">
             <template #header>
-              <div style="display: flex; justify-content: space-between; align-items: center">
+              <div class="card-header-row">
                 <span>各阶段延迟 (ms)</span>
                 <el-button link type="primary" size="small" @click="evalStore.fetchMetrics()">
                   刷新
                 </el-button>
               </div>
             </template>
-            <el-table :data="latencyRows" stripe style="width: 100%">
+            <el-table :data="latencyRows" stripe>
               <el-table-column prop="stage" label="阶段" width="140" />
               <el-table-column prop="avg" label="平均" width="100" align="center" />
               <el-table-column prop="p50" label="P50" width="100" align="center" />
@@ -165,7 +164,7 @@
           </el-card>
 
           <!-- 缓存统计 -->
-          <el-card shadow="never" style="margin-top: 16px">
+          <el-card shadow="never" class="eval-section-card">
             <template #header>缓存统计</template>
             <el-descriptions :column="3" border>
               <el-descriptions-item label="命中次数">{{ evalStore.metrics.cache?.hits || 0 }}</el-descriptions-item>
@@ -193,19 +192,34 @@ const activeTab = ref('reports')
 const selectedFilename = ref(null)
 let metricsTimer = null
 
-// ── 格式化 ──
+  // ── 格式化 ──
 
-function fmtMetric(val) {
-  if (val == null) return 'N/A'
-  return typeof val === 'number' ? val.toFixed(3) : val
-}
+  function fmtMetric(val) {
+    if (val == null) return 'N/A'
+    return typeof val === 'number' ? val.toFixed(3) : val
+  }
 
-function getProgressColor(val) {
-  if (val == null) return '#909399'
-  if (val >= 0.8) return '#67c23a'
-  if (val >= 0.5) return '#e6a23c'
-  return '#f56c6c'
-}
+  function getMetricClass(val) {
+    if (val == null) return 'metric-neutral'
+    if (val >= 0.8) return 'metric-good'
+    if (val >= 0.5) return 'metric-warn'
+    return 'metric-bad'
+  }
+
+  function getProgressClass(val) {
+    if (val == null) return 'metric-neutral'
+    if (val >= 0.8) return 'metric-good'
+    if (val >= 0.5) return 'metric-warn'
+    return 'metric-bad'
+  }
+
+  // el-progress requires a color string; derive from semantic tokens
+  function getProgressColor(val) {
+    if (val == null) return 'var(--harmony-semantic-neutral)'
+    if (val >= 0.8) return 'var(--harmony-semantic-good)'
+    if (val >= 0.5) return 'var(--harmony-semantic-warn)'
+    return 'var(--harmony-semantic-bad)'
+  }
 
 // ── 计算属性 ──
 
@@ -219,9 +233,9 @@ const successRateText = computed(() => {
   return successRate.value != null ? (successRate.value * 100).toFixed(1) + '%' : 'N/A'
 })
 
-const successRateColor = computed(() => {
-  if (successRate.value == null) return '#909399'
-  return successRate.value >= 0.95 ? '#67c23a' : successRate.value >= 0.8 ? '#e6a23c' : '#f56c6c'
+const successRateClass = computed(() => {
+  if (successRate.value == null) return 'metric-neutral'
+  return successRate.value >= 0.95 ? 'metric-good' : successRate.value >= 0.8 ? 'metric-warn' : 'metric-bad'
 })
 
 const cacheRate = computed(() => {
@@ -232,9 +246,9 @@ const cacheRateText = computed(() => {
   return cacheRate.value != null ? (cacheRate.value * 100).toFixed(1) + '%' : 'N/A'
 })
 
-const cacheRateColor = computed(() => {
-  if (cacheRate.value == null) return '#909399'
-  return cacheRate.value >= 0.7 ? '#67c23a' : cacheRate.value >= 0.4 ? '#e6a23c' : '#f56c6c'
+const cacheRateClass = computed(() => {
+  if (cacheRate.value == null) return 'metric-neutral'
+  return cacheRate.value >= 0.7 ? 'metric-good' : cacheRate.value >= 0.4 ? 'metric-warn' : 'metric-bad'
 })
 
 const latencyRows = computed(() => {
@@ -309,9 +323,61 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.eval-dialog :deep(.el-dialog) {
+  border-radius: var(--harmony-corner-radius-level16) !important;
+}
+
+.eval-dialog :deep(.el-dialog__header) {
+  background: var(--harmony-titlebar-bg);
+  backdrop-filter: var(--harmony-titlebar-blur);
+  -webkit-backdrop-filter: var(--harmony-titlebar-blur);
+  padding: var(--harmony-padding-level8) var(--harmony-padding-level12);
+}
+
 .eval-dialog :deep(.el-dialog__body) {
-  padding: 16px 24px;
-  background: var(--el-bg-color-page, #f5f7fa);
+  padding: var(--harmony-padding-level8) var(--harmony-padding-level12);
+  background: var(--harmony-background-secondary);
+}
+
+.eval-dialog :deep(.el-tabs__nav-wrap::after) {
+  background-color: var(--harmony-comp-divider);
+}
+
+.eval-dialog :deep(.el-tabs__active-bar) {
+  background-color: var(--harmony-brand);
+}
+
+.eval-dialog :deep(.el-tabs__item.is-active) {
+  color: var(--harmony-brand);
+}
+
+.eval-dialog :deep(.el-card) {
+  background: var(--harmony-comp-background-primary);
+  border: 1px solid var(--harmony-comp-divider);
+  border-radius: var(--harmony-corner-radius-level10);
+  box-shadow: var(--harmony-shadow-sm);
+}
+
+.eval-dialog :deep(.el-table) {
+  --el-table-bg-color: var(--harmony-comp-background-primary);
+  --el-table-tr-bg-color: var(--harmony-comp-background-primary);
+  --el-table-row-hover-bg-color: var(--harmony-interactive-hover);
+  --el-table-border-color: var(--harmony-comp-divider);
+  --el-table-text-color: var(--harmony-font-primary);
+  --el-table-header-bg-color: var(--harmony-comp-background-gray);
+  --el-table-header-text-color: var(--harmony-font-secondary);
+}
+
+.eval-dialog :deep(.el-tag--success) {
+  --el-tag-bg-color: var(--harmony-confirm-light);
+  --el-tag-border-color: var(--harmony-confirm-border);
+  --el-tag-text-color: var(--harmony-confirm);
+}
+
+.eval-dialog :deep(.el-tag--primary) {
+  --el-tag-bg-color: var(--harmony-brand-light);
+  --el-tag-border-color: var(--harmony-comp-emphasize-secondary);
+  --el-tag-text-color: var(--harmony-brand);
 }
 
 .loading-state,
@@ -320,37 +386,37 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 0;
-  gap: 12px;
-  color: var(--el-text-color-secondary);
+  padding: var(--harmony-padding-level16) 0;
+  gap: var(--harmony-padding-level6);
+  color: var(--harmony-font-secondary);
 }
 
 .report-detail {
-  margin-top: 20px;
+  margin-top: var(--harmony-padding-level10);
 }
 
 .metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: var(--harmony-padding-level8);
 }
 
 .metric-bars {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--harmony-padding-level6);
 }
 
 .metric-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--harmony-padding-level6);
 }
 
 .metric-label {
   width: 140px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-primary);
   flex-shrink: 0;
 }
 
@@ -361,14 +427,14 @@ onUnmounted(() => {
 .metric-value {
   width: 60px;
   text-align: right;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-secondary);
 }
 
 .stat-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: var(--harmony-padding-level8);
 }
 
 .stat-card {

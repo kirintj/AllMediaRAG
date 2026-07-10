@@ -14,7 +14,7 @@
       <!-- 系统按钮组 -->
       <div class="system-btns">
       <button
-        class="harmony-icon-btn docs-btn"
+        class="harmony-icon-btn--sm docs-btn"
         @click="$emit('open-docs')"
         title="文档管理"
       >
@@ -22,25 +22,24 @@
           <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-        <button
-          class="harmony-icon-btn"
-          @click="$emit('open-settings')"
-          title="API 配置"
-        >
+        <button class="harmony-icon-btn--sm" @click="$emit('toggle-dashboard')" title="评测与性能">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button class="harmony-icon-btn" @click="$emit('toggle-dashboard')" title="评测与性能">
-          <span style="font-size: 16px">&#128202;</span>
+        <button class="harmony-icon-btn--sm" @click="$emit('toggle-dark')" :title="isDark ? '切换浅色模式' : '切换深色模式'">
+          <svg v-if="isDark" width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </button>
-        <button class="harmony-icon-btn" @click="$emit('toggle-dark')" :title="isDark ? '切换浅色模式' : '切换深色模式'">
-          <span v-if="isDark" style="font-size: 18px">&#9728;&#65039;</span>
-          <span v-else style="font-size: 18px">&#127769;</span>
-        </button>
-        <button class="harmony-icon-btn logout-btn" @click="$emit('logout')" title="退出登录">
-          <span style="font-size: 16px">&#x23FB;</span>
+        <button class="harmony-icon-btn--sm logout-btn" @click="$emit('logout')" title="退出登录">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -129,7 +128,7 @@ const store = useChatStore()
 const props = defineProps({
   isDark: { type: Boolean, default: false }
 })
-defineEmits(['open-docs', 'open-settings', 'toggle-dashboard', 'toggle-dark', 'logout'])
+defineEmits(['open-docs', 'toggle-dashboard', 'toggle-dark', 'logout'])
 const inputMessage = ref('')
 const messagesRef = ref(null)
 const inputRef = ref(null)
@@ -192,43 +191,41 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--harmony-padding-level6) var(--harmony-padding-level12);
-  border-bottom: none;
-  background: transparent;
+  height: var(--harmony-titlebar-height);
+  padding: 0 var(--harmony-padding-level12);
+  background: var(--harmony-titlebar-bg);
+  backdrop-filter: var(--harmony-titlebar-blur);
+  -webkit-backdrop-filter: var(--harmony-titlebar-blur);
+  border-bottom: var(--harmony-titlebar-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
   flex-shrink: 0;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--harmony-padding-level5);
 }
 
 .docs-btn {
-  margin-right: 8px;
+  margin-right: var(--harmony-padding-level4);
 }
 
 .system-btns {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-right: 8px;
+  gap: var(--harmony-padding-level3);
+  margin-right: var(--harmony-padding-level4);
 }
 
-.system-btns .harmony-icon-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+.system-btns .harmony-icon-btn--sm {
   background: var(--harmony-comp-background-primary);
   border: 1px solid var(--harmony-comp-divider);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s var(--harmony-ease-out);
 }
 
-.system-btns .harmony-icon-btn:hover {
+.system-btns .harmony-icon-btn--sm:hover {
   background: var(--harmony-interactive-hover);
 }
 
@@ -302,7 +299,7 @@ watch(
 .empty-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--harmony-padding-level3);
   justify-content: center;
 }
 
@@ -339,15 +336,15 @@ watch(
   gap: var(--harmony-padding-level5);
   padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
   height: 40px;
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--harmony-input-glass-bg);
   backdrop-filter: blur(8px);
   border: none;
   border-radius: var(--harmony-corner-radius-level12);
-  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--harmony-input-glass-shadow);
 }
 
 .input-wrapper:focus-within {
-  box-shadow: 0 0 0 2px var(--harmony-brand);
+  box-shadow: var(--harmony-input-glass-shadow), 0 0 0 2px var(--harmony-brand);
 }
 
 .chat-input {
@@ -395,8 +392,8 @@ watch(
 .input-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--harmony-padding-level4);
+  margin-top: var(--harmony-padding-level5);
 }
 
 .footer-btn {

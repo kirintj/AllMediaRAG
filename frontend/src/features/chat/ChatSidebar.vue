@@ -5,14 +5,8 @@
       <div class="brand-area">
         <div class="brand-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect width="24" height="24" rx="8" fill="url(#brandGrad)"/>
-            <path d="M7 8h10M7 12h6M7 16h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
-            <defs>
-              <linearGradient id="brandGrad" x1="0" y1="0" x2="24" y2="24">
-                <stop stop-color="#0A59F7"/>
-                <stop offset="1" stop-color="#337BF7"/>
-              </linearGradient>
-            </defs>
+            <rect width="24" height="24" rx="8" fill="var(--harmony-brand)"/>
+            <path d="M7 8h10M7 12h6M7 16h8" stroke="var(--harmony-font-on-primary)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
         <div class="brand-text">
@@ -22,14 +16,14 @@
       </div>
 
       <!-- 新对话按钮 -->
-      <button class="hm-action-btn primary new-chat-btn" @click="newChat">
+      <button class="harmony-action-btn primary new-chat-btn" @click="newChat">
         <span class="btn-icon">+</span>
         新对话
       </button>
     </div>
 
     <!-- 历史对话 -->
-    <div class="conversation-list" ref="listRef">
+    <div class="conversation-list cus-scroll" ref="listRef">
       <div class="list-header">
         <div class="list-title">历史对话</div>
         <button
@@ -44,8 +38,8 @@
       <div v-if="conversationStore.conversations.length === 0" class="list-empty">
         <div class="empty-icon">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <rect width="40" height="40" rx="12" fill="var(--hm-bg-container-secondary)"/>
-            <path d="M14 16h12M14 20h8M14 24h10" stroke="var(--hm-font-tertiary)" stroke-width="2" stroke-linecap="round"/>
+            <rect width="40" height="40" rx="12" fill="var(--harmony-comp-background-secondary)"/>
+            <path d="M14 16h12M14 20h8M14 24h10" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
         <p>暂无历史对话</p>
@@ -143,23 +137,23 @@ onMounted(() => {
 
 <style scoped>
 .chat-sidebar {
-  padding: 20px 16px;
+  padding: var(--harmony-padding-level10) var(--harmony-padding-level8);
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--harmony-padding-level8);
 }
 
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--harmony-padding-level8);
 }
 
 .brand-area {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--harmony-padding-level6);
 }
 
 .brand-icon {
@@ -167,16 +161,16 @@ onMounted(() => {
 }
 
 .brand-text h2 {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-subtitle-l);
+  font-weight: var(--harmony-font-weight-title-s);
+  color: var(--harmony-font-primary);
   line-height: 1.2;
 }
 
 .brand-subtitle {
-  font-size: 12px;
-  color: var(--hm-font-tertiary);
-  font-weight: 500;
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-tertiary);
+  font-weight: var(--harmony-font-weight-body-s);
 }
 
 .new-chat-btn {
@@ -184,26 +178,22 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.new-chat-btn::after {
-  display: none;
+  gap: var(--harmony-padding-level3);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level10);
+  font-size: var(--harmony-font-size-subtitle-m);
+  font-weight: var(--harmony-font-weight-subtitle-m);
+  height: var(--harmony-control-height-40);
+  border-radius: var(--harmony-corner-radius-level10);
+  background: var(--harmony-comp-background-emphasize);
 }
 
 .new-chat-btn:hover {
-  transform: none;
-  box-shadow: none;
-  opacity: 1;
-  background: var(--hm-brand-gradient);
-  color: var(--hm-font-on-brand);
+  background: var(--harmony-brand-hover);
+  color: var(--harmony-font-on-primary);
 }
 
 .btn-icon {
-  font-size: 18px;
+  font-size: var(--harmony-font-size-subtitle-l);
   font-weight: 300;
 }
 
@@ -213,70 +203,37 @@ onMounted(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding-right: 2px;
+  padding-right: var(--harmony-padding-level1);
   scroll-behavior: smooth;
-}
-
-/* 侧边栏专用滚动条：更细、更精致 */
-.conversation-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.conversation-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.conversation-list::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-  transition: background 0.3s;
-}
-
-.conversation-list:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.conversation-list:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
-}
-
-html.dark .conversation-list:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
 }
 
 .list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--harmony-padding-level6);
 }
 
 .list-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--hm-font-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: var(--harmony-font-size-caption-l);
+  font-weight: var(--harmony-font-weight-caption-l);
+  color: var(--harmony-font-tertiary);
 }
 
 .clear-all-btn {
-  font-size: 12px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-tertiary);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: all 0.2s;
+  padding: var(--harmony-padding-level1) var(--harmony-padding-level3);
+  border-radius: var(--harmony-corner-radius-level2);
+  transition: all 0.2s var(--harmony-ease-out);
 }
 
 .clear-all-btn:hover {
-  color: var(--hm-error);
-  background: var(--hm-danger-hover-bg);
+  color: var(--harmony-warning);
+  background: var(--harmony-danger-hover-bg);
 }
 
 .list-empty {
@@ -284,7 +241,7 @@ html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
+  padding: var(--harmony-padding-level16) var(--harmony-padding-level8);
   text-align: center;
 }
 
@@ -293,46 +250,53 @@ html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
 }
 
 .list-empty p {
-  font-size: 14px;
-  color: var(--hm-font-secondary);
-  margin-bottom: 4px;
+  font-size: var(--harmony-font-size-body-m);
+  color: var(--harmony-font-secondary);
+  margin-bottom: var(--harmony-padding-level1);
 }
 
 .empty-hint {
-  font-size: 12px !important;
-  color: var(--hm-font-tertiary) !important;
+  font-size: var(--harmony-font-size-body-s) !important;
+  color: var(--harmony-font-tertiary) !important;
 }
 
 .conv-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--harmony-padding-level5);
 }
 
 .conv-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--hm-radius-md);
+  gap: var(--harmony-padding-level5);
+  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  border-radius: var(--harmony-corner-radius-level8);
   cursor: pointer;
-  color: var(--hm-font-secondary);
-  transition: all 0.2s var(--hm-spring);
+  color: var(--harmony-font-secondary);
+  transition: background 0.2s var(--harmony-ease-out);
 }
 
 .conv-item:hover {
-  background: var(--hm-hover-bg);
-  color: var(--hm-font-primary);
+  background: var(--harmony-interactive-hover);
+  color: var(--harmony-font-primary);
+}
+
+.conv-item:active {
+  background: var(--harmony-interactive-pressed);
 }
 
 .conv-item.active {
-  background: var(--hm-brand-bg-light);
-  color: var(--hm-brand);
+  background: var(--harmony-interactive-select);
+  color: var(--harmony-font-emphasize);
 }
 
 .conv-title {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--harmony-font-size-body-l);
+  font-weight: var(--harmony-font-weight-subtitle-m);
+  line-height: 22px;
+  color: var(--harmony-font-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -340,8 +304,9 @@ html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
 }
 
 .conv-count {
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-body-m);
+  line-height: 19px;
+  color: var(--harmony-font-secondary);
   flex-shrink: 0;
 }
 
@@ -354,11 +319,11 @@ html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: 4px;
-  color: var(--hm-font-tertiary);
+  border-radius: var(--harmony-corner-radius-level2);
+  color: var(--harmony-font-tertiary);
   cursor: pointer;
   opacity: 0;
-  transition: all 0.2s;
+  transition: all 0.2s var(--harmony-ease-out);
 }
 
 .conv-item:hover .conv-delete {
@@ -366,7 +331,18 @@ html.dark .conversation-list:hover::-webkit-scrollbar-thumb:hover {
 }
 
 .conv-delete:hover {
-  background: rgba(232, 64, 38, 0.1);
-  color: var(--hm-error);
+  background: var(--harmony-danger-hover-bg);
+  color: var(--harmony-warning);
+}
+
+.conv-delete:active {
+  background: var(--harmony-danger-hover-bg);
+  transition-duration: 0.08s;
+}
+
+.conv-item:focus-visible {
+  outline: 2px solid var(--harmony-interactive-focus);
+  outline-offset: -2px;
+  border-radius: var(--harmony-corner-radius-level8);
 }
 </style>

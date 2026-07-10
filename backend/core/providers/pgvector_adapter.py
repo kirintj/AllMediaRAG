@@ -275,3 +275,26 @@ class PgVectorStoreAdapter(VectorStoreProvider):
         if self._engine:
             self._engine.dispose()
             logger.info("PgVectorStoreAdapter closed")
+
+    def get_source_details(self) -> list[dict]:
+        """获取每个来源的 chunk 数量
+
+        Returns:
+            [{"source": str, "chunks": int}, ...]
+        """
+        session = self._get_session()
+        try:
+            rows = (
+                session.query(
+                    DocumentChunkModel.source,
+                    func.count(DocumentChunkModel.id).label("chunks")
+                )
+                .group_by(DocumentChunkModel.source)
+                .all()
+            )
+            return [{"source": r.source, "chunks": r.chunks} for r in rows]
+        except Exception as e:
+            logger.exception("Failed to get source details")
+            raise
+        finally:
+            session.close()

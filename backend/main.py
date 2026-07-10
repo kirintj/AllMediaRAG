@@ -38,7 +38,6 @@ from api.documents import router as documents_router
 from api.conversations import router as conversations_router
 from api.auth import router as auth_router
 from api.eval import router as eval_router
-from api.settings import router as settings_router
 
 # 启动时校验关键配置
 if not config.MIMO_API_KEY:
@@ -101,15 +100,6 @@ async def lifespan(app: FastAPI):
     app.state.ingestion = ingestion
     app.state.generation = generation
     app.state.rag_engine = rag_engine
-
-    # Seed 系统配置默认值
-    from core.settings_service import seed_defaults
-    from core.db import SessionLocal
-    db = SessionLocal()
-    try:
-        seed_defaults(db)
-    finally:
-        db.close()
 
     # Embedding 模型预加载
     # 为什么预加载：模型懒加载会导致第一个请求延迟 5-10 秒（加载模型到内存/GPU），
@@ -229,36 +219,15 @@ async def correlation_id_middleware(request: Request, call_next):
 
 # ---------------------------------------------------------------------------
 # Dependency injection providers
+# （已迁移到 api/deps.py，此处保留 get_settings / get_infra 供 health 端点等使用）
 # ---------------------------------------------------------------------------
 
 def get_settings(request: Request):
-    """Return the application config (AppSettings)."""
     return request.app.state.config
 
 
 def get_infra(request: Request) -> InfraBundle:
-    """Return the shared InfraBundle."""
     return request.app.state.infra
-
-
-def get_retrieval(request: Request) -> RetrievalPipeline:
-    """Return the retrieval pipeline service."""
-    return request.app.state.retrieval
-
-
-def get_ingestion(request: Request) -> IngestionService:
-    """Return the ingestion service."""
-    return request.app.state.ingestion
-
-
-def get_generation(request: Request) -> GenerationService:
-    """Return the generation service."""
-    return request.app.state.generation
-
-
-def get_rag_engine(request: Request) -> RAGEngine:
-    """Return the backward-compat RAGEngine facade."""
-    return request.app.state.rag_engine
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +240,6 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(conversations_router, prefix="/api")
 app.include_router(eval_router, prefix="/api")
-app.include_router(settings_router, prefix="/api")
 
 
 @app.get("/")

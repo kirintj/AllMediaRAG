@@ -203,7 +203,7 @@ class TestGenerationBundle:
         bundle = GenerationBundle(infra)
 
         sources = [{"source": "paper.pdf", "text": "context text"}]
-        result = bundle.verify_citation("The answer", sources)
+        result = bundle.verify_citation("What is RAG?", "The answer", sources)
 
         # Must return the verifier's result unchanged
         assert result == expected_verification, (
@@ -211,7 +211,7 @@ class TestGenerationBundle:
         )
         # The verifier must have been called with correct arguments
         MockCitationVerifier.return_value.verify.assert_called_once_with(
-            "The answer", sources,
+            "What is RAG?", "The answer", sources,
         )
 
     @patch("core.services.generation_bundle.CitationVerifier")
@@ -240,7 +240,7 @@ class TestGenerationBundle:
         bundle = GenerationBundle(infra)
 
         with pytest.raises(GenerationError) as exc_info:
-            bundle.verify_citation("The answer", [{"text": "src"}])
+            bundle.verify_citation("What is RAG?", "The answer", [{"text": "src"}])
 
         # The original cause must be preserved for debugging
         assert exc_info.value.__cause__ is not None, (
@@ -272,7 +272,7 @@ class TestGenerationBundle:
         bundle = GenerationBundle(infra)
 
         with pytest.raises(GenerationError) as exc_info:
-            bundle.verify_citation("The answer", [{"text": "src"}])
+            bundle.verify_citation("What is RAG?", "The answer", [{"text": "src"}])
 
         # Must be the exact same exception object, not a new wrapper
         assert exc_info.value is original_error, (

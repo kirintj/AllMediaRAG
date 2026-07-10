@@ -16,30 +16,56 @@ class VLMProvider:
     def __init__(self, api_key: str, api_base: str, model: str):
         """
         Args:
-            api_key: API 密钥
+            api_key: API 密钥（首次启动时用；后续请求会从 config 重新读取以支持热更新）
             api_base: API 基础 URL
             model: VLM 模型名称，如 "gpt-4o" 或其他支持视觉的模型
         """
+        # 保存"期望的"字段名，便于请求时与 config 比对并实现热更新
         self._api_key = api_key
         self._api_base = api_base
         self._model = model
         self._client = None
         self._init_failed = False
+        # 延迟加载，避免 import 时的循环依赖
+        self._config = None
 
-    @property
-    def client(self):
-        """延迟初始化 OpenAI 客户端"""
-        if self._client is None and not self._init_failed:
+    def _get_config(self):
+        if self._config is None:
+            from core.config import config  # noqa: WPS433
+            self._config = config
+        return self._config
+
+    def _ensure_current_client(self):
+        """每次请求前检查：如果 config 里的 key 变了，就重建 client"""
+        cfg = self._get_config()
+        expected_key = cfg.VLM_EXTRACTOR_API_KEY or cfg.MIMO_API_KEY
+        expected_base = cfg.VLM_API_BASE
+        expected_model = cfg.VLM_MODEL
+        if (
+            self._client is None
+            or self._api_key != expected_key
+            or self._api_base != expected_base
+            or self._model != expected_model
+        ):
             try:
                 from openai import OpenAI
+                self._api_key = expected_key
+                self._api_base = expected_base
+                self._model = expected_model
                 self._client = OpenAI(
-                    api_key=self._api_key,
-                    base_url=self._api_base
+                    api_key=expected_key,
+                    base_url=expected_base,
                 )
-                logger.info("VLM client initialized (model=%s)", self._model)
+                self._init_failed = False
+                logger.info("VLM client refreshed (model=%s)", expected_model)
             except Exception as e:
                 logger.warning("VLM client initialization failed: %s", e)
                 self._init_failed = True
+
+    @property
+    def client(self):
+        """延迟 + 热更新感知的 OpenAI 客户端"""
+        self._ensure_current_client()
         return self._client
 
     def describe_image(self, image_path: str) -> str:

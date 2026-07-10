@@ -73,6 +73,37 @@ class VectorStore(VectorStoreProvider):
             self.collection.delete(ids=results["ids"])
             self._sources_cache = None
 
+    # 分页读取每页大小。Chroma 默认使用 SQLite 存储，
+    # SQLITE_MAX_VARIABLE_NUMBER 限制单条语句占位符数量（约 999）；
+    # 当集合中 chunk 数很大（数万）时，一次性 get 会触发 "too many SQL variables"。
+    _BATCH_SIZE: int = 500
+
+    def _iter_metadatas(self):
+        """分页读取所有 metadatas，避免单次查询过大。
+
+        Yields:
+            每条 metadata（dict 或 None）
+        """
+        total = self.collection.count()
+        if total == 0:
+            return
+        limit = self._BATCH_SIZE
+        offset = 0
+        while offset < total:
+            batch = self.collection.get(
+                limit=limit,
+                offset=offset,
+                include=["metadatas"],
+            )
+            metadatas = batch.get("metadatas") or []
+            if not metadatas:
+                break
+            for metadata in metadatas:
+                yield metadata
+            if len(metadatas) < limit:
+                break
+            offset += limit
+
     def get_all_sources(self) -> list[str]:
         """获取所有文档来源（带缓存，跳过嵌入加载）
 
@@ -81,9 +112,8 @@ class VectorStore(VectorStoreProvider):
         """
         if self._sources_cache is not None:
             return self._sources_cache
-        results = self.collection.get(include=["metadatas"])
-        sources = set()
-        for metadata in results["metadatas"]:
+        sources: set[str] = set()
+        for metadata in self._iter_metadatas():
             if metadata and "source" in metadata:
                 sources.add(metadata["source"])
         self._sources_cache = list(sources)
@@ -112,9 +142,8 @@ class VectorStore(VectorStoreProvider):
         Returns:
             [{"source": str, "chunks": int}, ...]
         """
-        results = self.collection.get(include=["metadatas"])
         counts: dict[str, int] = {}
-        for metadata in results["metadatas"]:
+        for metadata in self._iter_metadatas():
             if metadata and "source" in metadata:
                 src = metadata["source"]
                 counts[src] = counts.get(src, 0) + 1
@@ -124,15 +153,50 @@ class VectorStore(VectorStoreProvider):
         """关闭客户端，释放资源"""
         self.client.close()
 
+    def _iter_documents(self, include):
+        """分页读取指定字段，返回 (id, text, metadata 列表。
+
+        Args:
+            include: chromadb.get() 的 include 参数（如 ["documents", "metadatas"]）
+
+        Yields:
+            (doc_id, text, metadata) 元组
+        """
+        total = self.collection.count()
+        if total == 0:
+            return
+        limit = self._BATCH_SIZE
+        offset = 0
+        want_documents = "documents" in include
+        want_metadatas = "metadatas" in include
+        while offset < total:
+            batch = self.collection.get(
+                limit=limit,
+                offset=offset,
+                include=include,
+            )
+            ids = batch.get("ids") or []
+            if not ids:
+                break
+            documents = batch.get("documents") or [None] * len(ids)
+            metadatas = batch.get("metadatas") or [None] * len(ids)
+            for i in range(len(ids)):
+                doc_id = ids[i]
+                text = documents[i] if want_documents else None
+                meta = metadatas[i] if want_metadatas else None
+                yield doc_id, text, meta
+            if len(ids) < limit:
+                break
+            offset += limit
+
     def get_all_documents(self) -> list[dict]:
-        """获取所有文档（用于重建 BM25 索引）
+        """获取所有文档（用于重建 BM25 索引，分页读取避免 SQLite 变量限制）
 
         Returns:
             [{"id": str, "text": str, "metadata": dict}, ...]
         """
-        results = self.collection.get(include=["documents", "metadatas"])
         docs = []
-        for doc_id, text, meta in zip(results["ids"], results["documents"], results["metadatas"]):
+        for doc_id, text, meta in self._iter_documents(["documents", "metadatas"]):
             docs.append({
                 "id": doc_id,
                 "text": text,

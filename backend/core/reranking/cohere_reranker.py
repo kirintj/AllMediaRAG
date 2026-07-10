@@ -14,23 +14,40 @@ class CohereReranker(RerankerProvider):
     def __init__(self, api_key: str, model: str = "rerank-multilingual-v3.0"):
         """
         Args:
-            api_key: Cohere API key
+            api_key: Cohere API key（首次启动时用；后续请求会从 config 重新读取以支持热更新）
             model: 模型名称
         """
         self.api_key = api_key
         self.model = model
         self._client: Optional[cohere.Client] = None
         self._initialization_failed = False
+        # 延迟加载，避免 import 时的循环依赖
+        self._config = None
 
-    @property
-    def client(self) -> Optional[cohere.Client]:
-        """延迟初始化客户端"""
-        if self._client is None and self.api_key and not self._initialization_failed:
+    def _get_config(self):
+        if self._config is None:
+            from core.config import config  # noqa: WPS433
+            self._config = config
+        return self._config
+
+    def _ensure_current_client(self):
+        """每次请求前检查：如果 config 里的 key 变了，就重建 client"""
+        cfg = self._get_config()
+        expected_key = cfg.COHERE_API_KEY or self.api_key
+        if expected_key and (self._client is None or self.api_key != expected_key):
             try:
-                self._client = cohere.Client(self.api_key)
+                self.api_key = expected_key
+                self._client = cohere.Client(expected_key)
+                self._initialization_failed = False
+                logger.info("Cohere client refreshed")
             except Exception as e:
                 logger.warning("Failed to initialize Cohere client: %s", e)
                 self._initialization_failed = True
+
+    @property
+    def client(self) -> Optional[cohere.Client]:
+        """延迟 + 热更新感知的客户端"""
+        self._ensure_current_client()
         return self._client
 
     def rerank(

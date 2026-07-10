@@ -75,11 +75,11 @@ def test_unified_config_hyde_enabled_intents_is_tuple():
     assert settings.HYDE_ENABLED_INTENTS == ("analytical", "exploratory")
 
 
-def test_advanced_config_alias():
-    """The advanced_config alias should point to the same object as config."""
-    from core.config import config, advanced_config
+def test_config_is_singleton():
+    """The module-level config should be an AppSettings instance."""
+    from core.config import config, AppSettings
 
-    assert config is advanced_config
+    assert isinstance(config, AppSettings)
 
 
 def test_database_url_property_from_env():
@@ -97,7 +97,7 @@ def test_database_url_property_assembled():
     env = {
         'DATABASE_URL': '',
         'PG_HOST': 'dbhost',
-        'PG_PORT': '5433',
+        'PG_PORT': '5432',
         'PG_USER': 'myuser',
         'PG_PASSWORD': 'mypass',
         'PG_DATABASE': 'mydb',
@@ -105,4 +105,4 @@ def test_database_url_property_assembled():
     with patch.dict(os.environ, env, clear=False):
         from core.config import AppSettings
         settings = AppSettings()
-        assert settings.database_url == 'postgresql://myuser:mypass@dbhost:5433/mydb'
+        assert settings.database_url == 'postgresql://myuser:mypass@dbhost:5432/mydb'

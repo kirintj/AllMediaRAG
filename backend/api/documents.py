@@ -12,6 +12,7 @@ from core.auth import get_current_user
 from core.config import AppSettings
 from core.services import InfraBundle
 from core.services.ingestion_service import IngestionService
+from api.deps import get_settings, get_infra, get_ingestion
 
 logger = logging.getLogger(__name__)
 
@@ -48,22 +49,6 @@ MAX_RETRIES = 3
 RETRY_DELAYS = [1, 3, 5]
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Dependency providers (read from app.state, no circular import)
-# ---------------------------------------------------------------------------
-
-def _get_settings(request: Request) -> AppSettings:
-    return request.app.state.config
-
-
-def _get_infra(request: Request) -> InfraBundle:
-    return request.app.state.infra
-
-
-def _get_ingestion(request: Request) -> IngestionService:
-    return request.app.state.ingestion
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +130,95 @@ _load_state = _LoadState()
 # File processing helpers
 # ---------------------------------------------------------------------------
 
-def _process_single_file(ingestion: IngestionService, config: AppSettings, file: UploadFile, safe_name: str) -> int:
+def _validate_upload_file(file: UploadFile, safe_name: str) -> str:
+    """校验上传文件的名称、扩展名、MIME 类型。
+
+    Args:
+        file: FastAPI UploadFile 对象
+        safe_name: 经 os.path.basename 处理后的安全文件名
+
+    Returns:
+        文件扩展名（小写）
+
+    Raises:
+        HTTPException: 校验失败时抛出 400
+    """
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="文件名为空")
+
+    if len(safe_name) > MAX_FILENAME_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件名过长，最大 {MAX_FILENAME_LENGTH} 字符",
+        )
+
+    ext = os.path.splitext(safe_name)[1].lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件格式，支持: {', '.join(sorted(SUPPORTED_EXTENSIONS))}",
+        )
+
+    # MIME type 校验（与扩展名双重验证）
+    if file.content_type:
+        allowed_mimes = ALLOWED_MIME_TYPES.get(ext, [])
+        if allowed_mimes and file.content_type not in allowed_mimes:
+            logger.warning(
+                "MIME 类型不匹配: filename=%s, content_type=%s, ext=%s",
+                safe_name, file.content_type, ext,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件类型不匹配，期望 {ext} 格式",
+            )
+
+    return ext
+
+
+def _save_and_ingest(
+    ingestion: IngestionService,
+    config: AppSettings,
+    content: bytes,
+    safe_name: str,
+) -> int:
+    """保存文件到磁盘并建立索引。
+
+    Args:
+        ingestion: 文档摄入服务
+        config: 应用配置
+        content: 文件二进制内容
+        safe_name: 安全文件名
+
+    Returns:
+        成功索引的 chunk 数量
+
+    Raises:
+        HTTPException: 文件过大或处理失败时抛出
+    """
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024 * 1024)}MB",
+        )
+
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    file_path = os.path.join(config.DATA_DIR, safe_name)
+
+    # 同名文件去重：先删除旧向量
+    ingestion.delete_by_source(safe_name)
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    return ingestion.ingest_document(file_path)
+
+
+def _process_single_file(
+    ingestion: IngestionService,
+    config: AppSettings,
+    file: UploadFile,
+    safe_name: str,
+) -> int:
     """处理单个文件：校验、保存、索引。
 
     Returns:
@@ -154,26 +227,9 @@ def _process_single_file(ingestion: IngestionService, config: AppSettings, file:
     Raises:
         HTTPException: 文件校验或处理失败时抛出。
     """
-    ext = os.path.splitext(safe_name)[1].lower()
-
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
-
+    _validate_upload_file(file, safe_name)
     content = file.file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件 {safe_name} 过大，最大允许 {MAX_FILE_SIZE // (1024*1024)}MB",
-        )
-
-    os.makedirs(config.DATA_DIR, exist_ok=True)
-    file_path = os.path.join(config.DATA_DIR, safe_name)
-    ingestion.delete_by_source(safe_name)
-
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    return ingestion.ingest_document(file_path)
+    return _save_and_ingest(ingestion, config, content, safe_name)
 
 
 def _process_batch_sync(ingestion: IngestionService, config: AppSettings, files: List[UploadFile]) -> dict:
@@ -260,54 +316,22 @@ async def upload_document(
     request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """上传文档（同名文件自动去重）"""
     # 防止路径遍历：只取文件名，丢弃路径分隔符
     safe_name = os.path.basename(file.filename)
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="文件名为空")
-
-    if len(safe_name) > MAX_FILENAME_LENGTH:
-        raise HTTPException(status_code=400, detail=f"文件名过长，最大 {MAX_FILENAME_LENGTH} 字符")
-
-    ext = os.path.splitext(safe_name)[1].lower()
-
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式，支持: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
-
-    # MIME type 校验（与扩展名双重验证）
-    if file.content_type:
-        allowed_mimes = ALLOWED_MIME_TYPES.get(ext, [])
-        if allowed_mimes and file.content_type not in allowed_mimes:
-            logger.warning("MIME 类型不匹配: filename=%s, content_type=%s, ext=%s", safe_name, file.content_type, ext)
-            raise HTTPException(status_code=400, detail=f"文件类型不匹配，期望 {ext} 格式")
+    _validate_upload_file(file, safe_name)
 
     try:
-        os.makedirs(config.DATA_DIR, exist_ok=True)
-        file_path = os.path.join(config.DATA_DIR, safe_name)
-
-        # 同名文件去重：先删除旧向量
-        ingestion.delete_by_source(safe_name)
-
         content = await file.read()
-
-        # 文件大小校验
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024*1024)}MB")
-
-        with open(file_path, "wb") as f:
-            f.write(content)
-
-        chunks = ingestion.ingest_document(file_path)
-
+        chunks = _save_and_ingest(ingestion, config, content, safe_name)
         return {
             "message": "上传成功",
             "filename": safe_name,
-            "chunks": chunks
+            "chunks": chunks,
         }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -321,8 +345,8 @@ async def batch_upload(
     request: Request,
     files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """批量上传文档。
 
@@ -388,7 +412,7 @@ async def batch_status(
 @router.get("/documents")
 async def get_documents(
     current_user: dict = Depends(get_current_user),
-    infra: InfraBundle = Depends(_get_infra),
+    infra: InfraBundle = Depends(get_infra),
 ):
     """获取文档列表"""
     sources = infra.vector_store.get_all_sources()
@@ -398,8 +422,8 @@ async def get_documents(
 @router.get("/documents/detail")
 async def get_document_details(
     current_user: dict = Depends(get_current_user),
-    infra: InfraBundle = Depends(_get_infra),
-    config: AppSettings = Depends(_get_settings),
+    infra: InfraBundle = Depends(get_infra),
+    config: AppSettings = Depends(get_settings),
 ):
     """获取文档详情（chunks 数量、文件大小、文件类型）"""
     source_details = infra.vector_store.get_source_details()
@@ -424,8 +448,8 @@ async def get_document_details(
 async def delete_document(
     source: str,
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """删除单个文档及其向量"""
     # 防止路径穿越：只取文件名，丢弃路径分隔符
@@ -450,8 +474,8 @@ async def delete_document(
 @router.delete("/documents")
 async def clear_all_documents(
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """清空所有文档和向量"""
     try:
@@ -471,8 +495,8 @@ async def clear_all_documents(
 @router.post("/documents/load")
 async def load_documents(
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """批量加载本地文档（后台执行，通过 /documents/load/status 查询进度）"""
     if not os.path.exists(config.DATA_DIR):
@@ -527,8 +551,8 @@ async def load_documents_status(current_user: dict = Depends(get_current_user)):
 @router.post("/documents/sync")
 async def sync_documents(
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(_get_ingestion),
-    config: AppSettings = Depends(_get_settings),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """增量同步文档索引
 
@@ -552,16 +576,31 @@ async def sync_documents(
 @router.get("/stats")
 async def get_stats(
     current_user: dict = Depends(get_current_user),
-    infra: InfraBundle = Depends(_get_infra),
-    ingestion: IngestionService = Depends(_get_ingestion),
+    infra: InfraBundle = Depends(get_infra),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
 ):
     """获取统计信息"""
     doc_count = infra.vector_store.get_document_count()
     sources = infra.vector_store.get_all_sources()
     index_stats = ingestion.get_index_stats()
+
+    # 计算 DATA_DIR 中所有已索引文件的总大小
+    total_size = 0
+    data_dir = config.DATA_DIR
+    if os.path.isdir(data_dir):
+        for source in sources:
+            file_path = os.path.join(data_dir, source)
+            try:
+                if os.path.isfile(file_path):
+                    total_size += os.path.getsize(file_path)
+            except OSError:
+                pass
+
     return {
         "document_count": doc_count,
         "source_count": len(sources),
+        "total_size": total_size,
         "indexed_documents": index_stats["indexed_documents"],
         "vector_count": index_stats["vector_count"],
         "bm25_ready": index_stats["bm25_ready"],

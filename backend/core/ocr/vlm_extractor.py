@@ -74,7 +74,7 @@ class VLMExtractor:
     ):
         """
         Args:
-            api_key: OpenAI 兼容 API 密钥
+            api_key: OpenAI 兼容 API 密钥（首次启动时用；后续请求会从 config 重新读取以支持热更新）
             api_base: API 基础 URL
             model: VLM 模型名称（如 gpt-4o、Qwen-VL-Plus 等）
             max_tokens: 单次调用最大输出 token 数
@@ -91,23 +91,42 @@ class VLMExtractor:
         self._timeout = timeout
         self._max_image_size = max_image_size
         self._client = None
+        # 延迟加载，避免 import 时的循环依赖
+        self._config = None
+
+    def _get_config(self):
+        if self._config is None:
+            from core.config import config  # noqa: WPS433
+            self._config = config
+        return self._config
+
+    def _ensure_current_client(self):
+        """每次请求前检查：如果 config 里的 key/base/model 变了，就重建 client"""
+        cfg = self._get_config()
+        expected_key = cfg.VLM_EXTRACTOR_API_KEY
+        expected_base = cfg.VLM_EXTRACTOR_API_BASE
+        expected_model = cfg.VLM_EXTRACTOR_MODEL
+        if (
+            self._client is None
+            or self._api_key != expected_key
+            or self._api_base != expected_base
+            or self._model != expected_model
+        ):
+            from openai import OpenAI
+            self._api_key = expected_key
+            self._api_base = expected_base
+            self._model = expected_model
+            self._client = OpenAI(
+                api_key=expected_key,
+                base_url=expected_base,
+                timeout=self._timeout,
+            )
+            logger.info("VLMExtractor client refreshed (model=%s)", expected_model)
 
     @property
     def client(self):
-        """延迟初始化 OpenAI 客户端。
-
-        为什么用 property 而非在 __init__ 创建：
-        1. 避免 import 时因网络问题阻塞整个服务启动；
-        2. 测试中可以轻松替换 _client 为 MagicMock 而不触发真实网络调用。
-        """
-        if self._client is None:
-            from openai import OpenAI
-
-            self._client = OpenAI(
-                api_key=self._api_key,
-                base_url=self._api_base,
-                timeout=self._timeout,
-            )
+        """延迟 + 热更新感知的 OpenAI 客户端"""
+        self._ensure_current_client()
         return self._client
 
     # ── 主入口 ──────────────────────────────────────────────────

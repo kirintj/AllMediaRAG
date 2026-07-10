@@ -290,8 +290,11 @@ class RetrievalPipeline:
                     # Look up chunk text from document_chunks table via infra
                     try:
                         from core.db.models import DocumentChunkModel
-                        from core.db.base import SessionLocal
-                        session = SessionLocal()
+                        from core.db.engine import get_session_factory
+                        factory = get_session_factory()
+                        if factory is None:
+                            continue
+                        session = factory()
                         try:
                             chunk_row = session.query(DocumentChunkModel).filter(
                                 DocumentChunkModel.id == cid

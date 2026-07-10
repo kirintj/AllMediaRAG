@@ -105,8 +105,8 @@
       <div class="failed-list" v-show="failedExpanded">
         <div class="failed-item" v-for="(file, idx) in allFailedFiles" :key="idx">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" flex-shrink="0">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="var(--hm-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M14 2v6h6" stroke="var(--hm-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 2v6h6" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="failed-name" :title="typeof file === 'string' ? file : file.name">
             {{ typeof file === 'string' ? file : file.name }}
@@ -120,7 +120,7 @@
 
     <!-- 总结信息（完成时） -->
     <div class="summary-section" v-if="status && status.status === 'completed'">
-      <div class="hm-divider"></div>
+      <div class="harmony-divider"></div>
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-value success">{{ completedSuccess }}</span>
@@ -140,7 +140,7 @@
     <!-- 关闭按钮 -->
     <button
       v-if="status && (status.status === 'completed' || status.status === 'failed')"
-      class="hm-action-btn close-btn"
+      class="harmony-action-btn close-btn"
       @click="handleClose"
     >
       关闭
@@ -148,7 +148,7 @@
 
     <!-- 加载中 -->
     <div class="loading-state" v-if="!status && !fetchError">
-      <span class="hm-loading-spinner"></span>
+      <span class="harmony-loading-spinner"></span>
       <span>正在获取任务状态...</span>
     </div>
 
@@ -332,10 +332,10 @@ onUnmounted(() => {
 
 <style scoped>
 .batch-progress-panel {
-  padding: 20px 16px;
+  padding: var(--harmony-padding-level10) var(--harmony-padding-level8);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--harmony-padding-level8);
 }
 
 /* ── 标题 ── */
@@ -346,25 +346,25 @@ onUnmounted(() => {
 }
 
 .panel-header h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-subtitle-l);
+  font-weight: var(--harmony-font-weight-title-s);
+  color: var(--harmony-font-primary);
 }
 
 .task-id {
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-tertiary);
   font-family: monospace;
-  padding: 2px 8px;
-  background: var(--hm-bg-container-tertiary);
-  border-radius: var(--hm-radius-sm);
+  padding: var(--harmony-padding-level1) var(--harmony-padding-level4);
+  background: var(--harmony-comp-background-tertiary);
+  border-radius: var(--harmony-corner-radius-level4);
 }
 
 /* ── 阶段区块 ── */
 .phase-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--harmony-padding-level4);
 }
 
 .phase-section.disabled {
@@ -380,7 +380,7 @@ onUnmounted(() => {
 .phase-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--harmony-padding-level4);
 }
 
 .phase-icon {
@@ -389,27 +389,27 @@ onUnmounted(() => {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: var(--hm-radius-full);
-  transition: all 0.3s var(--hm-spring);
+  border-radius: var(--harmony-corner-radius-level5);
+  transition: all 0.2s var(--harmony-ease-out);
 }
 
 .phase-icon.pending {
-  color: var(--hm-font-tertiary);
+  color: var(--harmony-font-tertiary);
 }
 
 .phase-icon.running {
-  color: var(--hm-brand);
+  color: var(--harmony-brand);
 }
 
 .phase-icon.done {
-  color: var(--hm-success);
+  color: var(--harmony-confirm);
 }
 
 .phase-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--hm-brand);
+  background: var(--harmony-brand);
   animation: dot-pulse 1.2s ease-in-out infinite;
 }
 
@@ -419,78 +419,78 @@ onUnmounted(() => {
 }
 
 .phase-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-body-m);
+  font-weight: var(--harmony-font-weight-subtitle-s);
+  color: var(--harmony-font-primary);
 }
 
 .phase-count {
-  font-size: 12px;
-  color: var(--hm-font-secondary);
+  font-size: var(--harmony-font-size-body-s);
+  color: var(--harmony-font-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 .phase-detail {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  gap: var(--harmony-padding-level6);
+  font-size: var(--harmony-font-size-body-s);
 }
 
 .detail-item.success {
-  color: var(--hm-success);
+  color: var(--harmony-confirm);
 }
 
 .detail-item.failed {
-  color: var(--hm-error);
+  color: var(--harmony-warning);
 }
 
 .phase-fail-hint {
-  font-size: 12px;
+  font-size: var(--harmony-font-size-body-s);
 }
 
 .fail-count {
-  color: var(--hm-error);
+  color: var(--harmony-warning);
 }
 
 /* ── Element Plus 进度条覆写 ── */
 .batch-progress-panel :deep(.el-progress__text) {
-  font-size: 12px !important;
-  color: var(--hm-font-secondary);
+  font-size: var(--harmony-font-size-body-s) !important;
+  color: var(--harmony-font-secondary);
 }
 
 .batch-progress-panel :deep(.el-progress-bar__outer) {
-  background: var(--hm-bg-container-tertiary);
-  border-radius: var(--hm-radius-full);
+  background: var(--harmony-comp-background-tertiary);
+  border-radius: var(--harmony-corner-radius-level3);
 }
 
 .batch-progress-panel :deep(.el-progress-bar__inner) {
-  border-radius: var(--hm-radius-full);
+  border-radius: var(--harmony-corner-radius-level3);
 }
 
 /* ── 时间信息 ── */
 .time-info {
   display: flex;
-  gap: 24px;
-  padding: 10px 14px;
-  background: var(--hm-bg-container-tertiary);
-  border-radius: var(--hm-radius-md);
+  gap: var(--harmony-padding-level12);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level7);
+  background: var(--harmony-comp-background-tertiary);
+  border-radius: var(--harmony-corner-radius-level8);
 }
 
 .time-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--harmony-padding-level1);
 }
 
 .time-label {
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-tertiary);
 }
 
 .time-value {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--hm-font-primary);
+  font-size: var(--harmony-font-size-body-m);
+  font-weight: var(--harmony-font-weight-subtitle-s);
+  color: var(--harmony-font-primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -498,34 +498,34 @@ onUnmounted(() => {
 .error-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(232, 64, 38, 0.06);
-  border: 1px solid rgba(232, 64, 38, 0.15);
-  border-radius: var(--hm-radius-md);
-  color: var(--hm-error);
-  font-size: 13px;
+  gap: var(--harmony-padding-level4);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level7);
+  background: var(--harmony-warning-subtle);
+  border: 1px solid var(--harmony-warning-border-subtle);
+  border-radius: var(--harmony-corner-radius-level8);
+  color: var(--harmony-warning);
+  font-size: var(--harmony-font-size-body-m);
 }
 
 /* ── 失败文件列表 ── */
 .failed-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--harmony-padding-level2);
 }
 
 .failed-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 0;
+  gap: var(--harmony-padding-level3);
+  padding: var(--harmony-padding-level3) 0;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--hm-error);
-  transition: opacity 0.2s ease;
+  font-size: var(--harmony-font-size-body-s);
+  font-weight: var(--harmony-font-weight-subtitle-s);
+  color: var(--harmony-warning);
+  transition: opacity 0.2s var(--harmony-ease-out);
 }
 
 .failed-toggle:hover {
@@ -533,35 +533,35 @@ onUnmounted(() => {
 }
 
 .failed-toggle svg {
-  transition: transform 0.2s var(--hm-spring);
+  transition: transform 0.2s var(--harmony-ease-out);
   flex-shrink: 0;
 }
 
 .failed-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--harmony-padding-level1);
   max-height: 160px;
   overflow-y: auto;
-  padding: 4px 0 4px 18px;
+  padding: var(--harmony-padding-level2) 0 var(--harmony-padding-level2) var(--harmony-padding-level9);
 }
 
 .failed-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: var(--hm-radius-sm);
-  font-size: 12px;
+  gap: var(--harmony-padding-level4);
+  padding: var(--harmony-padding-level3) var(--harmony-padding-level4);
+  border-radius: var(--harmony-corner-radius-level4);
+  font-size: var(--harmony-font-size-body-s);
 }
 
 .failed-item:hover {
-  background: var(--hm-hover-bg);
+  background: var(--harmony-interactive-hover);
 }
 
 .failed-name {
   flex: 1;
-  color: var(--hm-font-primary);
+  color: var(--harmony-font-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -570,8 +570,8 @@ onUnmounted(() => {
 
 .failed-reason {
   flex-shrink: 0;
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-tertiary);
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -582,52 +582,52 @@ onUnmounted(() => {
 .summary-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--harmony-padding-level6);
 }
 
-.hm-divider {
+.harmony-divider {
   height: 1px;
-  background: var(--hm-divider);
-  margin: 4px 0;
+  background: var(--harmony-comp-divider);
+  margin: var(--harmony-padding-level2) 0;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  gap: var(--harmony-padding-level5);
 }
 
 .summary-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 10px 8px;
-  background: var(--hm-bg-container-tertiary);
-  border-radius: var(--hm-radius-md);
+  gap: var(--harmony-padding-level2);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level4);
+  background: var(--harmony-comp-background-tertiary);
+  border-radius: var(--harmony-corner-radius-level8);
 }
 
 .summary-value {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--harmony-font-size-subtitle-l);
+  font-weight: var(--harmony-font-weight-title-m);
   line-height: 1.2;
 }
 
 .summary-value.success {
-  color: var(--hm-success);
+  color: var(--harmony-confirm);
 }
 
 .summary-value.failed {
-  color: var(--hm-error);
+  color: var(--harmony-warning);
 }
 
 .summary-value.neutral {
-  color: var(--hm-font-primary);
+  color: var(--harmony-font-primary);
 }
 
 .summary-label {
-  font-size: 11px;
-  color: var(--hm-font-tertiary);
+  font-size: var(--harmony-font-size-caption-l);
+  color: var(--harmony-font-tertiary);
 }
 
 /* ── 关闭按钮 ── */
@@ -636,9 +636,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
+  gap: var(--harmony-padding-level4);
+  padding: var(--harmony-padding-level5) var(--harmony-padding-level8);
+  font-size: var(--harmony-font-size-subtitle-s);
 }
 
 /* ── 加载状态 ── */
@@ -646,9 +646,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px 0;
-  font-size: 13px;
-  color: var(--hm-font-tertiary);
+  gap: var(--harmony-padding-level5);
+  padding: var(--harmony-padding-level12) 0;
+  font-size: var(--harmony-font-size-body-m);
+  color: var(--harmony-font-tertiary);
 }
 </style>

@@ -188,6 +188,7 @@ class GenerationBundleProtocol(Protocol):
 
     def verify_citation(
         self,
+        query: str,
         answer: str,
         sources: list[dict[str, Any]],
     ) -> dict[str, Any]:
@@ -198,6 +199,9 @@ class GenerationBundleProtocol(Protocol):
         on-demand re-checks).
 
         Args:
+            query: The original user question.  Required by
+                CitationVerifier.verify to construct the faithfulness
+                prompt with full context.
             answer: The generated answer text.
             sources: Source metadata from retrieval.
 

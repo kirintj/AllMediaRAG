@@ -114,6 +114,15 @@ class VectorStoreProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_source_details(self) -> list[dict]:
+        """获取每个来源的 chunk 数量
+
+        Returns:
+            [{"source": str, "chunks": int}, ...]
+        """
+        pass
+
 
 class EmbeddingProvider(ABC):
     """Embedding 模型抽象接口

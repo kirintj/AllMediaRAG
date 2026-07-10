@@ -9,7 +9,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true
+        changeOrigin: true,
+        // 不限制代理请求体大小
+        selfHandleResponse: false,
       }
     }
   }

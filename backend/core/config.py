@@ -20,8 +20,8 @@ class AppSettings(BaseSettings):
     )
 
     # -- LLM (MiMo) --------------------------------------------------
-    MIMO_API_KEY: str = ""
-    MIMO_API_BASE: str = "https://api.siliconflow.cn/v1"
+    MIMO_API_KEY: str = "tp-c425x60lbjmab4i9imp1m414gjw4h67n2pmj30tmujlba0fy"
+    MIMO_API_BASE: str = "https://token-plan-cn.xiaomimimo.com/v1"
     MIMO_MODEL: str = "mimo-v2.5"
 
     # -- Embedding ----------------------------------------------------
@@ -196,15 +196,6 @@ class AppSettings(BaseSettings):
 
 
 # ---------------------------------------------------------------------------
-# Module-level singletons (backward-compatible import paths)
+# Module-level singletons
 # ---------------------------------------------------------------------------
 config = AppSettings()
-advanced_config = config  # alias for code still importing advanced_config
-
-
-def init_advanced_config() -> None:
-    """Backward-compat no-op.
-
-    The former implementation called ``load_dotenv()``; this is now handled
-    automatically by ``pydantic_settings`` via ``env_file=".env"``.
-    """

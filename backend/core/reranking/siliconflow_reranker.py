@@ -30,7 +30,7 @@ class SiliconFlowReranker(RerankerProvider):
                  api_base: str = "https://api.siliconflow.cn/v1"):
         """
         Args:
-            api_key: SiliconFlow API Key
+            api_key: SiliconFlow API Key（首次启动时用；后续请求会从 config 重新读取以支持热更新）
             model: 模型名称（默认 BAAI/bge-reranker-v2-m3，免费）
             api_base: API 基础地址
         """
@@ -38,9 +38,29 @@ class SiliconFlowReranker(RerankerProvider):
         self._model = model
         self._api_base = api_base
         self._initialization_failed = False
+        # 延迟加载，避免 import 时的循环依赖
+        self._config = None
+
+    def _get_config(self):
+        if self._config is None:
+            from core.config import config  # noqa: WPS433
+            self._config = config
+        return self._config
+
+    def _refresh_from_config(self):
+        """每次请求前检查：如果 config 里的 key/model 变了，就用新值"""
+        cfg = self._get_config()
+        expected_key = cfg.SILICONFLOW_API_KEY or self._api_key
+        expected_model = getattr(cfg, "SILICONFLOW_RERANKER_MODEL", self._model) or self._model
+        # 允许首次请求时用 env / 默认值；之后若保存则会覆盖
+        if expected_key:
+            self._api_key = expected_key
+        if expected_model:
+            self._model = expected_model
 
     def is_available(self) -> bool:
         """检查 Reranker 是否可用（API Key 已配置）"""
+        self._refresh_from_config()
         return bool(self._api_key) and not self._initialization_failed
 
     def rerank(
@@ -56,8 +76,9 @@ class SiliconFlowReranker(RerankerProvider):
         Returns:
             重排序后的文档列表（添加 rerank_score 字段）
         """
-        if not self.is_available():
-            logger.warning("SiliconFlow reranker not available, returning original order")
+        self._refresh_from_config()
+        if not self._api_key:
+            logger.warning("SiliconFlow reranker: no API key, returning original order")
             return documents[:top_k]
 
         # 验证文档

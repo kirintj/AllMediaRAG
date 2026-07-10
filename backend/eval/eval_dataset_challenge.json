@@ -1,0 +1,452 @@
+[
+  {
+    "id": 1,
+    "question": "什么是 Agent？它和普通聊天机器人有什么区别？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["01-Agent基础概念学习笔记.md"],
+    "expected_keywords": ["目标", "状态", "工具", "持续推进"],
+    "reference_answer": "Agent 是围绕目标持续推进任务的系统，具备接收目标、保留状态、根据中间结果改变动作、调用外部工具的能力。与普通聊天机器人的区别在于 Agent 能持续追踪任务状态并主动规划，而聊天机器人只做单轮问答。"
+  },
+  {
+    "id": 2,
+    "question": "Claude Code 的 Agent 架构包含哪几层？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["02-Claude_Code_Agent架构深度解析.md"],
+    "expected_keywords": ["用户交互层", "规划层", "工具执行层", "上下文管理"],
+    "reference_answer": "Claude Code 的 Agent 架构包含四层：用户交互层、规划层（LLM）、工具执行层、上下文管理层。执行周期为用户请求→LLM决策→工具调用→结果反馈→综合回答。"
+  },
+  {
+    "id": 3,
+    "question": "LangGraph 解决了链式调用的哪些局限？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["05-LangGraph核心概念.md"],
+    "expected_keywords": ["有向图", "条件分支", "循环", "状态"],
+    "reference_answer": "LangGraph 解决了链式调用的三大局限：没有条件分支、没有循环和重试、状态管理混乱。它将执行流程描述为有向图，用节点、边和状态三个核心要素构建可维护的 Agent 系统。"
+  },
+  {
+    "id": 4,
+    "question": "RAG 系统中 Recall@K 和 MRR 这两个检索指标分别衡量什么？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md"],
+    "expected_keywords": ["召回率", "倒数排名", "相关文档", "排序"],
+    "reference_answer": "Recall@K 衡量在 top-K 检索结果中找到了多少比例的相关文档（召回率），MRR（Mean Reciprocal Rank）衡量第一个相关结果的排名倒数的均值，反映相关文档是否排在靠前位置。"
+  },
+  {
+    "id": 5,
+    "question": "担保法规定的五种担保方式是什么？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["中华人民共和国担保法.txt"],
+    "expected_keywords": ["保证", "抵押", "质押", "留置", "定金"],
+    "reference_answer": "担保法规定的五种担保方式为：保证、抵押、质押、留置、定金。"
+  },
+  {
+    "id": 6,
+    "question": "中华人民共和国国籍法是否允许双重国籍？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["中华人民共和国国籍法.txt"],
+    "expected_keywords": ["不承认", "双重国籍"],
+    "reference_answer": "中华人民共和国国籍法不承认中国公民具有双重国籍。定居外国的中国公民自愿加入或取得外国国籍的，即自动丧失中国国籍。"
+  },
+  {
+    "id": 7,
+    "question": "Prompt Engineering 中 Chain of Thought（思维链）技术的核心思想是什么？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["07-Prompt-Engineering-理论基础.md"],
+    "expected_keywords": ["逐步推理", "中间步骤", "思维链"],
+    "reference_answer": "Chain of Thought 的核心思想是在 Prompt 中引导模型进行逐步推理，展示中间推理步骤而非直接给出最终答案，从而提升复杂推理任务的准确率。"
+  },
+  {
+    "id": 8,
+    "question": "公司法中有限责任公司和股份有限公司在股东人数上有何规定？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国公司法.txt"],
+    "expected_keywords": ["有限责任", "五十人", "股份有限", "二人以上"],
+    "reference_answer": "有限责任公司由五十个以下股东出资设立；股份有限公司应当有二人以上二百人以下为发起人，其中须有半数以上的发起人在中国境内有住所。"
+  },
+  {
+    "id": 9,
+    "question": "RAG 系统中 HyDE（假设性文档嵌入）查询改写技术的原理是什么？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md"],
+    "expected_keywords": ["假设", "生成", "嵌入", "相似度"],
+    "reference_answer": "HyDE 的原理是先让 LLM 根据用户问题生成一个假设性的回答文档，然后将该假设文档进行向量嵌入，用嵌入向量去检索知识库。由于假设文档与真实文档在语义空间中更接近，因此能提升检索召回率。"
+  },
+  {
+    "id": 10,
+    "question": "Agent 的短期记忆和长期记忆分别如何实现？各有什么局限？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["06-OpenClaw_Agent架构与记忆系统.md"],
+    "expected_keywords": ["上下文窗口", "向量数据库", "token限制", "语义检索"],
+    "reference_answer": "短期记忆通过上下文窗口实现（N轮对话），受限于 token 上限，可通过摘要压缩扩展；长期记忆通过向量数据库持久化实现，支持语义检索，但存在检索精度和时间衰减问题。"
+  },
+  {
+    "id": 11,
+    "question": "传染病防治法将传染病分为哪几类？各类的管理措施有何不同？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国传染病防治法.txt"],
+    "expected_keywords": ["甲类", "乙类", "丙类", "强制措施"],
+    "reference_answer": "传染病分为甲类、乙类和丙类。甲类传染病（鼠疫、霍乱）采取强制隔离治疗措施；乙类传染病中传染性非典型肺炎等采取甲类防控措施；丙类为监测管理。"
+  },
+  {
+    "id": 12,
+    "question": "合同法中合同的成立需要经过哪些步骤？要约和承诺各有什么要件？",
+    "query_type": "procedural",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国合同法（上）.txt"],
+    "expected_keywords": ["要约", "承诺", "要约人", "受要约人", "到达"],
+    "reference_answer": "合同成立需要经过要约和承诺两个步骤。要约是希望与他人订立合同的意思表示，需内容具体确定且表明经受要约人承诺即受约束；承诺是受要约人同意要约的意思表示，承诺生效时合同成立。"
+  },
+  {
+    "id": 13,
+    "question": "RAGAS 评估框架包含哪几个维度？与自研的 MRR/Recall 指标有何互补？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["Faithfulness", "Answer Relevancy", "Context Precision", "Context Recall"],
+    "reference_answer": "RAGAS 包含四个维度：Faithfulness（忠实度）、Answer Relevancy（答案相关性）、Context Precision（上下文精确率）、Context Recall（上下文召回率）。MRR/Recall 只衡量检索排序质量，RAGAS 还评估生成质量，两者互补可覆盖检索和生成全链路。"
+  },
+  {
+    "id": 14,
+    "question": "LangGraph 的有向图执行模型与 LangChain 的链式调用在状态管理上有何根本区别？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["05-LangGraph核心概念.md", "09-Agent框架详细对比与选型.md"],
+    "expected_keywords": ["状态持久化", "回溯", "条件边", "内存"],
+    "reference_answer": "LangChain 链式调用的状态在链中线性传递，无法回溯或持久化；LangGraph 通过有向图模型实现状态持久化和回溯，支持条件边进行分支判断，状态可以在任意节点保存和恢复。"
+  },
+  {
+    "id": 15,
+    "question": "个人所得税法规定了哪些应税所得类型？工资薪金所得适用什么税率？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国个人所得税法（第二次修正）.txt"],
+    "expected_keywords": ["综合所得", "经营所得", "超额累进", "百分之三至百分之四十五"],
+    "reference_answer": "个人所得税法规定了综合所得（工资薪金、劳务报酬、稿酬、特许权使用费）、经营所得、利息股息红利所得、财产租赁所得、财产转让所得、偶然所得等。工资薪金属于综合所得，适用3%至45%的七级超额累进税率。"
+  },
+  {
+    "id": 16,
+    "question": "比较有限公司股东和合伙企业合伙人的责任承担方式有何不同？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国公司法.txt", "中华人民共和国合伙企业法.txt"],
+    "expected_keywords": ["有限责任", "无限连带责任", "出资额", "认缴"],
+    "reference_answer": "有限公司股东以其认缴的出资额为限对公司承担责任（有限责任）；普通合伙人对合伙企业债务承担无限连带责任，即合伙人需以个人全部财产清偿合伙债务。这是两种企业形式最核心的区别。"
+  },
+  {
+    "id": 17,
+    "question": "担保法中的保证担保如何适用于合同法中的合同履行？一般保证和连带保证有何区别？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国担保法.txt", "中华人民共和国合同法（上）.txt"],
+    "expected_keywords": ["保证人", "一般保证", "连带责任保证", "先诉抗辩权"],
+    "reference_answer": "合同法允许当事人约定由第三人提供保证担保。担保法规定保证分为一般保证和连带责任保证：一般保证中保证人享有先诉抗辩权，债权人须先向债务人追偿；连带保证中债权人可直接要求保证人承担保证责任。"
+  },
+  {
+    "id": 18,
+    "question": "海商法中的海上保险与保险法中的一般保险在保险标的和理赔规则上有何异同？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国保险法.txt", "中华人民共和国海商法（下）.txt"],
+    "expected_keywords": ["海上保险", "船舶", "货物", "全损", "委付"],
+    "reference_answer": "两者都遵循保险利益、最大诚信原则。区别在于：海上保险标的为船舶、货物、运费等海上财产，有独特的委付制度（推定全损时被保险人可将标的物权利转移给保险人按全损索赔）；保险法覆盖范围更广，理赔规则更通用。"
+  },
+  {
+    "id": 19,
+    "question": "海洋环境保护法、大气污染防治法和固体废物污染环境防治法在污染防治监管体制上有何共同框架？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国海洋环境保护法（修正）.txt", "中华人民共和国大气污染防治法.txt", "中华人民共和国固体废物污染环境防治法.txt"],
+    "expected_keywords": ["排放标准", "环境影响评价", "行政主管部门", "法律责任"],
+    "reference_answer": "三部法律的共同框架包括：1）均由环境保护行政主管部门统一监管；2）都建立了排放标准体系和环境影响评价制度；3）都规定了排污者的监测和报告义务；4）都设有行政处罚和民事赔偿双重责任机制。区别在于针对不同污染介质（水/气/固废）设定了专门的监管措施。"
+  },
+  {
+    "id": 20,
+    "question": "Agent 的 ReAct 推理模式和 Prompt Engineering 中的 ReAct 技术是什么关系？各自的工作流程是怎样的？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["01-Agent基础概念学习笔记.md", "07-Prompt-Engineering-理论基础.md"],
+    "expected_keywords": ["推理", "行动", "交替", "Thought", "Action", "Observation"],
+    "reference_answer": "两者本质相同：ReAct 是一种将推理（Reasoning）和行动（Acting）交替进行的模式。在 Agent 中体现为 Thought-Action-Observation 循环：先推理分析，再执行工具调用，观察结果后继续推理。在 Prompt Engineering 中是通过提示词引导模型在思考和行动间交替输出，实现更可控的多步推理。"
+  },
+  {
+    "id": 21,
+    "question": "海上交通安全法和海商法在船舶碰撞事故的处理上分别承担什么角色？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国海上交通安全法.txt", "中华人民共和国海商法（下）.txt"],
+    "expected_keywords": ["碰撞", "海事法院", "赔偿责任", "航行规则", "过失"],
+    "reference_answer": "海上交通安全法从行政监管角度规定船舶碰撞的预防（航行规则、船舶检验）和事故调查处理程序；海商法从民事赔偿角度规定碰撞责任划分——船舶碰撞按照过失比例承担赔偿责任，互有过失的按比例分担，单方过失由过失方全额赔偿。"
+  },
+  {
+    "id": 22,
+    "question": "海事诉讼特别程序法中的船舶扣押制度与海商法中的船舶留置权有何区别和联系？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国海事诉讼特别程序法.txt", "中华人民共和国海商法（上）.txt"],
+    "expected_keywords": ["扣押", "留置权", "海事请求", "担保", "优先权"],
+    "reference_answer": "船舶扣押是诉讼保全措施，由海事法院根据海事请求人申请实施，目的是迫使责任人提供担保；船舶留置权是法定担保物权，由造船人或修船人在合同未获清偿时行使。两者联系：船舶优先权所担保的海事请求可以成为申请扣押船舶的依据。"
+  },
+  {
+    "id": 23,
+    "question": "三大 AI SDK（LangChain、LlamaIndex、CrewAI）各自最适合什么场景？在构建 RAG 系统时应如何选型？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["04-三大AI_SDK横向对比与选型.md", "03-RAG架构与检索增强生成实践.md"],
+    "expected_keywords": ["LangChain", "LlamaIndex", "RAG", "检索精度", "工具集成"],
+    "reference_answer": "LangChain 适合需要丰富工具集成和复杂链路编排的 RAG 场景，配合 LangGraph 可实现有状态的检索流程；LlamaIndex 专注于检索精度优化，适合以检索质量为首要目标的场景；CrewAI 适合多 Agent 协作场景。构建 RAG 系统推荐 LangChain+LangGraph 组合，兼顾灵活性和状态管理。"
+  },
+  {
+    "id": 24,
+    "question": "反不正当竞争法和产品质量法在保护消费者权益方面各自侧重什么？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国反不正当竞争法.txt", "中华人民共和国产品质量法.txt"],
+    "expected_keywords": ["不正当竞争", "虚假宣传", "产品质量", "缺陷", "赔偿"],
+    "reference_answer": "反不正当竞争法侧重规制市场行为，禁止虚假宣传、商业贿赂等不正当竞争行为，维护公平竞争秩序间接保护消费者；产品质量法侧重产品本身的安全性和质量，规定生产者和销售者的产品质量责任，禁止销售缺陷产品，直接保护消费者人身和财产安全。"
+  },
+  {
+    "id": 25,
+    "question": "国防法和兵役法在公民的国防义务方面有何衔接？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国国防法.txt", "中华人民共和国兵役法（修正）.txt"],
+    "expected_keywords": ["国防义务", "服兵役", "民兵", "预备役"],
+    "reference_answer": "国防法从宏观层面规定公民有服兵役和参加民兵组织的义务、接受国防教育的义务；兵役法从具体操作层面规定兵役制度（现役和预备役）、征集条件、服役期限等。国防法是上位法确立义务框架，兵役法是下位法落实具体实施。"
+  },
+  {
+    "id": 26,
+    "question": "妇女权益保障法和残疾人保障法在就业权利保障方面有哪些共同的法律机制？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国妇女权益保障法.txt", "中华人民共和国残疾人保障法.txt"],
+    "expected_keywords": ["平等就业", "禁止歧视", "劳动权益", "特殊保护"],
+    "reference_answer": "两部法律的共同机制包括：1）都确立了平等就业和禁止歧视原则；2）都规定用人单位不得以性别/残疾为由拒绝录用或提高录用标准；3）都要求提供特殊劳动保护和合理便利；4）都建立了行政监督和法律救济渠道。区别在于妇女权益保障法强调同工同酬和生育保护，残疾人保障法强调按比例安排就业和无障碍环境。"
+  },
+  {
+    "id": 27,
+    "question": "海关法和对外贸易法在进出口管理上如何分工协作？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国海关法（修正）.txt", "中华人民共和国对外贸易法.txt"],
+    "expected_keywords": ["关税", "进出口", "贸易管制", "海关监管"],
+    "reference_answer": "对外贸易法从宏观政策层面规定贸易制度（自由贸易、最惠国待遇、贸易救济）和进出口管理原则；海关法从执行层面规定海关对进出境货物、物品的监管、征税和查缉走私。对外贸易法确定'能不能进'，海关法执行'怎么进'和'该交多少税'。"
+  },
+  {
+    "id": 28,
+    "question": "城市规划法和城市房地产管理法在土地使用管理上如何衔接？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国城市规划法.txt", "中华人民共和国城市房地产管理法.txt"],
+    "expected_keywords": ["规划许可", "土地使用权", "建设", "用途管制"],
+    "reference_answer": "城市规划法确定城市土地的用途分区和建设规划（规划先行），城市房地产管理法规定土地使用权出让、房地产开发和交易的具体规则。衔接关系：房地产开发必须符合城市规划要求，取得规划许可后才能进行土地使用权出让和建设。"
+  },
+  {
+    "id": 29,
+    "question": "保守国家秘密法中对绝密级、机密级和秘密级的划分标准是什么？泄露后各面临什么法律后果？",
+    "query_type": "factoid",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国保守国家秘密法.txt"],
+    "expected_keywords": ["绝密", "机密", "秘密", "泄露", "刑事责任"],
+    "reference_answer": "绝密级是最重要的国家秘密，泄露会使国家安全和利益遭受特别严重的损害；机密级是重要的国家秘密，泄露会遭受严重损害；秘密级是一般的国家秘密，泄露会遭受损害。泄露国家秘密依法追究刑事责任，情节较轻的给予行政处分。"
+  },
+  {
+    "id": 30,
+    "question": "公益事业捐赠法对捐赠财产的使用和管理有哪些监督机制？",
+    "query_type": "procedural",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国公益事业捐赠法.txt"],
+    "expected_keywords": ["受赠人", "公开", "审计", "社会监督"],
+    "reference_answer": "公益事业捐赠法规定受赠人应将受赠财产登记造册、妥善管理，每年度向政府有关部门报告受赠财产的使用管理情况并接受监督；捐赠人有权查询捐赠财产的使用管理情况；受赠人应公开接受捐赠的情况和受赠财产的使用管理情况，接受社会监督。"
+  },
+  {
+    "id": 31,
+    "question": "法官法对法官的任职回避有哪些具体规定？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国法官法.txt"],
+    "expected_keywords": ["回避", "夫妻", "近亲属", "任职限制"],
+    "reference_answer": "法官法规定法官之间有夫妻关系、直系血亲关系、三代以内旁系血亲以及近姻亲关系的，不得同时担任同一人民法院的院长、副院长、审判委员会委员、庭长、副庭长和审判员。法官的配偶、子女不得担任该法官所任职法院办理案件的诉讼代理人或辩护人。"
+  },
+  {
+    "id": 32,
+    "question": "RAG 系统的完整检索链路包含哪些关键环节？每个环节的作用是什么？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["查询改写", "多路召回", "Rerank", "上下文组装", "引用核查"],
+    "reference_answer": "完整检索链路包括：1）查询改写（HyDE/Multi-Query扩展查询）→2）多路召回（向量检索+BM25+知识图谱）→3）RRF融合排序→4）Rerank精排（Cross-Encoder重排）→5）相关性过滤→6）上下文组装→7）LLM生成回答→8）引用核查（验证生成内容是否有源文档支撑）。每个环节逐步提升检索精度和回答可信度。"
+  },
+  {
+    "id": 33,
+    "question": "如何评估 RAG 系统是否存在幻觉问题？有哪些缓解手段？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["Agent岗面试题完整汇总.md", "03-RAG架构与检索增强生成实践.md"],
+    "expected_keywords": ["Faithfulness", "幻觉率", "事实核查", "引用验证"],
+    "reference_answer": "评估方法：1）Faithfulness 指标衡量生成内容与检索到的上下文的一致性；2）幻觉率统计生成内容中无源信息的比例。缓解手段：提升检索质量确保上下文相关、优化 Prompt 减少模型臆测、引入引用核查机制验证生成内容的每句话是否有文档支撑、设置回答长度限制、加入人工审核环节。"
+  },
+  {
+    "id": 34,
+    "question": "合伙企业法中普通合伙人的入伙和退伙分别需要满足什么条件？",
+    "query_type": "procedural",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国合伙企业法.txt"],
+    "expected_keywords": ["入伙", "退伙", "全体同意", "除名", "当然退伙"],
+    "reference_answer": "入伙需经全体合伙人一致同意，并依法订立书面入伙协议。退伙分为：1）协议退伙（合伙协议约定的退伙事由出现）；2）通知退伙（合伙协议未约定合伙期限的，提前30天通知）；3）当然退伙（死亡、丧失偿债能力等）；4）除名（未履行出资义务、故意损害合伙利益等）。"
+  },
+  {
+    "id": 35,
+    "question": "电力法对电力供应企业和用户之间的权利义务有哪些规定？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国电力法.txt"],
+    "expected_keywords": ["供电", "用电", "电费", "中断供电", "安全用电"],
+    "reference_answer": "电力法规定供电企业应保证供电质量，不得无故中断供电，因故中断需事先通知用户；用户应安装用电计量装置并按时缴纳电费；供电企业对用户有安全用电检查权；用户对供电企业中断供电有投诉权。"
+  },
+  {
+    "id": 36,
+    "question": "防洪法和防震减灾法在自然灾害应急响应机制上有何异同？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国防洪法.txt", "中华人民共和国防震减灾法.txt"],
+    "expected_keywords": ["应急预案", "抢险救灾", "转移安置", "灾后重建"],
+    "reference_answer": "相同点：都建立了应急预案制度、政府统一指挥机制、转移安置受威胁群众、灾后重建制度。不同点：防洪法强调汛期巡查、蓄滞洪区运用、河道清障等预防性措施，预警时间相对较长；防震减灾法强调地震监测预报、紧急救援、抗震设防，地震突发性强预警时间极短。"
+  },
+  {
+    "id": 37,
+    "question": "Agent 框架中 LangChain、LangGraph 和 CrewAI 的协作模式有何不同？各自适用于什么场景？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["09-Agent框架详细对比与选型.md", "04-三大AI_SDK横向对比与选型.md"],
+    "expected_keywords": ["链式", "有向图", "多Agent", "主从", "对等"],
+    "reference_answer": "LangChain 采用链式调用模式，适合线性任务流程，工具生态丰富但多 Agent 支持弱；LangGraph 采用有向图模式，支持条件分支、循环和状态回溯，适合复杂有状态的工作流；CrewAI 支持多 Agent 协作（主从、对等、分层模式），适合需要多个专业角色分工协作的场景。"
+  },
+  {
+    "id": 38,
+    "question": "国务院组织法规定的国务院组成人员有哪些？实行什么负责制？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["中华人民共和国国务院组织法.txt"],
+    "expected_keywords": ["总理", "副总理", "国务委员", "部长", "总理负责制"],
+    "reference_answer": "国务院由总理、副总理、国务委员、各部部长、各委员会主任、审计长、秘书长组成。国务院实行总理负责制，总理领导国务院工作。"
+  },
+  {
+    "id": 39,
+    "question": "RAG 系统中向量检索和 BM25 检索各有什么优缺点？为什么需要混合检索？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["语义匹配", "关键词匹配", "RRF", "互补"],
+    "reference_answer": "向量检索擅长语义匹配，能理解同义词和语义相似性，但对精确关键词匹配较弱；BM25 擅长精确关键词匹配，对专业术语和专有名词检索效果好，但无法理解语义。混合检索通过 RRF（Reciprocal Rank Fusion）融合两者结果，取长补短，在语义理解和精确匹配之间取得平衡。"
+  },
+  {
+    "id": 40,
+    "question": "标准化法和产品质量法在产品质量监管上如何分工？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国标准化法.txt", "中华人民共和国产品质量法.txt"],
+    "expected_keywords": ["标准制定", "强制性标准", "质量认证", "监督抽查"],
+    "reference_answer": "标准化法负责制定和实施产品标准（国家标准、行业标准、地方标准），其中强制性标准必须执行；产品质量法负责依据这些标准进行质量监管，包括质量认证、监督检查、缺陷产品召回等。标准化法确定'标准是什么'，产品质量法执行'是否达标'。"
+  },
+  {
+    "id": 41,
+    "question": "APP产品推广合同中广告主和平台方各自的主要义务是什么？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["APP产品推广合同.docx"],
+    "expected_keywords": ["推广服务", "广告投放", "结算", "数据报告"],
+    "reference_answer": "广告主的主要义务包括：提供合法合规的推广素材、按时支付推广费用、保证产品合法性。平台方的主要义务包括：按约定进行广告投放和推广、提供投放数据报告、保证推广效果的真实性。"
+  },
+  {
+    "id": 42,
+    "question": "著作权法和促进科技成果转化法在科技成果的知识产权保护上有何关联？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国促进科技成果转化法.txt"],
+    "expected_keywords": ["科技成果", "知识产权", "转化", "权益分配"],
+    "reference_answer": "促进科技成果转化法规定科技成果完成单位应保护科技成果相关的知识产权，转化收益应合理分配给完成人和转化人。著作权法保护的是科技成果转化过程中产生的文字作品、软件等著作权客体。两者衔接：科技成果的论文、报告受著作权法保护，转化过程中的技术秘密受反不正当竞争法保护，专利受专利法保护。"
+  },
+  {
+    "id": 43,
+    "question": "国境卫生检疫法和传染病防治法在疫情防控上如何协作？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国国境卫生检疫法.txt", "中华人民共和国传染病防治法.txt"],
+    "expected_keywords": ["入境检疫", "传染病监测", "报告", "隔离"],
+    "reference_answer": "国境卫生检疫法负责入境口岸的传染病检疫和监测，防止传染病从境外传入；传染病防治法负责境内的传染病预防、报告、控制和治疗。协作关系：入境检疫发现传染病病例时，按传染病防治法的规定进行报告和处理；两法共同构成从国门到境内的全链条防控体系。"
+  },
+  {
+    "id": 44,
+    "question": "在构建 Agent 系统时，如何选择合适的状态管理方案？简单内存、数据库持久化和事件溯源各适用于什么场景？",
+    "query_type": "procedural",
+    "difficulty": "hard",
+    "expected_sources": ["05-LangGraph核心概念.md", "06-OpenClaw_Agent架构与记忆系统.md"],
+    "expected_keywords": ["状态管理", "持久化", "事件溯源", "回溯", "对话历史"],
+    "reference_answer": "简单内存适用于短期对话、无需持久化的场景，实现简单但进程结束即丢失；数据库持久化适用于需要跨会话保持状态的场景，支持状态查询和恢复，但增加 IO 开销；事件溯源适用于需要完整操作历史和状态回溯的场景，可重现任意时刻的状态，适合审计和调试，但实现复杂度最高。"
+  },
+  {
+    "id": 45,
+    "question": "草原法对草原的所有权和使用权有哪些规定？",
+    "query_type": "factoid",
+    "difficulty": "easy",
+    "expected_sources": ["中华人民共和国草原法.txt"],
+    "expected_keywords": ["国家所有", "集体所有", "使用权", "承包"],
+    "reference_answer": "草原法规定草原属于国家所有（法律规定属于集体所有的除外）。全民所有制单位、集体经济组织使用的草原可确定给单位长期使用。集体所有的草原可由集体经济组织实行家庭承包经营。"
+  },
+  {
+    "id": 46,
+    "question": "法院中的算法和 LLM 技术在司法领域的应用面临哪些主要挑战？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["03-RAG架构与检索增强生成实践.md", "Agent岗面试题完整汇总.md"],
+    "expected_keywords": ["幻觉", "可解释性", "偏见", "准确性"],
+    "reference_answer": "主要挑战包括：1）幻觉问题——LLM 可能生成看似合理但不正确的法律结论；2）可解释性不足——模型决策过程难以透明化；3）训练数据偏见可能导致判决偏差；4）法律领域对准确性要求极高，容错率低；5）法律知识更新频繁，模型需要持续更新。"
+  },
+  {
+    "id": 47,
+    "question": "环境保护相关法律中（海洋环境保护法、大气污染防治法、固体废物污染环境防治法），哪部法律对违法行为的处罚力度最大？",
+    "query_type": "analytical",
+    "difficulty": "hard",
+    "expected_sources": ["中华人民共和国海洋环境保护法（修正）.txt", "中华人民共和国大气污染防治法.txt", "中华人民共和国固体废物污染环境防治法.txt"],
+    "expected_keywords": ["罚款", "按日计罚", "刑事责任", "责令停业"],
+    "reference_answer": "三部法律都引入了按日连续处罚制度。大气污染防治法对超标排放可处10万-100万元罚款，情节严重的责令停业关闭；固体废物污染环境防治法对非法倾倒危险废物可处所需处置费用三至五倍罚款；海洋环境保护法对海洋污染事故可处直接损失30%的罚款。具体力度取决于违法行为类型和情节。"
+  },
+  {
+    "id": 48,
+    "question": "公司法中股东大会和董事会的职权划分是怎样的？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国公司法.txt"],
+    "expected_keywords": ["股东大会", "董事会", "决议", "经营计划", "利润分配"],
+    "reference_answer": "股东大会是公司最高权力机构，决定公司的经营方针和投资计划、选举和更换董事监事、审议批准利润分配方案等。董事会对股东大会负责，执行股东大会决议、决定公司的经营计划和投资方案、制订利润分配方案、聘任或解聘经理等。"
+  },
+  {
+    "id": 49,
+    "question": "归侨侨眷权益保护法对归侨回国定居和就业有哪些特殊保护措施？",
+    "query_type": "factoid",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国归侨侨眷权益保护法（修正）.txt"],
+    "expected_keywords": ["定居", "安置", "就业", "社会保险"],
+    "reference_answer": "归侨侨眷权益保护法规定：归侨回国定居应给予安置；归侨学生升学给予照顾；归侨侨眷的私有房屋受法律保护；归侨侨眷有权出境探亲和定居；国家对回国定居的华侨给予必要的安置和就业帮助。"
+  },
+  {
+    "id": 50,
+    "question": "国家赔偿法中行政赔偿和刑事赔偿的赔偿范围有何不同？",
+    "query_type": "analytical",
+    "difficulty": "medium",
+    "expected_sources": ["中华人民共和国国家赔偿法.txt"],
+    "expected_keywords": ["行政赔偿", "刑事赔偿", "违法拘留", "错误逮捕", "赔偿义务机关"],
+    "reference_answer": "行政赔偿范围包括：违法拘留、违法采取强制措施、违法征收罚款等行政机关及其工作人员在行使职权时造成的损害。刑事赔偿范围包括：错误逮捕、错误判决、刑讯逼供造成伤害等司法机关在刑事诉讼中造成的损害。两者赔偿义务机关不同：行政赔偿由作出违法行为的行政机关负责，刑事赔偿由作出错误决定的司法机关负责。"
+  }
+]
