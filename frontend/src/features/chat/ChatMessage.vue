@@ -31,7 +31,7 @@
       <div v-if="message.sources && message.sources.length > 0" class="message-sources">
         <div class="sources-header">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5" stroke="var(--harmony-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5" stroke="hsl(var(--nb-brand))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span>参考来源</span>
         </div>
@@ -39,7 +39,7 @@
           <span
             v-for="(source, idx) in message.sources"
             :key="idx"
-            class="harmony-filter-chip source-chip"
+            class="nb-chip source-chip"
           >
             {{ (source.section && source.section !== '概述') ? source.section : cleanSourceName(source.source) }}
           </span>
@@ -186,14 +186,10 @@ const verificationRiskText = computed(() => {
 
 const formattedContent = computed(() => {
   if (!props.message.content) return ''
-
-  // 使用 marked 渲染 Markdown
-  const html = marked.parse(props.message.content, {
-    breaks: true, // 将换行符转换为 <br>
-    gfm: true,    // 启用 GitHub Flavored Markdown
+  return marked.parse(props.message.content, {
+    breaks: true,
+    gfm: true,
   })
-
-  return html
 })
 
 const formattedElapsed = computed(() => {
@@ -207,8 +203,8 @@ const formattedElapsed = computed(() => {
 <style scoped>
 .message {
   display: flex;
-  gap: var(--harmony-padding-level6);
-  margin-bottom: var(--harmony-padding-level10);
+  gap: var(--nb-space-3);
+  margin-bottom: var(--nb-space-5);
   max-width: 100%;
 }
 
@@ -224,11 +220,11 @@ const formattedElapsed = computed(() => {
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: var(--harmony-corner-radius-level8);
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s var(--harmony-ease-out);
+  transition: transform 0.15s ease;
 }
 
 .avatar:hover {
@@ -236,14 +232,14 @@ const formattedElapsed = computed(() => {
 }
 
 .avatar.user {
-  background: var(--harmony-comp-background-emphasize);
-  color: var(--harmony-font-on-primary);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .avatar.assistant {
-  background: var(--harmony-comp-background-secondary);
-  border: 1px solid var(--harmony-comp-divider);
-  color: var(--harmony-brand);
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--nb-brand));
 }
 
 /* ── 消息体 ── */
@@ -258,23 +254,23 @@ const formattedElapsed = computed(() => {
 
 /* ── 气泡 ── */
 .message-bubble {
-  padding: var(--harmony-padding-level7) var(--harmony-padding-level9);
-  border-radius: var(--harmony-corner-radius-level16);
-  font-size: var(--harmony-font-size-body-m);
+  padding: var(--nb-space-3) var(--nb-space-4);
+  border-radius: var(--radius);
+  font-size: var(--nb-font-base);
   line-height: 1.7;
 }
 
 .message-bubble.assistant {
-  background: var(--harmony-comp-background-primary);
-  border: 1px solid var(--harmony-comp-divider);
-  box-shadow: var(--harmony-shadow-sm);
-  border-top-left-radius: var(--harmony-corner-radius-level4);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--nb-shadow-sm);
+  border-top-left-radius: 2px;
 }
 
 .message-bubble.user {
-  background: var(--harmony-comp-background-emphasize);
-  color: var(--harmony-font-on-primary);
-  border-top-right-radius: var(--harmony-corner-radius-level4);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-top-right-radius: 2px;
 }
 
 /* ── 文本内容 ── */
@@ -283,37 +279,37 @@ const formattedElapsed = computed(() => {
 }
 
 .message-text :deep(pre) {
-  background: var(--harmony-background-tertiary);
-  color: var(--harmony-font-primary);
-  padding: var(--harmony-padding-level7) var(--harmony-padding-level8);
-  border-radius: var(--harmony-corner-radius-level8);
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  padding: var(--nb-space-3) var(--nb-space-4);
+  border-radius: var(--radius);
   margin: 10px 0 6px;
   overflow-x: auto;
-  font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
-  font-size: var(--harmony-font-size-body-s);
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: var(--nb-font-sm);
   line-height: 1.6;
-  border: 1px solid var(--harmony-comp-divider);
+  border: 1px solid hsl(var(--border));
 }
 
 .message-bubble.user .message-text :deep(pre) {
-  background: var(--harmony-comp-background-secondary);
-  border-color: var(--harmony-comp-divider);
+  background: hsl(var(--primary-foreground) / 0.15);
+  border-color: hsl(var(--primary-foreground) / 0.2);
 }
 
 .message-text :deep(code) {
-  background: var(--harmony-interactive-pressed);
-  padding: var(--harmony-padding-level1) var(--harmony-padding-level3);
-  border-radius: var(--harmony-corner-radius-level2);
-  font-family: 'SFMono-Regular', 'JetBrains Mono', Consolas, monospace;
-  font-size: var(--harmony-font-size-body-s);
+  background: hsl(var(--muted));
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: var(--nb-font-sm);
 }
 
 .message-bubble.user .message-text :deep(code) {
-  background: var(--harmony-comp-background-secondary);
+  background: hsl(var(--primary-foreground) / 0.15);
 }
 
 .message-text :deep(strong) {
-  font-weight: var(--harmony-font-weight-subtitle-m);
+  font-weight: 600;
 }
 
 /* ── Markdown 标题 ── */
@@ -322,79 +318,63 @@ const formattedElapsed = computed(() => {
 .message-text :deep(h3),
 .message-text :deep(h4) {
   margin: 12px 0 6px;
-  font-weight: var(--harmony-font-weight-title-s);
+  font-weight: 600;
   line-height: 1.4;
 }
 
-.message-text :deep(h1) { font-size: var(--harmony-font-size-subtitle-l); }
-.message-text :deep(h2) { font-size: var(--harmony-font-size-subtitle-m); }
-.message-text :deep(h3) { font-size: var(--harmony-font-size-subtitle-s); }
-.message-text :deep(h4) { font-size: var(--harmony-font-size-body-l); }
+.message-text :deep(h1) { font-size: var(--nb-font-xl); }
+.message-text :deep(h2) { font-size: var(--nb-font-lg); }
+.message-text :deep(h3) { font-size: var(--nb-font-base); }
+.message-text :deep(h4) { font-size: var(--nb-font-base); }
 
-/* ── Markdown 段落 ── */
-.message-text :deep(p) {
-  margin: 6px 0;
-}
+.message-text :deep(p) { margin: 6px 0; }
+.message-text :deep(p:first-child) { margin-top: 0; }
+.message-text :deep(p:last-child) { margin-bottom: 0; }
 
-.message-text :deep(p:first-child) {
-  margin-top: 0;
-}
-
-.message-text :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-/* ── Markdown 列表 ── */
 .message-text :deep(ul),
 .message-text :deep(ol) {
   margin: 6px 0;
   padding-left: 20px;
 }
 
-.message-text :deep(li) {
-  margin: 3px 0;
-}
+.message-text :deep(li) { margin: 3px 0; }
 
-/* ── Markdown 引用块 ── */
 .message-text :deep(blockquote) {
   margin: 8px 0;
-  padding: var(--harmony-padding-level2) var(--harmony-padding-level6);
-  border-left: 3px solid var(--harmony-brand);
-  color: var(--harmony-font-secondary);
-  background: var(--harmony-comp-background-secondary);
-  border-radius: 0 var(--harmony-corner-radius-level4) var(--harmony-corner-radius-level4) 0;
+  padding: var(--nb-space-1) var(--nb-space-3);
+  border-left: 3px solid hsl(var(--nb-brand));
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
-/* ── Markdown 表格 ── */
 .message-text :deep(table) {
   border-collapse: collapse;
   margin: 8px 0;
-  font-size: var(--harmony-font-size-body-s);
+  font-size: var(--nb-font-sm);
   width: 100%;
 }
 
 .message-text :deep(th),
 .message-text :deep(td) {
-  border: 1px solid var(--harmony-comp-divider);
-  padding: var(--harmony-padding-level3) var(--harmony-padding-level5);
+  border: 1px solid hsl(var(--border));
+  padding: var(--nb-space-1) var(--nb-space-2);
   text-align: left;
 }
 
 .message-text :deep(th) {
-  background: var(--harmony-comp-background-secondary);
-  font-weight: var(--harmony-font-weight-subtitle-s);
+  background: hsl(var(--muted));
+  font-weight: 600;
 }
 
-/* ── Markdown 分割线 ── */
 .message-text :deep(hr) {
   border: none;
-  border-top: 1px solid var(--harmony-comp-divider);
+  border-top: 1px solid hsl(var(--border));
   margin: 12px 0;
 }
 
-/* ── Markdown 链接 ── */
 .message-text :deep(a) {
-  color: var(--harmony-brand);
+  color: hsl(var(--nb-brand));
   text-decoration: none;
 }
 
@@ -402,7 +382,6 @@ const formattedElapsed = computed(() => {
   text-decoration: underline;
 }
 
-/* ── Markdown 行内代码需要在 pre 内取消背景 ── */
 .message-text :deep(pre code) {
   background: none;
   padding: 0;
@@ -412,83 +391,79 @@ const formattedElapsed = computed(() => {
 
 /* ── 参考来源 ── */
 .message-sources {
-  margin-top: var(--harmony-padding-level5);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level6);
-  background: var(--harmony-comp-background-secondary);
-  border-radius: var(--harmony-corner-radius-level8);
-  border: 1px solid var(--harmony-comp-divider);
+  margin-top: var(--nb-space-2);
+  padding: var(--nb-space-2) var(--nb-space-3);
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
 }
 
 .sources-header {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level3);
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
-  color: var(--harmony-font-secondary);
-  margin-bottom: var(--harmony-padding-level4);
+  gap: var(--nb-space-1);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: var(--nb-space-2);
 }
 
 .sources-list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--harmony-padding-level3);
+  gap: var(--nb-space-1);
 }
 
 .source-chip {
-  font-size: var(--harmony-font-size-caption-l);
+  font-size: var(--nb-font-xs);
   cursor: default;
-}
-
-.source-chip:hover {
-  transform: none;
 }
 
 /* ── 引用核查 ── */
 .verification-block {
-  margin-top: var(--harmony-padding-level5);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level6);
-  background: var(--harmony-comp-background-secondary);
-  border-radius: var(--harmony-corner-radius-level8);
-  border: 1px solid var(--harmony-comp-divider);
+  margin-top: var(--nb-space-2);
+  padding: var(--nb-space-2) var(--nb-space-3);
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
 }
 
 .verification-header {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level3);
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
-  color: var(--harmony-font-secondary);
+  gap: var(--nb-space-1);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
   user-select: none;
 }
 
 .verification-header:hover {
-  color: var(--harmony-font-primary);
+  color: hsl(var(--foreground));
 }
 
 .verification-badge {
   margin-left: auto;
-  padding: var(--harmony-padding-level1) var(--harmony-padding-level4);
-  border-radius: var(--harmony-corner-radius-level5);
-  font-size: var(--harmony-font-size-caption-m);
-  font-weight: var(--harmony-font-weight-caption-l);
+  padding: 1px var(--nb-space-2);
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 500;
 }
 
 .verification-badge.risk-low {
-  background: var(--harmony-confirm-light);
-  color: var(--harmony-confirm);
+  background: hsl(var(--nb-success-bg));
+  color: hsl(var(--nb-success));
 }
 
 .verification-badge.risk-medium {
-  background: var(--harmony-alert-light);
-  color: var(--harmony-alert);
+  background: hsl(var(--nb-warning-bg));
+  color: hsl(var(--nb-warning));
 }
 
 .verification-badge.risk-high {
-  background: var(--harmony-warning-light);
-  color: var(--harmony-warning);
+  background: hsl(var(--nb-danger-bg));
+  color: hsl(var(--nb-danger));
 }
 
 .chevron {
@@ -502,7 +477,7 @@ const formattedElapsed = computed(() => {
 .verification-details {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--harmony-comp-divider);
+  border-top: 1px solid hsl(var(--border));
 }
 
 .verification-item {
@@ -510,25 +485,25 @@ const formattedElapsed = computed(() => {
   grid-template-columns: 80px 1fr 40px;
   align-items: center;
   gap: 6px;
-  font-size: var(--harmony-font-size-body-s);
+  font-size: var(--nb-font-xs);
   margin-bottom: 6px;
 }
 
 .verification-item .label {
-  color: var(--harmony-font-tertiary);
+  color: hsl(var(--muted-foreground));
   white-space: nowrap;
   text-align: right;
 }
 
 .verification-item .value {
-  color: var(--harmony-font-primary);
-  font-weight: var(--harmony-font-weight-subtitle-s);
+  color: hsl(var(--foreground));
+  font-weight: 500;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .verification-item .value.warning {
-  color: var(--harmony-alert);
+  color: hsl(var(--nb-warning));
 }
 
 .verification-item .value.span-end {
@@ -536,12 +511,12 @@ const formattedElapsed = computed(() => {
 }
 
 .verification-disclaimer {
-  margin-top: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level4);
-  background: var(--harmony-alert-subtle);
-  border-radius: var(--harmony-corner-radius-level4);
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-secondary);
+  margin-top: var(--nb-space-2);
+  padding: var(--nb-space-2);
+  background: hsl(var(--nb-warning-bg));
+  border-radius: var(--radius);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
   line-height: 1.5;
 }
 
@@ -549,39 +524,39 @@ const formattedElapsed = computed(() => {
 .metrics-section {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--harmony-comp-divider);
+  border-top: 1px solid hsl(var(--border));
 }
 
 .metrics-title {
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
   margin-bottom: 6px;
 }
 
 .progress-bar {
   width: 100%;
   height: 6px;
-  background: var(--harmony-comp-background-secondary);
-  border-radius: var(--harmony-corner-radius-level3);
+  background: hsl(var(--muted));
+  border-radius: 9999px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--harmony-brand);
-  border-radius: var(--harmony-corner-radius-level3);
-  transition: width 0.3s var(--harmony-ease-out);
+  background: hsl(var(--nb-brand));
+  border-radius: 9999px;
+  transition: width 0.3s ease;
 }
 
 /* ── 耗时 ── */
 .message-timing {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level2);
+  gap: var(--nb-space-1);
   margin-top: 6px;
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
   opacity: 0.7;
 }
 
@@ -601,9 +576,9 @@ const formattedElapsed = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--harmony-brand);
+  background: hsl(var(--nb-brand));
   opacity: 0.6;
-  animation: harmony-pulse-dot 1.4s ease-in-out infinite;
+  animation: nb-pulse-dot 1.4s ease-in-out infinite;
 }
 
 .thinking-dot:nth-child(2) { animation-delay: 0.2s; }

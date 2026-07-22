@@ -111,18 +111,18 @@ const formattedSize = computed(() => {
   display: flex;
   align-items: center;
   min-height: 72px;
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
-  border-radius: var(--harmony-corner-radius-level10);
-  transition: background 0.2s var(--harmony-ease-out);
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius);
+  transition: background 0.2s ease;
   cursor: default;
 }
 
 .doc-list-item:hover {
-  background: var(--harmony-interactive-hover);
+  background: hsl(var(--accent));
 }
 
 .doc-list-item:active {
-  background: var(--harmony-interactive-pressed);
+  background: hsl(var(--accent) / 0.8);
   transition-duration: 0.08s;
 }
 
@@ -130,29 +130,29 @@ const formattedSize = computed(() => {
 .doc-item-icon {
   width: 48px;
   height: 48px;
-  border-radius: var(--harmony-corner-radius-level6);
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: transform 0.2s var(--harmony-ease-out);
+  transition: transform 0.2s ease;
 }
 
-.doc-item-icon.pdf  { background: var(--harmony-warning-light); color: var(--harmony-warning); }
-.doc-item-icon.docx { background: var(--harmony-brand-light); color: var(--harmony-brand); }
-.doc-item-icon.txt  { background: var(--harmony-neutral-tint); color: var(--harmony-font-secondary); }
-.doc-item-icon.md   { background: var(--harmony-neutral-tint); color: var(--harmony-font-secondary); }
-.doc-item-icon.html { background: var(--harmony-alert-light); color: var(--harmony-alert); }
-.doc-item-icon.img  { background: var(--harmony-confirm-light); color: var(--harmony-confirm); }
-.doc-item-icon.other { background: var(--harmony-comp-background-secondary); color: var(--harmony-font-secondary); }
+.doc-item-icon.pdf  { background: hsl(var(--nb-danger-bg)); color: hsl(var(--nb-danger)); }
+.doc-item-icon.docx { background: hsl(var(--nb-brand) / 0.1); color: hsl(var(--nb-brand)); }
+.doc-item-icon.txt  { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.doc-item-icon.md   { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.doc-item-icon.html { background: hsl(var(--nb-warning-bg)); color: hsl(var(--nb-warning)); }
+.doc-item-icon.img  { background: hsl(var(--nb-success-bg)); color: hsl(var(--nb-success)); }
+.doc-item-icon.other { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
 
 .doc-list-item:hover .doc-item-icon {
   transform: scale(1.05);
 }
 
 .type-label {
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
   line-height: 1;
 }
 
@@ -162,15 +162,15 @@ const formattedSize = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level2);
-  padding: 0 var(--harmony-padding-level6);
+  gap: 0.5rem;
+  padding: 0 1.5rem;
 }
 
 .doc-item-name {
-  font-size: var(--harmony-font-size-body-l);
-  font-weight: var(--harmony-font-weight-subtitle-m);
+  font-size: var(--nb-font-lg);
+  font-weight: 500;
   line-height: 22px;
-  color: var(--harmony-font-primary);
+  color: hsl(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -179,29 +179,29 @@ const formattedSize = computed(() => {
 .doc-item-meta {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level3);
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-tertiary);
+  gap: 0.75rem;
+  font-size: var(--nb-font-base);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .meta-type {
-  padding: var(--harmony-padding-level1) var(--harmony-padding-level3);
-  border-radius: var(--harmony-corner-radius-level4);
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
   line-height: 1.2;
 }
 
-.meta-type.pdf  { background: var(--harmony-warning-light); color: var(--harmony-warning); }
-.meta-type.docx { background: var(--harmony-brand-light); color: var(--harmony-brand); }
-.meta-type.txt  { background: var(--harmony-neutral-tint); color: var(--harmony-font-secondary); }
-.meta-type.md   { background: var(--harmony-neutral-tint); color: var(--harmony-font-secondary); }
-.meta-type.html { background: var(--harmony-alert-light); color: var(--harmony-alert); }
-.meta-type.img  { background: var(--harmony-confirm-light); color: var(--harmony-confirm); }
-.meta-type.other { background: var(--harmony-comp-background-secondary); color: var(--harmony-font-secondary); }
+.meta-type.pdf  { background: hsl(var(--nb-danger-bg)); color: hsl(var(--nb-danger)); }
+.meta-type.docx { background: hsl(var(--nb-brand) / 0.1); color: hsl(var(--nb-brand)); }
+.meta-type.txt  { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.meta-type.md   { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.meta-type.html { background: hsl(var(--nb-warning-bg)); color: hsl(var(--nb-warning)); }
+.meta-type.img  { background: hsl(var(--nb-success-bg)); color: hsl(var(--nb-success)); }
+.meta-type.other { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
 
 .meta-separator {
-  color: var(--harmony-font-fourth);
+  color: hsl(var(--muted-foreground) / 0.4);
 }
 
 /* 右侧删除按钮 */
@@ -214,11 +214,11 @@ const formattedSize = computed(() => {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: var(--harmony-corner-radius-level8);
-  color: var(--harmony-font-tertiary);
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground) / 0.7);
   cursor: pointer;
   opacity: 0;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.2s ease;
 }
 
 .doc-item-delete--visible {
@@ -226,12 +226,12 @@ const formattedSize = computed(() => {
 }
 
 .doc-item-delete:hover {
-  background: var(--harmony-danger-hover-bg);
-  color: var(--harmony-warning);
+  background: hsl(var(--nb-danger-bg));
+  color: hsl(var(--nb-danger));
 }
 
 .doc-item-delete:active {
-  background: var(--harmony-danger-hover-bg);
+  background: hsl(var(--nb-danger-bg));
   transition-duration: 0.08s;
 }
 </style>

@@ -5,8 +5,8 @@
       <div class="brand-area">
         <div class="brand-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect width="24" height="24" rx="8" fill="var(--harmony-brand)"/>
-            <path d="M7 8h10M7 12h6M7 16h8" stroke="var(--harmony-font-on-primary)" stroke-width="2" stroke-linecap="round"/>
+            <rect width="24" height="24" rx="8" fill="hsl(var(--nb-brand))"/>
+            <path d="M7 8h10M7 12h6M7 16h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
         <div class="brand-text">
@@ -16,7 +16,7 @@
       </div>
 
       <!-- 新对话按钮 -->
-      <button class="harmony-action-btn primary new-chat-btn" @click="newChat">
+      <button class="nb-btn primary new-chat-btn" @click="newChat">
         <span class="btn-icon">+</span>
         新对话
       </button>
@@ -38,8 +38,8 @@
       <div v-if="conversationStore.conversations.length === 0" class="list-empty">
         <div class="empty-icon">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <rect width="40" height="40" rx="12" fill="var(--harmony-comp-background-secondary)"/>
-            <path d="M14 16h12M14 20h8M14 24h10" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round"/>
+            <rect width="40" height="40" rx="12" fill="hsl(var(--muted))"/>
+            <path d="M14 16h12M14 20h8M14 24h10" stroke="hsl(var(--muted-foreground))" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
         <p>暂无历史对话</p>
@@ -137,23 +137,23 @@ onMounted(() => {
 
 <style scoped>
 .chat-sidebar {
-  padding: var(--harmony-padding-level10) var(--harmony-padding-level8);
+  padding: var(--nb-space-5) var(--nb-space-4);
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level8);
+  gap: var(--nb-space-4);
 }
 
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level8);
+  gap: var(--nb-space-4);
 }
 
 .brand-area {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level6);
+  gap: var(--nb-space-3);
 }
 
 .brand-icon {
@@ -161,16 +161,15 @@ onMounted(() => {
 }
 
 .brand-text h2 {
-  font-size: var(--harmony-font-size-subtitle-l);
-  font-weight: var(--harmony-font-weight-title-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-lg);
+  font-weight: 600;
+  color: hsl(var(--foreground));
   line-height: 1.2;
 }
 
 .brand-subtitle {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-tertiary);
-  font-weight: var(--harmony-font-weight-body-s);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
 }
 
 .new-chat-btn {
@@ -178,22 +177,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--harmony-padding-level3);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level10);
-  font-size: var(--harmony-font-size-subtitle-m);
-  font-weight: var(--harmony-font-weight-subtitle-m);
-  height: var(--harmony-control-height-40);
-  border-radius: var(--harmony-corner-radius-level10);
-  background: var(--harmony-comp-background-emphasize);
-}
-
-.new-chat-btn:hover {
-  background: var(--harmony-brand-hover);
-  color: var(--harmony-font-on-primary);
+  gap: var(--nb-space-2);
+  padding: var(--nb-space-2) var(--nb-space-4);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  height: 36px;
 }
 
 .btn-icon {
-  font-size: var(--harmony-font-size-subtitle-l);
+  font-size: var(--nb-font-lg);
   font-weight: 300;
 }
 
@@ -203,7 +195,6 @@ onMounted(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding-right: var(--harmony-padding-level1);
   scroll-behavior: smooth;
 }
 
@@ -211,29 +202,29 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--harmony-padding-level6);
+  margin-bottom: var(--nb-space-3);
 }
 
 .list-title {
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
 }
 
 .clear-all-btn {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
   background: none;
   border: none;
   cursor: pointer;
-  padding: var(--harmony-padding-level1) var(--harmony-padding-level3);
-  border-radius: var(--harmony-corner-radius-level2);
-  transition: all 0.2s var(--harmony-ease-out);
+  padding: var(--nb-space-1) var(--nb-space-2);
+  border-radius: var(--radius);
+  transition: all 0.15s ease;
 }
 
 .clear-all-btn:hover {
-  color: var(--harmony-warning);
-  background: var(--harmony-danger-hover-bg);
+  color: hsl(var(--destructive));
+  background: hsl(var(--nb-danger-bg));
 }
 
 .list-empty {
@@ -241,7 +232,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--harmony-padding-level16) var(--harmony-padding-level8);
+  padding: var(--nb-space-10) var(--nb-space-4);
   text-align: center;
 }
 
@@ -250,53 +241,49 @@ onMounted(() => {
 }
 
 .list-empty p {
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-secondary);
-  margin-bottom: var(--harmony-padding-level1);
+  font-size: var(--nb-font-base);
+  color: hsl(var(--muted-foreground));
+  margin-bottom: var(--nb-space-1);
 }
 
 .empty-hint {
-  font-size: var(--harmony-font-size-body-s) !important;
-  color: var(--harmony-font-tertiary) !important;
+  font-size: var(--nb-font-xs) !important;
+  color: hsl(var(--muted-foreground) / 0.7) !important;
 }
 
 .conv-items {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level5);
+  gap: var(--nb-space-1);
 }
 
 .conv-item {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level5);
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
-  border-radius: var(--harmony-corner-radius-level8);
+  gap: var(--nb-space-2);
+  padding: var(--nb-space-2) var(--nb-space-3);
+  border-radius: var(--radius);
   cursor: pointer;
-  color: var(--harmony-font-secondary);
-  transition: background 0.2s var(--harmony-ease-out);
+  color: hsl(var(--muted-foreground));
+  transition: background 0.15s ease;
 }
 
 .conv-item:hover {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-font-primary);
-}
-
-.conv-item:active {
-  background: var(--harmony-interactive-pressed);
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
 }
 
 .conv-item.active {
-  background: var(--harmony-interactive-select);
-  color: var(--harmony-font-emphasize);
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .conv-title {
   flex: 1;
-  font-size: var(--harmony-font-size-body-l);
-  font-weight: var(--harmony-font-weight-subtitle-m);
+  font-size: var(--nb-font-sm);
+  font-weight: 500;
   line-height: 22px;
-  color: var(--harmony-font-primary);
+  color: hsl(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -304,9 +291,8 @@ onMounted(() => {
 }
 
 .conv-count {
-  font-size: var(--harmony-font-size-body-m);
-  line-height: 19px;
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
   flex-shrink: 0;
 }
 
@@ -319,11 +305,11 @@ onMounted(() => {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: var(--harmony-corner-radius-level2);
-  color: var(--harmony-font-tertiary);
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
   opacity: 0;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.15s ease;
 }
 
 .conv-item:hover .conv-delete {
@@ -331,18 +317,13 @@ onMounted(() => {
 }
 
 .conv-delete:hover {
-  background: var(--harmony-danger-hover-bg);
-  color: var(--harmony-warning);
-}
-
-.conv-delete:active {
-  background: var(--harmony-danger-hover-bg);
-  transition-duration: 0.08s;
+  background: hsl(var(--nb-danger-bg));
+  color: hsl(var(--destructive));
 }
 
 .conv-item:focus-visible {
-  outline: 2px solid var(--harmony-interactive-focus);
+  outline: 2px solid hsl(var(--ring));
   outline-offset: -2px;
-  border-radius: var(--harmony-corner-radius-level8);
+  border-radius: var(--radius);
 }
 </style>

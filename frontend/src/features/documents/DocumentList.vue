@@ -48,7 +48,7 @@
       <!-- 空状态：无文档 -->
       <div v-else-if="store.documentDetails.length === 0" class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="var(--harmony-font-fourth)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="hsl(var(--muted-foreground) / 0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <p class="empty-text">暂无已导入的文档</p>
         <p class="empty-hint">上传文件或加载本地文档以开始</p>
@@ -57,8 +57,8 @@
       <!-- 空状态：搜索/筛选无结果 -->
       <div v-else-if="filteredDocs.length === 0" class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="8" stroke="var(--harmony-font-fourth)" stroke-width="1.5"/>
-          <path d="M21 21l-4.35-4.35" stroke="var(--harmony-font-fourth)" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="11" cy="11" r="8" stroke="hsl(var(--muted-foreground) / 0.4)" stroke-width="1.5"/>
+          <path d="M21 21l-4.35-4.35" stroke="hsl(var(--muted-foreground) / 0.4)" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <p class="empty-text">未找到匹配的文档</p>
         <button class="clear-filter-btn" @click="clearFilters">
@@ -179,7 +179,7 @@ defineExpose({ loadDetails })
 .document-list-container {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level6);
+  gap: 1.5rem;
   height: 100%;
 }
 
@@ -193,37 +193,37 @@ defineExpose({ loadDetails })
 .search-icon {
   position: absolute;
   left: 12px;
-  color: var(--harmony-font-tertiary);
+  color: hsl(var(--muted-foreground) / 0.7);
   pointer-events: none;
-  transition: color 0.2s var(--harmony-ease-out);
+  transition: color 0.2s ease;
 }
 
 .search-input {
   width: 100%;
-  height: var(--harmony-control-height-40);
+  height: 40px;
   padding: 0 36px 0 38px;
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-primary);
-  background: var(--harmony-comp-background-tertiary);
+  font-size: var(--nb-font-base);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
   border: 1.5px solid transparent;
-  border-radius: var(--harmony-corner-radius-level10);
+  border-radius: var(--radius);
   outline: none;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.2s ease;
 }
 
 .search-input::placeholder {
-  color: var(--harmony-font-fourth);
+  color: hsl(var(--muted-foreground) / 0.4);
 }
 
 .search-input:focus {
-  background: var(--harmony-comp-background-primary);
-  border-color: var(--harmony-brand);
-  box-shadow: var(--harmony-focus-ring);
+  background: hsl(var(--card));
+  border-color: hsl(var(--nb-brand));
+  box-shadow: 0 0 0 2px hsl(var(--nb-brand));
 }
 
 .search-input:focus ~ .search-icon,
 .search-bar:focus-within .search-icon {
-  color: var(--harmony-brand);
+  color: hsl(var(--nb-brand));
 }
 
 .search-clear {
@@ -236,82 +236,82 @@ defineExpose({ loadDetails })
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: var(--harmony-corner-radius-level6);
-  color: var(--harmony-font-tertiary);
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground) / 0.7);
   cursor: pointer;
-  transition: all 0.15s var(--harmony-ease-out);
+  transition: all 0.15s ease;
 }
 
 .search-clear:hover {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-font-secondary);
+  background: hsl(var(--accent));
+  color: hsl(var(--muted-foreground));
 }
 
 /* ── 类型筛选 Chips ── */
 .filter-chips {
   display: flex;
-  gap: var(--harmony-padding-level3);
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
 .chip {
-  padding: var(--harmony-padding-level3) var(--harmony-padding-level7);
-  font-size: var(--harmony-font-size-body-s);
-  font-weight: var(--harmony-font-weight-body-s);
-  color: var(--harmony-font-secondary);
-  background: var(--harmony-comp-background-tertiary);
+  padding: 0.75rem 1.75rem;
+  font-size: var(--nb-font-sm);
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
   border: none;
-  border-radius: var(--harmony-radius-full);
+  border-radius: 9999px;
   cursor: pointer;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .chip:hover {
-  background: var(--harmony-interactive-hover);
+  background: hsl(var(--accent));
 }
 
 .chip:active {
-  background: var(--harmony-interactive-pressed);
+  background: hsl(var(--accent) / 0.8);
   transition-duration: 0.08s;
 }
 
 .chip--active {
-  background: var(--harmony-brand);
-  color: var(--harmony-font-on-primary);
+  background: hsl(var(--nb-brand));
+  color: hsl(var(--primary-foreground));
 }
 
 .chip--active:hover {
-  background: var(--harmony-brand-hover);
+  background: hsl(var(--nb-brand-hover));
 }
 
 /* ── 文档列表 ── */
 .doc-list {
   flex: 1;
   overflow-y: auto;
-  background: var(--harmony-comp-background-primary);
-  border-radius: var(--harmony-corner-radius-level8);
-  padding: var(--harmony-padding-level3);
+  background: hsl(var(--card));
+  border-radius: var(--radius);
+  padding: 0.75rem;
 }
 
 /* ── Skeleton 骨架屏 ── */
 .skeleton-list {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level3);
+  gap: 0.75rem;
 }
 
 .skeleton-item {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level5);
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  gap: 1.25rem;
+  padding: 1rem 1.5rem;
 }
 
 .skeleton-icon {
   width: 48px;
   height: 48px;
-  border-radius: var(--harmony-corner-radius-level6);
+  border-radius: var(--radius);
   flex-shrink: 0;
 }
 
@@ -319,19 +319,19 @@ defineExpose({ loadDetails })
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level3);
+  gap: 0.75rem;
 }
 
 .skeleton-line {
   height: 14px;
-  border-radius: var(--harmony-corner-radius-level4);
+  border-radius: var(--radius);
 }
 
 .skeleton-line-70 { width: 70%; }
 .skeleton-line-45 { width: 45%; }
 
 .skeleton-pulse {
-  background: var(--harmony-comp-background-tertiary);
+  background: hsl(var(--muted));
   animation: skeleton-pulse 1.8s ease-in-out infinite;
 }
 
@@ -346,40 +346,40 @@ defineExpose({ loadDetails })
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level16) var(--harmony-padding-level8);
+  gap: 1rem;
+  padding: 4rem 2rem;
   text-align: center;
 }
 
 .empty-state svg {
   opacity: 0.45;
-  margin-bottom: var(--harmony-padding-level2);
+  margin-bottom: 0.5rem;
 }
 
 .empty-text {
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-base);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .empty-hint {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-fourth);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground) / 0.4);
 }
 
 .clear-filter-btn {
-  margin-top: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level3) var(--harmony-padding-level8);
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-brand);
-  background: var(--harmony-brand-light);
+  margin-top: 1rem;
+  padding: 0.75rem 2rem;
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--nb-brand));
+  background: hsl(var(--nb-brand) / 0.1);
   border: none;
-  border-radius: var(--harmony-radius-full);
+  border-radius: 9999px;
   cursor: pointer;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.2s ease;
 }
 
 .clear-filter-btn:hover {
-  background: var(--harmony-comp-emphasize-tertiary);
+  background: hsl(var(--nb-brand) / 0.1);
 }
 
 .clear-filter-btn:active {

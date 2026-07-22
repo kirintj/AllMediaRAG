@@ -105,8 +105,8 @@
       <div class="failed-list" v-show="failedExpanded">
         <div class="failed-item" v-for="(file, idx) in allFailedFiles" :key="idx">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" flex-shrink="0">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M14 2v6h6" stroke="var(--harmony-font-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="hsl(var(--muted-foreground) / 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 2v6h6" stroke="hsl(var(--muted-foreground) / 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="failed-name" :title="typeof file === 'string' ? file : file.name">
             {{ typeof file === 'string' ? file : file.name }}
@@ -120,7 +120,7 @@
 
     <!-- 总结信息（完成时） -->
     <div class="summary-section" v-if="status && status.status === 'completed'">
-      <div class="harmony-divider"></div>
+      <div class="nb-divider"></div>
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-value success">{{ completedSuccess }}</span>
@@ -140,7 +140,7 @@
     <!-- 关闭按钮 -->
     <button
       v-if="status && (status.status === 'completed' || status.status === 'failed')"
-      class="harmony-action-btn close-btn"
+      class="nb-btn close-btn"
       @click="handleClose"
     >
       关闭
@@ -148,7 +148,7 @@
 
     <!-- 加载中 -->
     <div class="loading-state" v-if="!status && !fetchError">
-      <span class="harmony-loading-spinner"></span>
+      <span class="nb-loading-spinner"></span>
       <span>正在获取任务状态...</span>
     </div>
 
@@ -332,10 +332,10 @@ onUnmounted(() => {
 
 <style scoped>
 .batch-progress-panel {
-  padding: var(--harmony-padding-level10) var(--harmony-padding-level8);
+  padding: 2.5rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level8);
+  gap: 2rem;
 }
 
 /* ── 标题 ── */
@@ -346,25 +346,25 @@ onUnmounted(() => {
 }
 
 .panel-header h3 {
-  font-size: var(--harmony-font-size-subtitle-l);
-  font-weight: var(--harmony-font-weight-title-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-xl);
+  font-weight: 700;
+  color: hsl(var(--foreground));
 }
 
 .task-id {
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground) / 0.7);
   font-family: monospace;
-  padding: var(--harmony-padding-level1) var(--harmony-padding-level4);
-  background: var(--harmony-comp-background-tertiary);
-  border-radius: var(--harmony-corner-radius-level4);
+  padding: 0.25rem 1rem;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
 }
 
 /* ── 阶段区块 ── */
 .phase-section {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level4);
+  gap: 1rem;
 }
 
 .phase-section.disabled {
@@ -380,7 +380,7 @@ onUnmounted(() => {
 .phase-label {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level4);
+  gap: 1rem;
 }
 
 .phase-icon {
@@ -389,27 +389,27 @@ onUnmounted(() => {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: var(--harmony-corner-radius-level5);
-  transition: all 0.2s var(--harmony-ease-out);
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
 }
 
 .phase-icon.pending {
-  color: var(--harmony-font-tertiary);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .phase-icon.running {
-  color: var(--harmony-brand);
+  color: hsl(var(--nb-brand));
 }
 
 .phase-icon.done {
-  color: var(--harmony-confirm);
+  color: hsl(var(--nb-success));
 }
 
 .phase-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--harmony-brand);
+  background: hsl(var(--nb-brand));
   animation: dot-pulse 1.2s ease-in-out infinite;
 }
 
@@ -419,78 +419,78 @@ onUnmounted(() => {
 }
 
 .phase-name {
-  font-size: var(--harmony-font-size-body-m);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  color: hsl(var(--foreground));
 }
 
 .phase-count {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground));
   font-variant-numeric: tabular-nums;
 }
 
 .phase-detail {
   display: flex;
-  gap: var(--harmony-padding-level6);
-  font-size: var(--harmony-font-size-body-s);
+  gap: 1.5rem;
+  font-size: var(--nb-font-sm);
 }
 
 .detail-item.success {
-  color: var(--harmony-confirm);
+  color: hsl(var(--nb-success));
 }
 
 .detail-item.failed {
-  color: var(--harmony-warning);
+  color: hsl(var(--nb-danger));
 }
 
 .phase-fail-hint {
-  font-size: var(--harmony-font-size-body-s);
+  font-size: var(--nb-font-sm);
 }
 
 .fail-count {
-  color: var(--harmony-warning);
+  color: hsl(var(--nb-danger));
 }
 
 /* ── Element Plus 进度条覆写 ── */
 .batch-progress-panel :deep(.el-progress__text) {
-  font-size: var(--harmony-font-size-body-s) !important;
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-sm) !important;
+  color: hsl(var(--muted-foreground));
 }
 
 .batch-progress-panel :deep(.el-progress-bar__outer) {
-  background: var(--harmony-comp-background-tertiary);
-  border-radius: var(--harmony-corner-radius-level3);
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
 }
 
 .batch-progress-panel :deep(.el-progress-bar__inner) {
-  border-radius: var(--harmony-corner-radius-level3);
+  border-radius: var(--radius);
 }
 
 /* ── 时间信息 ── */
 .time-info {
   display: flex;
-  gap: var(--harmony-padding-level12);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level7);
-  background: var(--harmony-comp-background-tertiary);
-  border-radius: var(--harmony-corner-radius-level8);
+  gap: 3rem;
+  padding: 1.25rem 1.75rem;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
 }
 
 .time-item {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level1);
+  gap: 0.25rem;
 }
 
 .time-label {
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .time-value {
-  font-size: var(--harmony-font-size-body-m);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  color: hsl(var(--foreground));
   font-variant-numeric: tabular-nums;
 }
 
@@ -498,34 +498,34 @@ onUnmounted(() => {
 .error-banner {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level7);
-  background: var(--harmony-warning-subtle);
-  border: 1px solid var(--harmony-warning-border-subtle);
-  border-radius: var(--harmony-corner-radius-level8);
-  color: var(--harmony-warning);
-  font-size: var(--harmony-font-size-body-m);
+  gap: 1rem;
+  padding: 1.25rem 1.75rem;
+  background: hsl(var(--nb-danger-bg));
+  border: 1px solid hsl(var(--nb-danger) / 0.2);
+  border-radius: var(--radius);
+  color: hsl(var(--nb-danger));
+  font-size: var(--nb-font-base);
 }
 
 /* ── 失败文件列表 ── */
 .failed-section {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level2);
+  gap: 0.5rem;
 }
 
 .failed-toggle {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level3);
-  padding: var(--harmony-padding-level3) 0;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: var(--harmony-font-size-body-s);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-warning);
-  transition: opacity 0.2s var(--harmony-ease-out);
+  font-size: var(--nb-font-sm);
+  font-weight: 500;
+  color: hsl(var(--nb-danger));
+  transition: opacity 0.2s ease;
 }
 
 .failed-toggle:hover {
@@ -533,35 +533,35 @@ onUnmounted(() => {
 }
 
 .failed-toggle svg {
-  transition: transform 0.2s var(--harmony-ease-out);
+  transition: transform 0.2s ease;
   flex-shrink: 0;
 }
 
 .failed-list {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level1);
+  gap: 0.25rem;
   max-height: 160px;
   overflow-y: auto;
-  padding: var(--harmony-padding-level2) 0 var(--harmony-padding-level2) var(--harmony-padding-level9);
+  padding: 0.5rem 0 0.5rem 2.25rem;
 }
 
 .failed-item {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level3) var(--harmony-padding-level4);
-  border-radius: var(--harmony-corner-radius-level4);
-  font-size: var(--harmony-font-size-body-s);
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: var(--nb-font-sm);
 }
 
 .failed-item:hover {
-  background: var(--harmony-interactive-hover);
+  background: hsl(var(--accent));
 }
 
 .failed-name {
   flex: 1;
-  color: var(--harmony-font-primary);
+  color: hsl(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -570,8 +570,8 @@ onUnmounted(() => {
 
 .failed-reason {
   flex-shrink: 0;
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground) / 0.7);
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -582,52 +582,52 @@ onUnmounted(() => {
 .summary-section {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level6);
+  gap: 1.5rem;
 }
 
-.harmony-divider {
+.nb-divider {
   height: 1px;
-  background: var(--harmony-comp-divider);
-  margin: var(--harmony-padding-level2) 0;
+  background: hsl(var(--border));
+  margin: 0.5rem 0;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--harmony-padding-level5);
+  gap: 1.25rem;
 }
 
 .summary-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--harmony-padding-level2);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level4);
-  background: var(--harmony-comp-background-tertiary);
-  border-radius: var(--harmony-corner-radius-level8);
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
 }
 
 .summary-value {
-  font-size: var(--harmony-font-size-subtitle-l);
-  font-weight: var(--harmony-font-weight-title-m);
+  font-size: var(--nb-font-xl);
+  font-weight: 700;
   line-height: 1.2;
 }
 
 .summary-value.success {
-  color: var(--harmony-confirm);
+  color: hsl(var(--nb-success));
 }
 
 .summary-value.failed {
-  color: var(--harmony-warning);
+  color: hsl(var(--nb-danger));
 }
 
 .summary-value.neutral {
-  color: var(--harmony-font-primary);
+  color: hsl(var(--foreground));
 }
 
 .summary-label {
-  font-size: var(--harmony-font-size-caption-l);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 /* ── 关闭按钮 ── */
@@ -636,9 +636,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level8);
-  font-size: var(--harmony-font-size-subtitle-s);
+  gap: 1rem;
+  padding: 1.25rem 2rem;
+  font-size: var(--nb-font-base);
 }
 
 /* ── 加载状态 ── */
@@ -646,9 +646,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--harmony-padding-level5);
-  padding: var(--harmony-padding-level12) 0;
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-tertiary);
+  gap: 1.25rem;
+  padding: 3rem 0;
+  font-size: var(--nb-font-base);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 </style>

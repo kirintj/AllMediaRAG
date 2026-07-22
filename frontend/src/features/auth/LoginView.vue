@@ -1,12 +1,12 @@
 <template>
   <div class="login-container">
-    <div class="login-card harmony-animate-in-scale">
+    <div class="login-card nb-animate-in-scale">
       <!-- Logo / 标题 -->
       <div class="login-header">
         <div class="login-icon">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-            <rect width="56" height="56" rx="16" fill="var(--harmony-brand)"/>
-            <path d="M16 20h24M16 28h16M16 36h20" stroke="var(--harmony-font-on-primary)" stroke-width="3" stroke-linecap="round"/>
+            <rect width="56" height="56" rx="16" fill="hsl(var(--nb-brand))"/>
+            <path d="M16 20h24M16 28h16M16 36h20" stroke="hsl(var(--primary-foreground))" stroke-width="3" stroke-linecap="round"/>
           </svg>
         </div>
         <h1 class="login-title">AI 知识问答助手</h1>
@@ -134,149 +134,149 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--harmony-background-tertiary);
+  background: hsl(var(--muted));
 }
 
 .login-card {
   width: 380px;
-  padding: var(--harmony-padding-level16) var(--harmony-padding-level13);
-  box-shadow: var(--harmony-shadow-md);
-  background: var(--harmony-comp-background-primary);
-  border-radius: var(--harmony-corner-radius-level10);
+  padding: 4rem 3.25rem;
+  box-shadow: var(--nb-shadow-md);
+  background: hsl(var(--card));
+  border-radius: var(--radius);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: var(--harmony-padding-level16);
+  margin-bottom: 4rem;
 }
 
 .login-icon {
-  margin-bottom: var(--harmony-padding-level6);
+  margin-bottom: 1.5rem;
 }
 
 .login-title {
-  font-size: var(--harmony-font-size-title-m);
-  font-weight: var(--harmony-font-weight-title-m);
-  color: var(--harmony-font-primary);
-  margin: 0 0 var(--harmony-padding-level3);
+  font-size: var(--nb-font-3xl);
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin: 0 0 0.75rem;
 }
 
 .login-subtitle {
-  font-size: var(--harmony-font-size-body-m);
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-base);
+  color: hsl(var(--muted-foreground));
   margin: 0;
 }
 
 .login-tabs {
   display: flex;
-  gap: var(--harmony-padding-level3);
-  margin-bottom: var(--harmony-padding-level12);
-  background: var(--harmony-comp-background-secondary);
-  border-radius: var(--harmony-corner-radius-level10);
-  padding: var(--harmony-padding-level2);
+  gap: 0.75rem;
+  margin-bottom: 3rem;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+  padding: 0.5rem;
 }
 
 .tab-btn {
   flex: 1;
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level8);
-  height: var(--harmony-control-height-36);
+  padding: 1rem 2rem;
+  height: 36px;
   line-height: 20px;
   border: none;
   background: transparent;
-  border-radius: var(--harmony-corner-radius-level10);
-  font-size: var(--harmony-font-size-body-m);
-  font-weight: var(--harmony-font-weight-subtitle-m);
-  color: var(--harmony-font-secondary);
+  border-radius: var(--radius);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: all 0.2s ease;
 }
 
 .tab-btn:hover:not(.active) {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-font-primary);
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
 }
 
 .tab-btn.active {
-  background: var(--harmony-comp-background-emphasize);
-  color: var(--harmony-font-on-primary);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level8);
+  gap: 2rem;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level3);
+  gap: 0.75rem;
 }
 
 .field-label {
-  font-size: var(--harmony-font-size-body-m);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  color: hsl(var(--foreground));
 }
 
 .field-input {
   width: 100%;
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
+  padding: 1rem 1.5rem;
   border: none;
-  border-radius: var(--harmony-corner-radius-level12);
-  font-size: var(--harmony-font-size-body-l);
-  color: var(--harmony-font-primary);
-  background: var(--harmony-input-glass-bg);
+  border-radius: var(--radius);
+  font-size: var(--nb-font-lg);
+  color: hsl(var(--foreground));
+  background: hsl(var(--nb-surface-glass));
   backdrop-filter: blur(8px);
-  box-shadow: var(--harmony-input-glass-shadow);
+  box-shadow: var(--nb-surface-glass-shadow);
   outline: none;
-  transition: box-shadow 0.2s var(--harmony-ease-out);
+  transition: box-shadow 0.2s ease;
   box-sizing: border-box;
   height: 40px;
   line-height: 24px;
 }
 
 .field-input:focus {
-  box-shadow: 0 0 0 2px var(--harmony-brand);
+  box-shadow: 0 0 0 2px hsl(var(--nb-brand));
 }
 
 .field-input::placeholder {
-  color: var(--harmony-font-secondary);
+  color: hsl(var(--muted-foreground));
 }
 
 .error-msg {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-warning);
-  background: var(--harmony-warning-subtle);
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level6);
-  border-radius: var(--harmony-corner-radius-level4);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--nb-danger));
+  background: hsl(var(--nb-danger-bg));
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius);
 }
 
 .submit-btn {
   width: 100%;
-  padding: var(--harmony-padding-level5) 0;
+  padding: 1.25rem 0;
   height: 40px;
   border: none;
-  border-radius: var(--harmony-corner-radius-level10);
-  background: var(--harmony-comp-background-emphasize);
-  color: var(--harmony-font-on-primary);
-  font-size: var(--harmony-font-size-subtitle-m);
-  font-weight: var(--harmony-font-weight-subtitle-m);
+  border-radius: var(--radius);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: var(--nb-font-lg);
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s var(--harmony-ease-out);
+  transition: background 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--harmony-padding-level4);
-  margin-top: var(--harmony-padding-level2);
+  gap: 1rem;
+  margin-top: 0.5rem;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: var(--harmony-brand-hover);
+  background: hsl(var(--nb-brand-hover));
 }
 
 .submit-btn:active:not(:disabled) {
-  background: var(--harmony-brand-pressed);
+  background: hsl(var(--nb-brand-pressed));
   transition-duration: 0.08s;
 }
 
@@ -288,8 +288,8 @@ async function handleSubmit() {
 .loading-spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid var(--harmony-font-on-tertiary);
-  border-top-color: var(--harmony-font-on-primary);
+  border: 2px solid hsl(var(--primary-foreground) / 0.4);
+  border-top-color: hsl(var(--primary-foreground));
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

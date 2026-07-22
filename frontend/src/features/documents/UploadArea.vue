@@ -11,7 +11,7 @@
     >
       <div class="upload-inner">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="var(--harmony-brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="hsl(var(--nb-brand))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <p class="upload-text">拖拽或点击上传</p>
         <p class="upload-hint">支持多选 · HTML / TXT / MD / PDF / DOCX / 图片</p>
@@ -177,16 +177,16 @@ onUnmounted(() => {
 
 .upload-area :deep(.el-upload-dragger) {
   width: 100%;
-  padding: var(--harmony-padding-level12);
-  border: 2px dashed var(--harmony-comp-divider);
-  border-radius: var(--harmony-corner-radius-level8);
+  padding: 3rem;
+  border: 2px dashed hsl(var(--border));
+  border-radius: var(--radius);
   background: transparent;
-  transition: border-color 0.2s var(--harmony-ease-out), background 0.2s var(--harmony-ease-out);
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .upload-area :deep(.el-upload-dragger:hover) {
-  border-color: var(--harmony-brand);
-  background: var(--harmony-brand-light);
+  border-color: hsl(var(--nb-brand));
+  background: hsl(var(--nb-brand) / 0.1);
 }
 
 .upload-inner {
@@ -197,36 +197,36 @@ onUnmounted(() => {
 }
 
 .upload-text {
-  font-size: var(--harmony-font-size-body-m);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-base);
+  font-weight: 500;
+  color: hsl(var(--foreground));
 }
 
 .upload-hint {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 /* ── 状态消息 ── */
 .status-msg {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground));
   text-align: center;
-  padding: var(--harmony-padding-level3) 0;
-  transition: color 0.3s var(--harmony-ease-out);
+  padding: 0.75rem 0;
+  transition: color 0.3s ease;
 }
 
 .status-msg.uploading {
-  color: var(--harmony-brand);
+  color: hsl(var(--nb-brand));
   animation: status-pulse 1.4s ease-in-out infinite;
 }
 
 .status-msg.success {
-  color: var(--harmony-confirm);
+  color: hsl(var(--nb-success));
 }
 
 .status-msg.error {
-  color: var(--harmony-warning);
+  color: hsl(var(--nb-danger));
 }
 
 @keyframes status-pulse {

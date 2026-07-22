@@ -215,10 +215,10 @@ let metricsTimer = null
 
   // el-progress requires a color string; derive from semantic tokens
   function getProgressColor(val) {
-    if (val == null) return 'var(--harmony-semantic-neutral)'
-    if (val >= 0.8) return 'var(--harmony-semantic-good)'
-    if (val >= 0.5) return 'var(--harmony-semantic-warn)'
-    return 'var(--harmony-semantic-bad)'
+    if (val == null) return 'hsl(var(--muted-foreground))'
+    if (val >= 0.8) return 'hsl(var(--nb-success))'
+    if (val >= 0.5) return 'hsl(var(--nb-warning))'
+    return 'hsl(var(--nb-danger))'
   }
 
 // ── 计算属性 ──
@@ -324,60 +324,60 @@ onUnmounted(() => {
 
 <style scoped>
 .eval-dialog :deep(.el-dialog) {
-  border-radius: var(--harmony-corner-radius-level16) !important;
+  border-radius: var(--radius) !important;
 }
 
 .eval-dialog :deep(.el-dialog__header) {
-  background: var(--harmony-titlebar-bg);
-  backdrop-filter: var(--harmony-titlebar-blur);
-  -webkit-backdrop-filter: var(--harmony-titlebar-blur);
-  padding: var(--harmony-padding-level8) var(--harmony-padding-level12);
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 2rem 3rem;
 }
 
 .eval-dialog :deep(.el-dialog__body) {
-  padding: var(--harmony-padding-level8) var(--harmony-padding-level12);
-  background: var(--harmony-background-secondary);
+  padding: 2rem 3rem;
+  background: hsl(var(--background));
 }
 
 .eval-dialog :deep(.el-tabs__nav-wrap::after) {
-  background-color: var(--harmony-comp-divider);
+  background-color: hsl(var(--border));
 }
 
 .eval-dialog :deep(.el-tabs__active-bar) {
-  background-color: var(--harmony-brand);
+  background-color: hsl(var(--nb-brand));
 }
 
 .eval-dialog :deep(.el-tabs__item.is-active) {
-  color: var(--harmony-brand);
+  color: hsl(var(--nb-brand));
 }
 
 .eval-dialog :deep(.el-card) {
-  background: var(--harmony-comp-background-primary);
-  border: 1px solid var(--harmony-comp-divider);
-  border-radius: var(--harmony-corner-radius-level10);
-  box-shadow: var(--harmony-shadow-sm);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: var(--nb-shadow-sm);
 }
 
 .eval-dialog :deep(.el-table) {
-  --el-table-bg-color: var(--harmony-comp-background-primary);
-  --el-table-tr-bg-color: var(--harmony-comp-background-primary);
-  --el-table-row-hover-bg-color: var(--harmony-interactive-hover);
-  --el-table-border-color: var(--harmony-comp-divider);
-  --el-table-text-color: var(--harmony-font-primary);
-  --el-table-header-bg-color: var(--harmony-comp-background-gray);
-  --el-table-header-text-color: var(--harmony-font-secondary);
+  --el-table-bg-color: hsl(var(--card));
+  --el-table-tr-bg-color: hsl(var(--card));
+  --el-table-row-hover-bg-color: hsl(var(--accent));
+  --el-table-border-color: hsl(var(--border));
+  --el-table-text-color: hsl(var(--foreground));
+  --el-table-header-bg-color: hsl(var(--muted));
+  --el-table-header-text-color: hsl(var(--muted-foreground));
 }
 
 .eval-dialog :deep(.el-tag--success) {
-  --el-tag-bg-color: var(--harmony-confirm-light);
-  --el-tag-border-color: var(--harmony-confirm-border);
-  --el-tag-text-color: var(--harmony-confirm);
+  --el-tag-bg-color: hsl(var(--nb-success-bg));
+  --el-tag-border-color: hsl(var(--nb-success) / 0.2);
+  --el-tag-text-color: hsl(var(--nb-success));
 }
 
 .eval-dialog :deep(.el-tag--primary) {
-  --el-tag-bg-color: var(--harmony-brand-light);
-  --el-tag-border-color: var(--harmony-comp-emphasize-secondary);
-  --el-tag-text-color: var(--harmony-brand);
+  --el-tag-bg-color: hsl(var(--nb-brand) / 0.1);
+  --el-tag-border-color: hsl(var(--nb-brand) / 0.2);
+  --el-tag-text-color: hsl(var(--nb-brand));
 }
 
 .loading-state,
@@ -386,37 +386,37 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--harmony-padding-level16) 0;
-  gap: var(--harmony-padding-level6);
-  color: var(--harmony-font-secondary);
+  padding: 4rem 0;
+  gap: 1.5rem;
+  color: hsl(var(--muted-foreground));
 }
 
 .report-detail {
-  margin-top: var(--harmony-padding-level10);
+  margin-top: 2.5rem;
 }
 
 .metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--harmony-padding-level8);
+  gap: 2rem;
 }
 
 .metric-bars {
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level6);
+  gap: 1.5rem;
 }
 
 .metric-row {
   display: flex;
   align-items: center;
-  gap: var(--harmony-padding-level6);
+  gap: 1.5rem;
 }
 
 .metric-label {
   width: 140px;
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--foreground));
   flex-shrink: 0;
 }
 
@@ -427,14 +427,14 @@ onUnmounted(() => {
 .metric-value {
   width: 60px;
   text-align: right;
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-secondary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground));
 }
 
 .stat-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--harmony-padding-level8);
+  gap: 2rem;
 }
 
 .stat-card {

@@ -4,14 +4,14 @@
 
   <!-- 已认证：显示主界面 -->
   <div v-else class="app-container">
-    <el-container class="app-layout">
+    <div class="app-layout">
       <!-- 左侧栏 -->
-      <el-aside :width="'260px'" class="sidebar harmony-animate-in">
+      <aside class="sidebar sidebar-glass">
         <ChatSidebar />
-      </el-aside>
+      </aside>
 
       <!-- 中间对话区 -->
-      <el-main class="main-content">
+      <main class="main-content">
         <ChatView
           :is-dark="isDark"
           @open-docs="showDocs = true"
@@ -19,9 +19,9 @@
           @toggle-dark="toggleDark"
           @logout="handleLogout"
         />
-      </el-main>
+      </main>
 
-    </el-container>
+    </div>
 
     <!-- 评测仪表盘对话框 -->
     <EvalDashboard v-model="showDashboard" />
@@ -61,7 +61,7 @@ const showDocs = ref(false)
 
 function toggleDark() {
   isDark.value = !isDark.value
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
+  document.documentElement.classList.toggle('dark', isDark.value)
 }
 
 function onLoginSuccess() {
@@ -96,76 +96,71 @@ onUnmounted(() => {
 }
 
 .app-layout {
+  display: flex;
   height: 100%;
 }
 
 .sidebar {
-  background: var(--harmony-comp-background-primary);
-  border-right: 1px solid var(--harmony-comp-divider);
-  box-shadow: 1px 0 0 var(--harmony-comp-divider);
+  width: 272px;
+  flex-shrink: 0;
   overflow-y: auto;
+  border-right: 1px solid hsl(var(--border));
 }
 
 .main-content {
   display: flex;
   flex-direction: column;
+  flex: 1;
   padding: 0;
   overflow: hidden;
-  background: var(--harmony-background-secondary);
+  background: hsl(var(--background));
 }
 
 /* ── Toast 容器 ── */
 .toast-container {
   position: fixed;
-  top: calc(var(--harmony-titlebar-height) + var(--harmony-padding-level4));
-  right: var(--harmony-padding-level8);
+  top: var(--nb-space-8);
+  right: var(--nb-space-8);
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: var(--harmony-padding-level4);
+  gap: var(--nb-space-2);
 }
 
 .toast-item {
-  padding: var(--harmony-padding-level5) var(--harmony-padding-level10);
-  border-radius: var(--harmony-corner-radius-level8);
-  font-size: var(--harmony-font-size-caption-l);
-  font-weight: var(--harmony-font-weight-subtitle-m);
-  box-shadow: var(--harmony-shadow-md);
-  animation: toast-in 0.3s var(--harmony-ease-out);
+  padding: var(--nb-space-3) var(--nb-space-5);
+  border-radius: var(--radius);
+  font-size: var(--nb-font-sm);
+  font-weight: 500;
+  box-shadow: var(--nb-shadow-md);
+  animation: nb-fade-in-up 0.3s ease;
 }
 
 .toast-item.success {
-  background: var(--harmony-confirm-light);
-  color: var(--harmony-confirm);
-  border: 1px solid var(--harmony-confirm-border);
+  background: hsl(var(--nb-success-bg));
+  color: hsl(var(--nb-success));
+  border: 1px solid hsl(var(--nb-success) / 0.2);
 }
 
 .toast-item.error {
-  background: var(--harmony-warning-light);
-  color: var(--harmony-warning);
-  border: 1px solid var(--harmony-warning-border);
+  background: hsl(var(--nb-danger-bg));
+  color: hsl(var(--nb-danger));
+  border: 1px solid hsl(var(--nb-danger) / 0.2);
 }
 
 .toast-item.warning {
-  background: var(--harmony-alert-light);
-  color: var(--harmony-alert);
-  border: 1px solid var(--harmony-alert-border);
+  background: hsl(var(--nb-warning-bg));
+  color: hsl(var(--nb-warning));
+  border: 1px solid hsl(var(--nb-warning) / 0.2);
 }
 
 .toast-item.info {
-  background: var(--harmony-comp-background-tertiary);
-  color: var(--harmony-font-secondary);
-  border: 1px solid var(--harmony-comp-divider);
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+@media (max-width: 1024px) {
+  .sidebar { display: none; }
 }
 </style>

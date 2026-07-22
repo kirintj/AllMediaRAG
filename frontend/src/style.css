@@ -1,144 +1,27 @@
 /* ============================================
-   HarmonyOS Design Tokens — Global Styles
-   Official tokens from harmony-tokens.css + mobile-scale.css
+   Nanobot ChatUI — Global Styles
    ============================================ */
 
-@import './styles/harmony-tokens.css';
-@import './styles/mobile-scale.css';
-
-/* ── 补充 Token（官方未定义，桌面端扩展） ── */
-:root {
-  /* 品牌色衍生 */
-  --harmony-brand-light: rgba(10, 89, 247, 0.08);
-  --harmony-brand-hover: rgba(31, 113, 255, 1);
-  --harmony-brand-pressed: rgba(0, 71, 204, 1);
-  --harmony-brand-gradient: linear-gradient(135deg, rgba(10, 89, 247, 1) 0%, rgba(51, 123, 247, 1) 100%);
-
-  /* 阴影系统（对齐鸿蒙组件阴影规范） */
-  --harmony-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.04);
-  --harmony-shadow-md: 0 4px 48px rgba(0, 0, 0, 0.08);
-  --harmony-shadow-lg: 0 8px 48px rgba(0, 0, 0, 0.08);
-  --harmony-shadow-xl: 0 4px 48px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.25);
-  --harmony-shadow-brand: 0 4px 12px rgba(10, 89, 247, 0.25);
-  --harmony-focus-ring: 0 0 0 2px var(--harmony-brand);
-
-  /* 圆角系统（对应 mobile-scale） */
-  --harmony-radius-sm: var(--harmony-corner-radius-level4);
-  --harmony-radius-md: var(--harmony-corner-radius-level6);
-  --harmony-radius-lg: var(--harmony-corner-radius-level8);
-  --harmony-radius-xl: var(--harmony-corner-radius-level10);
-  --harmony-radius-full: 9999px;
-
-  /* 缓动函数 */
-  --harmony-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --harmony-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* 布局 */
-  --harmony-sidebar-width: 260px;
-  --harmony-header-height: 56px;
-
-  /* 其他 */
-  --harmony-breathe-duration: 3s;
-  --harmony-danger-hover-bg: rgba(232, 64, 38, 0.08);
-
-  /* 语义色浅底 / 边框 */
-  --harmony-confirm-light: rgba(100, 187, 92, 0.1);
-  --harmony-confirm-border: rgba(100, 187, 92, 0.2);
-  --harmony-alert-light: rgba(237, 111, 33, 0.1);
-  --harmony-alert-border: rgba(237, 111, 33, 0.2);
-  --harmony-alert-subtle: rgba(237, 111, 33, 0.05);
-  --harmony-warning-light: rgba(232, 64, 38, 0.1);
-  --harmony-warning-border: rgba(232, 64, 38, 0.2);
-  --harmony-warning-subtle: rgba(232, 64, 38, 0.06);
-  --harmony-warning-border-subtle: rgba(232, 64, 38, 0.15);
-
-  /* 遮罩 */
-  --harmony-overlay: rgba(0, 0, 0, 0.45);
-
-  /* 毛玻璃输入框 */
-  --harmony-input-glass-bg: rgba(255, 255, 255, 0.75);
-  --harmony-input-glass-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
-
-  /* 标题栏 */
-  --harmony-titlebar-height: 56px;
-  --harmony-titlebar-bg: rgba(255, 255, 255, 0.72);
-  --harmony-titlebar-blur: blur(20px);
-  --harmony-titlebar-border: 1px solid var(--harmony-comp-divider);
-
-  /* 语义度量色 */
-  --harmony-semantic-good: rgba(100, 187, 92, 1);
-  --harmony-semantic-warn: rgba(237, 111, 33, 1);
-  --harmony-semantic-bad: rgba(232, 64, 38, 1);
-  --harmony-semantic-neutral: rgba(144, 147, 153, 1);
-
-  /* 中性浅底 */
-  --harmony-neutral-tint: rgba(0, 0, 0, 0.06);
-  --harmony-neutral-tint-hover: rgba(0, 0, 0, 0.12);
-}
-
-/* ── 深色模式覆盖 ── */
-:root[data-theme="dark"] {
-  --harmony-brand-light: rgba(49, 122, 247, 0.15);
-  --harmony-brand-hover: rgba(70, 140, 250, 1);
-  --harmony-brand-pressed: rgba(30, 90, 200, 1);
-
-  --harmony-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.2);
-  --harmony-shadow-md: 0 4px 48px rgba(0, 0, 0, 0.25);
-  --harmony-shadow-lg: 0 8px 48px rgba(0, 0, 0, 0.3);
-  --harmony-shadow-xl: 0 4px 48px rgba(0, 0, 0, 0.25), 0 4px 8px rgba(0, 0, 0, 0.35);
-  --harmony-breathe-duration: 2.5s;
-  --harmony-danger-hover-bg: rgba(217, 72, 56, 0.12);
-  --harmony-focus-ring: 0 0 0 2px var(--harmony-brand);
-
-  /* 语义色浅底 / 边框（深色） */
-  --harmony-confirm-light: rgba(91, 168, 84, 0.15);
-  --harmony-confirm-border: rgba(91, 168, 84, 0.25);
-  --harmony-alert-light: rgba(219, 107, 66, 0.15);
-  --harmony-alert-border: rgba(219, 107, 66, 0.25);
-  --harmony-alert-subtle: rgba(219, 107, 66, 0.08);
-  --harmony-warning-light: rgba(217, 72, 56, 0.15);
-  --harmony-warning-border: rgba(217, 72, 56, 0.25);
-  --harmony-warning-subtle: rgba(217, 72, 56, 0.1);
-  --harmony-warning-border-subtle: rgba(217, 72, 56, 0.2);
-
-  /* 遮罩（深色） */
-  --harmony-overlay: rgba(0, 0, 0, 0.65);
-
-  /* 毛玻璃输入框（深色） */
-  --harmony-input-glass-bg: rgba(32, 34, 36, 0.85);
-  --harmony-input-glass-shadow: 0 4px 48px rgba(0, 0, 0, 0.25);
-
-  /* 标题栏（深色） */
-  --harmony-titlebar-bg: rgba(32, 34, 36, 0.72);
-
-  /* 语义度量色（深色） */
-  --harmony-semantic-good: rgba(91, 168, 84, 1);
-  --harmony-semantic-warn: rgba(219, 107, 66, 1);
-  --harmony-semantic-bad: rgba(217, 72, 56, 1);
-  --harmony-semantic-neutral: rgba(144, 147, 153, 1);
-
-  /* 中性浅底（深色） */
-  --harmony-neutral-tint: rgba(255, 255, 255, 0.06);
-  --harmony-neutral-tint-hover: rgba(255, 255, 255, 0.12);
-}
+@import './styles/nanobot-tokens.css';
 
 /* ── 全局重置 ── */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  border-color: hsl(var(--border));
 }
 
-html {
-  font-size: 4px;
+html, body, #root {
+  height: 100%;
 }
 
 body {
-  font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: var(--harmony-font-size-body-m);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: var(--nb-font-base);
   line-height: 1.5;
-  background: var(--harmony-background-secondary);
-  color: var(--harmony-font-primary);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -152,288 +35,314 @@ body {
    动画关键帧
    ============================================ */
 
-@keyframes harmony-fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes nb-fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes harmony-fade-in-scale {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+@keyframes nb-fade-in-scale {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-@keyframes harmony-spin {
+@keyframes nb-spin {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  to   { transform: rotate(360deg); }
 }
 
-@keyframes harmony-pulse-dot {
+@keyframes nb-pulse-dot {
   0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
   40% { transform: scale(1); opacity: 1; }
 }
 
+@keyframes nb-streaming-sheen {
+  0%   { background-position: 140% 50%; }
+  100% { background-position: -40% 50%; }
+}
+
 /* ============================================
-   通用组件类 (HarmonyOS 规范)
+   通用组件类
    ============================================ */
 
-/* ── 卡片（对齐 cardview 组件：纯白实底，圆角 20px） ── */
-.harmony-card {
-  background: var(--harmony-comp-background-primary);
-  border: none;
-  border-radius: var(--harmony-corner-radius-level10);
-  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.25s var(--harmony-ease-out);
-}
-
-.harmony-card:hover {
-  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.25);
-}
-
-/* ── 主按钮（对齐 button emphasized 组件） ── */
-.harmony-action-btn.primary {
-  background: var(--harmony-brand);
-  border: none;
-  color: var(--harmony-font-on-primary);
-  border-radius: var(--harmony-corner-radius-level10);
-  padding: 10px 20px;
-  font-size: var(--harmony-font-size-subtitle-m);
-  font-weight: var(--harmony-font-weight-subtitle-m);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.2s var(--harmony-ease-out);
-}
-
-.harmony-action-btn.primary:hover {
-  background: var(--harmony-brand-hover);
-}
-
-.harmony-action-btn.primary:active {
-  background: var(--harmony-brand-pressed);
-  transition-duration: 0.08s;
-}
-
-/* ── 普通按钮（对齐 button normal 组件） ── */
-.harmony-action-btn {
-  padding: 10px 20px;
-  border: 1px solid var(--harmony-comp-divider);
-  border-radius: var(--harmony-corner-radius-level10);
-  background: var(--harmony-comp-background-primary);
-  font-size: var(--harmony-font-size-subtitle-m);
-  font-weight: var(--harmony-font-weight-subtitle-m);
-  color: var(--harmony-font-primary);
-  cursor: pointer;
-  transition: background 0.2s var(--harmony-ease-out);
-}
-
-.harmony-action-btn:hover {
-  background: var(--harmony-interactive-hover);
-}
-
-.harmony-action-btn:active {
-  background: var(--harmony-interactive-pressed);
-  transition-duration: 0.08s;
-}
-
-/* ── 图标按钮（对齐 titlebar action 按钮：40x40 正圆） ── */
-.harmony-icon-btn {
+/* ── 按钮 ── */
+.nb-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--harmony-icon-secondary);
+  gap: var(--nb-space-2);
+  padding: var(--nb-space-2) var(--nb-space-4);
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: var(--nb-font-base);
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s var(--harmony-ease-out);
-}
-
-.harmony-icon-btn:hover {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-icon-primary);
-}
-
-.harmony-icon-btn:active {
-  background: var(--harmony-interactive-pressed);
-}
-
-/* ── Tab 栏（对齐 chipstab 组件） ── */
-.harmony-tab-bar {
-  display: inline-flex;
-  gap: var(--harmony-padding-level4);
-  padding: var(--harmony-padding-level2);
-  background: var(--harmony-comp-background-primary);
-  backdrop-filter: blur(8px);
-  border-radius: var(--harmony-corner-radius-level10);
-  border: none;
-  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
-}
-
-.harmony-tab-item {
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level8);
-  border-radius: var(--harmony-corner-radius-level10);
-  font-size: var(--harmony-font-size-subtitle-s);
-  font-weight: var(--harmony-font-weight-subtitle-s);
-  color: var(--harmony-font-secondary);
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  transition: all 0.2s var(--harmony-ease-out);
+  transition: background 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
 }
 
-.harmony-tab-item.active {
-  background: var(--harmony-comp-background-emphasize);
-  color: var(--harmony-font-on-primary);
-  font-weight: var(--harmony-font-weight-subtitle-m);
+.nb-btn:hover {
+  background: hsl(var(--accent));
 }
 
-.harmony-tab-item:not(.active):hover {
-  color: var(--harmony-font-primary);
-  background: var(--harmony-interactive-hover);
+.nb-btn:active {
+  transition-duration: 0.05s;
 }
 
-/* ── 统计卡片（对齐 cardview mini） ── */
-.harmony-stat-card {
-  display: flex;
-  align-items: center;
-  gap: var(--harmony-padding-level6);
-  padding: var(--harmony-padding-level8);
-  background: var(--harmony-comp-background-primary);
-  border-radius: var(--harmony-corner-radius-level10);
-  border: 1px solid var(--harmony-comp-divider);
-  box-shadow: 0 4px 48px rgba(0, 0, 0, 0.08);
-  transition: background 0.2s var(--harmony-ease-out);
+.nb-btn.primary {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: transparent;
 }
 
-.harmony-stat-card:hover {
-  background: var(--harmony-interactive-hover);
+.nb-btn.primary:hover {
+  opacity: 0.9;
 }
 
-/* ── 输入框（对齐 search 组件：桌面端玻璃材质） ── */
-.harmony-input-box {
-  background: var(--harmony-input-glass-bg);
-  backdrop-filter: blur(8px);
-  border-radius: var(--harmony-corner-radius-level12);
-  border: none;
-  box-shadow: var(--harmony-input-glass-shadow);
-  transition: box-shadow 0.2s var(--harmony-ease-out);
+.nb-btn.destructive {
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  border-color: transparent;
 }
 
-.harmony-input-box:focus-within {
-  box-shadow: var(--harmony-input-glass-shadow), 0 0 0 2px var(--harmony-brand);
+.nb-btn.destructive:hover {
+  opacity: 0.9;
 }
 
-/* ── 过滤标签（对齐 chipstab chip：高度 36px，圆角 20px） ── */
-.harmony-filter-chip {
+/* ── 图标按钮 ── */
+.nb-icon-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--harmony-padding-level3);
-  padding: var(--harmony-padding-level4) var(--harmony-padding-level8);
-  border: 1px solid var(--harmony-comp-divider);
-  border-radius: var(--harmony-corner-radius-level10);
-  background: var(--harmony-comp-background-primary);
-  font-size: var(--harmony-font-size-subtitle-s);
-  color: var(--harmony-font-secondary);
-  transition: all 0.2s var(--harmony-ease-out);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.harmony-filter-chip:hover {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-font-primary);
+.nb-icon-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+.nb-icon-btn:active {
+  transition-duration: 0.05s;
+}
+
+.nb-icon-btn--sm {
+  width: 32px;
+  height: 32px;
+  font-size: var(--nb-font-sm);
+}
+
+/* ── Tab 栏 ── */
+.nb-tab-bar {
+  display: inline-flex;
+  gap: var(--nb-space-1);
+  padding: var(--nb-space-1);
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+}
+
+.nb-tab-item {
+  padding: var(--nb-space-2) var(--nb-space-4);
+  border-radius: var(--radius);
+  font-size: var(--nb-font-sm);
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.nb-tab-item.active {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: var(--nb-shadow-sm);
+}
+
+.nb-tab-item:not(.active):hover {
+  color: hsl(var(--foreground));
+}
+
+/* ── 过滤标签 ── */
+.nb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nb-space-1);
+  padding: var(--nb-space-1) var(--nb-space-3);
+  border: 1px solid hsl(var(--border));
+  border-radius: 9999px;
+  background: hsl(var(--background));
+  font-size: var(--nb-font-xs);
+  color: hsl(var(--muted-foreground));
+  transition: all 0.15s ease;
+}
+
+/* ── 输入框 ── */
+.nb-input-box {
+  background: hsl(var(--nb-surface-glass));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius);
+  border: none;
+  box-shadow: var(--nb-surface-glass-shadow);
+  transition: box-shadow 0.15s ease;
+}
+
+.nb-input-box:focus-within {
+  box-shadow: var(--nb-surface-glass-shadow), 0 0 0 2px hsl(var(--nb-brand));
 }
 
 /* ── 动画工具类 ── */
-.harmony-animate-in {
-  animation: harmony-fade-in-up 0.4s var(--harmony-ease-out) both;
+.nb-animate-in {
+  animation: nb-fade-in-up 0.4s ease both;
 }
 
-.harmony-animate-in-scale {
-  animation: harmony-fade-in-scale 0.35s var(--harmony-ease-out) both;
+.nb-animate-in-scale {
+  animation: nb-fade-in-scale 0.35s ease both;
 }
 
-/* ── 自定义滚动条 ── */
-.cus-scroll {
-  overflow: auto;
+/* ============================================
+   滚动条
+   ============================================ */
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
 }
 
-.cus-scroll::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.cus-scroll::-webkit-scrollbar-thumb {
-  background-color: transparent;
-  border-radius: 3px;
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.cus-scroll:hover::-webkit-scrollbar-thumb {
-  background: var(--harmony-comp-background-secondary);
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
 }
 
-.cus-scroll:hover::-webkit-scrollbar-thumb:hover {
-  background: var(--harmony-brand);
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
 }
 
-:root[data-theme="dark"] .cus-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-:root[data-theme="dark"] .cus-scroll:hover::-webkit-scrollbar-thumb:hover {
-  background: var(--harmony-brand);
+::selection {
+  background: hsl(var(--primary) / 0.15);
 }
 
-/* ── 加载动画（鸿蒙标准 spinner） ── */
-.harmony-loading-spinner {
+.cus-scroll {
+  overflow: auto;
+}
+
+/* ============================================
+   加载动画
+   ============================================ */
+
+.nb-loading-spinner {
   width: 24px;
   height: 24px;
-  border: 2.5px solid var(--harmony-comp-divider);
-  border-top-color: var(--harmony-brand);
+  border: 2.5px solid hsl(var(--border));
+  border-top-color: hsl(var(--nb-brand));
   border-radius: 50%;
-  animation: harmony-spin 0.8s linear infinite;
+  animation: nb-spin 0.8s linear infinite;
 }
 
-/* ── Element Plus 主题覆盖 ── */
+/* ============================================
+   侧边栏毛玻璃
+   ============================================ */
+
+.sidebar-glass {
+  background: hsl(var(--sidebar) / 0.94);
+  -webkit-backdrop-filter: saturate(145%) blur(18px);
+  backdrop-filter: saturate(145%) blur(18px);
+  box-shadow:
+    inset -1px 0 0 hsl(var(--border) / 0.32),
+    inset 1px 0 0 hsl(var(--background) / 0.52),
+    14px 0 32px -30px rgb(0 0 0 / 0.22);
+}
+
+.dark .sidebar-glass {
+  background: hsl(var(--sidebar) / 0.96);
+  box-shadow:
+    inset -1px 0 0 hsl(var(--border) / 0.42),
+    inset 1px 0 0 hsl(var(--foreground) / 0.05),
+    14px 0 34px -30px rgb(0 0 0 / 0.62);
+}
+
+/* ============================================
+   CJK Support
+   ============================================ */
+
+:lang(zh), :lang(zh-CN), :lang(zh-TW), :lang(ja), :lang(ko) {
+  --cjk-line-height: 1.8;
+}
+
+:root {
+  --cjk-line-height: 1.625;
+}
+
+.markdown-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
+
+.markdown-content a,
+.markdown-content code {
+  overflow-wrap: anywhere;
+}
+
+.markdown-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ============================================
+   Element Plus 覆盖
+   ============================================ */
+
 .el-button--primary {
-  --el-button-bg-color: var(--harmony-brand) !important;
-  --el-button-border-color: var(--harmony-brand) !important;
-  --el-button-hover-bg-color: var(--harmony-brand-hover) !important;
-  --el-button-hover-border-color: var(--harmony-brand-hover) !important;
-  --el-button-active-bg-color: var(--harmony-brand-pressed) !important;
-  --el-button-active-border-color: var(--harmony-brand-pressed) !important;
+  --el-button-bg-color: hsl(var(--nb-brand)) !important;
+  --el-button-border-color: hsl(var(--nb-brand)) !important;
+  --el-button-hover-bg-color: hsl(var(--nb-brand-hover)) !important;
+  --el-button-hover-border-color: hsl(var(--nb-brand-hover)) !important;
+  --el-button-active-bg-color: hsl(var(--nb-brand-pressed)) !important;
+  --el-button-active-border-color: hsl(var(--nb-brand-pressed)) !important;
 }
 
-:root[data-theme="dark"] {
-  --el-bg-color: rgba(25, 26, 28, 1);
-  --el-bg-color-overlay: rgba(32, 34, 36, 1);
-  --el-text-color-primary: var(--harmony-font-primary);
-  --el-text-color-regular: var(--harmony-font-secondary);
-  --el-text-color-secondary: var(--harmony-font-tertiary);
-  --el-border-color: var(--harmony-comp-divider);
-  --el-border-color-light: rgba(255, 255, 255, 0.06);
-  --el-fill-color-blank: var(--harmony-comp-background-primary);
-  --el-fill-color-light: var(--harmony-comp-background-secondary);
+.dark {
+  --el-bg-color: hsl(var(--background));
+  --el-bg-color-overlay: hsl(var(--card));
+  --el-text-color-primary: hsl(var(--foreground));
+  --el-text-color-regular: hsl(var(--foreground) / 0.85);
+  --el-text-color-secondary: hsl(var(--muted-foreground));
+  --el-border-color: hsl(var(--border));
+  --el-border-color-light: hsl(var(--border) / 0.5);
+  --el-fill-color-blank: hsl(var(--card));
+  --el-fill-color-light: hsl(var(--muted));
 }
 
-/* ── Element Plus 确认弹窗美化（对齐鸿蒙弹窗规范） ── */
+/* ── Element Plus 确认弹窗 ── */
 .delete-confirm-box {
-  border-radius: var(--harmony-corner-radius-level16) !important;
-  border: 1px solid var(--harmony-comp-divider) !important;
-  box-shadow: var(--harmony-shadow-xl) !important;
+  border-radius: 12px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: var(--nb-shadow-lg) !important;
   padding: 24px 28px 16px !important;
 }
 
@@ -442,14 +351,14 @@ body {
 }
 
 .delete-confirm-box .el-message-box__title {
-  font-size: var(--harmony-font-size-subtitle-m) !important;
-  font-weight: var(--harmony-font-weight-subtitle-m) !important;
+  font-size: var(--nb-font-lg) !important;
+  font-weight: 600 !important;
 }
 
 .delete-confirm-box .el-message-box__content {
   padding: 8px 0 16px !important;
-  font-size: var(--harmony-font-size-body-m) !important;
-  color: var(--harmony-font-secondary) !important;
+  font-size: var(--nb-font-base) !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 .delete-confirm-box .el-message-box__btns {
@@ -458,54 +367,28 @@ body {
 }
 
 .delete-confirm-box .el-button {
-  border-radius: var(--harmony-corner-radius-level10) !important;
-  font-weight: var(--harmony-font-weight-subtitle-m) !important;
+  border-radius: var(--radius) !important;
+  font-weight: 500 !important;
   padding: 8px 20px !important;
 }
 
-/* ── 小型图标按钮（32x32） ── */
-.harmony-icon-btn--sm {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--harmony-icon-secondary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s var(--harmony-ease-out), color 0.2s var(--harmony-ease-out);
-}
+/* ============================================
+   语义度量色工具类
+   ============================================ */
 
-.harmony-icon-btn--sm:hover {
-  background: var(--harmony-interactive-hover);
-  color: var(--harmony-icon-primary);
-}
+.metric-good { color: hsl(var(--nb-success)); }
+.metric-warn { color: hsl(var(--nb-warning)); }
+.metric-bad  { color: hsl(var(--nb-danger)); }
 
-.harmony-icon-btn--sm:active {
-  background: var(--harmony-interactive-pressed);
-  transition-duration: 0.08s;
-}
-
-/* ── 语义度量色工具类 ── */
-.metric-good { color: var(--harmony-semantic-good); }
-.metric-warn { color: var(--harmony-semantic-warn); }
-.metric-bad  { color: var(--harmony-semantic-bad); }
-.metric-neutral { color: var(--harmony-semantic-neutral); }
-
-/* ── 统计度量值 ── */
 .stat-metric-value {
-  font-size: var(--harmony-font-size-title-m);
-  font-weight: var(--harmony-font-weight-title-m);
+  font-size: var(--nb-font-3xl);
+  font-weight: 700;
 }
 
-/* ── 评估区域卡片 ── */
 .eval-section-card {
-  margin-top: var(--harmony-padding-level8);
+  margin-top: var(--nb-space-8);
 }
 
-/* ── 卡片头部行 ── */
 .card-header-row {
   display: flex;
   justify-content: space-between;

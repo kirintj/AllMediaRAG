@@ -46,11 +46,11 @@ const formattedSize = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: var(--harmony-padding-level6);
-  background: var(--harmony-comp-background-primary);
-  border-radius: var(--harmony-corner-radius-level8);
-  border: 1px solid var(--harmony-comp-divider);
-  box-shadow: var(--harmony-shadow-sm);
+  padding: 1.5rem;
+  background: hsl(var(--card));
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--nb-shadow-sm);
 }
 
 .stat-item {
@@ -61,19 +61,19 @@ const formattedSize = computed(() => {
 }
 
 .stat-value {
-  font-size: var(--harmony-font-size-title-m);
-  font-weight: var(--harmony-font-weight-title-m);
-  color: var(--harmony-font-primary);
+  font-size: var(--nb-font-3xl);
+  font-weight: 700;
+  color: hsl(var(--foreground));
 }
 
 .stat-label {
-  font-size: var(--harmony-font-size-body-s);
-  color: var(--harmony-font-tertiary);
+  font-size: var(--nb-font-sm);
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .stat-divider {
   width: 1px;
   height: 32px;
-  background: var(--harmony-comp-divider);
+  background: hsl(var(--border));
 }
 </style>
