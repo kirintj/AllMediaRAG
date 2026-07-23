@@ -86,6 +86,8 @@ async def lifespan(app: FastAPI):
 
     # Create infra bundle + three services
     infra = create_infra(config)
+    from core.task_queue import TaskQueue
+    task_queue = TaskQueue(config.REDIS_URL, task_ttl=config.TASK_TTL_HOURS * 3600)
     retrieval = RetrievalPipeline(infra)
     ingestion = IngestionService(infra)
     generation = GenerationService(infra, retrieval)
@@ -100,6 +102,7 @@ async def lifespan(app: FastAPI):
     app.state.ingestion = ingestion
     app.state.generation = generation
     app.state.rag_engine = rag_engine
+    app.state.task_queue = task_queue
 
     logger.info("RAG engine initialized. Server ready!")
 

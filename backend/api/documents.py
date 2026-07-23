@@ -1,18 +1,15 @@
 import os
-import re
 import logging
 import shutil
-import threading
-import time
 from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 from core.rate_limit import limiter, RATE_LIMIT_UPLOAD, RATE_LIMIT_BATCH_UPLOAD
-from core.task_manager import task_manager, TaskPhase
 from core.auth import get_current_user
 from core.config import AppSettings
 from core.services import InfraBundle
 from core.services.ingestion_service import IngestionService
-from api.deps import get_settings, get_infra, get_ingestion
+from core.task_queue import TaskQueue, TaskMessage, gen_task_id, gen_batch_id
+from api.deps import get_settings, get_infra, get_ingestion, get_task_queue
 
 logger = logging.getLogger(__name__)
 
@@ -44,86 +41,8 @@ ALLOWED_MIME_TYPES = {
 # 批量上传限制
 MAX_BATCH_FILES = 200
 MAX_BATCH_TOTAL_SIZE = 500 * 1024 * 1024  # 500MB
-SYNC_THRESHOLD = 20
-MAX_RETRIES = 3
-RETRY_DELAYS = [1, 3, 5]
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Batch load state
-# ---------------------------------------------------------------------------
-
-class _LoadState:
-    """线程安全的批量加载进度跟踪"""
-
-    def __init__(self):
-        self.status = "idle"  # idle | running | done | error
-        self.current = 0
-        self.total = 0
-        self.result = None
-        self.error = None
-        self.started_at = None
-        self._lock = threading.Lock()
-
-    def try_start(self, total: int) -> bool:
-        """尝试开始任务（原子操作，防止竞态条件）
-
-        Args:
-            total: Total number of items to process.
-
-        Returns:
-            True if the task was started, False if already running.
-        """
-        with self._lock:
-            if self.status == "running":
-                return False
-            self.status = "running"
-            self.current = 0
-            self.total = total
-            self.result = None
-            self.error = None
-            self.started_at = time.time()
-            return True
-
-    def reset(self, total: int):
-        with self._lock:
-            self.status = "running"
-            self.current = 0
-            self.total = total
-            self.result = None
-            self.error = None
-            self.started_at = time.time()
-
-    def advance(self):
-        with self._lock:
-            self.current += 1
-
-    def finish(self, result: dict):
-        with self._lock:
-            self.status = "done"
-            self.result = result
-
-    def fail(self, error: str):
-        with self._lock:
-            self.status = "error"
-            self.error = error
-
-    def snapshot(self) -> dict:
-        with self._lock:
-            elapsed = round(time.time() - self.started_at, 1) if self.started_at else 0
-            return {
-                "status": self.status,
-                "current": self.current,
-                "total": self.total,
-                "elapsed": elapsed,
-                "result": self.result,
-                "error": self.error,
-            }
-
-
-_load_state = _LoadState()
 
 
 # ---------------------------------------------------------------------------
@@ -175,137 +94,6 @@ def _validate_upload_file(file: UploadFile, safe_name: str) -> str:
     return ext
 
 
-def _save_and_ingest(
-    ingestion: IngestionService,
-    config: AppSettings,
-    content: bytes,
-    safe_name: str,
-) -> int:
-    """保存文件到磁盘并建立索引。
-
-    Args:
-        ingestion: 文档摄入服务
-        config: 应用配置
-        content: 文件二进制内容
-        safe_name: 安全文件名
-
-    Returns:
-        成功索引的 chunk 数量
-
-    Raises:
-        HTTPException: 文件过大或处理失败时抛出
-    """
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024 * 1024)}MB",
-        )
-
-    os.makedirs(config.DATA_DIR, exist_ok=True)
-    file_path = os.path.join(config.DATA_DIR, safe_name)
-
-    # 同名文件去重：先删除旧向量
-    ingestion.delete_by_source(safe_name)
-
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    return ingestion.ingest_document(file_path)
-
-
-def _process_single_file(
-    ingestion: IngestionService,
-    config: AppSettings,
-    file: UploadFile,
-    safe_name: str,
-) -> int:
-    """处理单个文件：校验、保存、索引。
-
-    Returns:
-        成功索引的 chunk 数量。
-
-    Raises:
-        HTTPException: 文件校验或处理失败时抛出。
-    """
-    _validate_upload_file(file, safe_name)
-    content = file.file.read()
-    return _save_and_ingest(ingestion, config, content, safe_name)
-
-
-def _process_batch_sync(ingestion: IngestionService, config: AppSettings, files: List[UploadFile]) -> dict:
-    """同步处理批量文件，返回汇总结果。"""
-    success_count = 0
-    results = []
-
-    for file in files:
-        safe_name = os.path.basename(file.filename)
-        if not safe_name:
-            results.append({"filename": file.filename, "status": "failed", "error": "文件名为空"})
-            continue
-        if len(safe_name) > MAX_FILENAME_LENGTH:
-            results.append({"filename": safe_name, "status": "failed", "error": "文件名过长"})
-            continue
-        try:
-            chunks = _process_single_file(ingestion, config, file, safe_name)
-            success_count += 1
-            results.append({"filename": safe_name, "status": "success", "chunks": chunks})
-        except Exception as e:
-            logger.warning("批量处理文件失败 %s: %s", safe_name, e)
-            results.append({"filename": safe_name, "status": "failed", "error": str(e)})
-
-    return {
-        "mode": "sync",
-        "total": len(files),
-        "success": success_count,
-        "failed": len(files) - success_count,
-        "results": results,
-    }
-
-
-def _process_batch_async(ingestion: IngestionService, config: AppSettings, files: List[UploadFile], task_id: str):
-    """在后台线程中逐个处理文件，带重试逻辑。"""
-    task_manager.start_task(task_id)
-    task_manager.set_phase(task_id, TaskPhase.UPLOADING)
-
-    success_count = 0
-
-    for idx, file in enumerate(files):
-        safe_name = os.path.basename(file.filename)
-        if not safe_name:
-            task_manager.add_upload_failure(task_id, file.filename or "", "文件名为空")
-            task_manager.update_upload_progress(task_id, idx + 1)
-            continue
-        if len(safe_name) > MAX_FILENAME_LENGTH:
-            task_manager.add_upload_failure(task_id, safe_name, "文件名过长")
-            task_manager.update_upload_progress(task_id, idx + 1)
-            continue
-
-        retries = 0
-        for attempt in range(MAX_RETRIES):
-            try:
-                _process_single_file(ingestion, config, file, safe_name)
-                success_count += 1
-                break
-            except Exception as e:
-                retries = attempt + 1
-                if attempt < MAX_RETRIES - 1:
-                    logger.warning(
-                        "批量处理文件失败 %s (尝试 %d/%d): %s",
-                        safe_name, retries, MAX_RETRIES, e,
-                    )
-                    time.sleep(RETRY_DELAYS[attempt])
-                else:
-                    logger.warning("批量处理文件最终失败 %s: %s", safe_name, e)
-                    task_manager.add_index_failure(
-                        task_id, safe_name, str(e), retries=retries
-                    )
-
-        task_manager.update_upload_progress(task_id, idx + 1)
-
-    task_manager.update_index_progress(task_id, len(files), success_count)
-    task_manager.complete_task(task_id)
-
-
 # ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
@@ -318,19 +106,45 @@ async def upload_document(
     current_user: dict = Depends(get_current_user),
     ingestion: IngestionService = Depends(get_ingestion),
     config: AppSettings = Depends(get_settings),
+    queue: TaskQueue = Depends(get_task_queue),
 ):
-    """上传文档（同名文件自动去重）"""
-    # 防止路径遍历：只取文件名，丢弃路径分隔符
+    """上传文档（同名文件自动去重，异步处理）"""
     safe_name = os.path.basename(file.filename)
     _validate_upload_file(file, safe_name)
 
     try:
         content = await file.read()
-        chunks = _save_and_ingest(ingestion, config, content, safe_name)
+
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024 * 1024)}MB",
+            )
+
+        os.makedirs(config.DATA_DIR, exist_ok=True)
+        file_path = os.path.join(config.DATA_DIR, safe_name)
+
+        # 同名文件去重：先删除旧向量
+        ingestion.delete_by_source(safe_name)
+
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        # 入队
+        task_id = gen_task_id()
+        msg = TaskMessage(
+            task_id=task_id,
+            batch_id=task_id,  # 单文件，batch_id = task_id
+            file_path=file_path,
+            source=safe_name,
+            user_id=current_user.get("id", "anonymous"),
+        )
+        queue.enqueue(msg, priority="high")
+
         return {
-            "message": "上传成功",
+            "message": "上传成功，正在处理",
             "filename": safe_name,
-            "chunks": chunks,
+            "task_id": task_id,
         }
     except HTTPException:
         raise
@@ -347,26 +161,21 @@ async def batch_upload(
     current_user: dict = Depends(get_current_user),
     ingestion: IngestionService = Depends(get_ingestion),
     config: AppSettings = Depends(get_settings),
+    queue: TaskQueue = Depends(get_task_queue),
 ):
-    """批量上传文档。
-
-    文件数 < SYNC_THRESHOLD 时同步处理并直接返回结果，
-    否则异步处理并返回 task_id 供前端轮询。
-    """
+    """批量上传文档（全部异步处理）"""
     if len(files) > MAX_BATCH_FILES:
         raise HTTPException(
             status_code=400,
             detail=f"最多上传 {MAX_BATCH_FILES} 个文件",
         )
 
-    # Read all file contents once for size check + later processing
-    file_contents = []  # list of (filename, bytes)
     total_size = 0
+    file_contents = []
     for file in files:
         content = await file.read()
         total_size += len(content)
         file_contents.append((file.filename, content))
-        file.file.seek(0)  # reset for sync processing path
 
     if total_size > MAX_BATCH_TOTAL_SIZE:
         raise HTTPException(
@@ -374,39 +183,71 @@ async def batch_upload(
             detail=f"文件总大小超过限制 ({MAX_BATCH_TOTAL_SIZE // (1024*1024)}MB)",
         )
 
-    if len(files) < SYNC_THRESHOLD:
-        return _process_batch_sync(ingestion, config, files)
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    batch_id = gen_batch_id()
+    messages = []
 
-    task_id = task_manager.create_task(total=len(files))
+    for filename, content in file_contents:
+        safe_name = os.path.basename(filename)
+        if not safe_name or len(safe_name) > MAX_FILENAME_LENGTH:
+            continue
 
-    def _run_async():
-        from io import BytesIO
-        wrapper_files = []
-        for filename, content in file_contents:
-            wrapper = UploadFile(filename=filename, file=BytesIO(content))
-            wrapper_files.append(wrapper)
-        _process_batch_async(ingestion, config, wrapper_files, task_id)
+        ext = os.path.splitext(safe_name)[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            continue
 
-    threading.Thread(target=_run_async, daemon=True).start()
+        if len(content) > MAX_FILE_SIZE:
+            continue
+
+        file_path = os.path.join(config.DATA_DIR, safe_name)
+        ingestion.delete_by_source(safe_name)
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        messages.append(TaskMessage(
+            task_id=gen_task_id(),
+            batch_id=batch_id,
+            file_path=file_path,
+            source=safe_name,
+            user_id=current_user.get("id", "anonymous"),
+        ))
+
+    if not messages:
+        raise HTTPException(status_code=400, detail="没有有效的文件可处理")
+
+    returned_batch_id, task_ids = queue.enqueue_batch(messages)
 
     return {
-        "mode": "async",
-        "task_id": task_id,
-        "total": len(files),
-        "message": f"批量上传任务已创建，请通过 /upload/batch/status/{task_id} 查询进度",
+        "message": f"已提交 {len(messages)} 个文件",
+        "batch_id": returned_batch_id,
+        "task_ids": task_ids,
     }
 
 
-@router.get("/upload/batch/status/{task_id}")
-async def batch_status(
+@router.get("/tasks/{task_id}")
+async def get_task_status(
     task_id: str,
     current_user: dict = Depends(get_current_user),
+    queue: TaskQueue = Depends(get_task_queue),
 ):
-    """查询批量上传任务进度。"""
-    task = task_manager.get_task(task_id)
-    if task is None:
+    """查询单个任务状态"""
+    state = queue.get_state(task_id)
+    if not state:
         raise HTTPException(status_code=404, detail="任务不存在")
-    return task.snapshot()
+    return state.to_dict()
+
+
+@router.get("/batches/{batch_id}")
+async def get_batch_status(
+    batch_id: str,
+    current_user: dict = Depends(get_current_user),
+    queue: TaskQueue = Depends(get_task_queue),
+):
+    """查询批次聚合状态"""
+    state = queue.get_batch_state(batch_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="批次不存在")
+    return state
 
 
 @router.get("/documents")
@@ -541,57 +382,37 @@ async def clear_all_documents(
 @router.post("/documents/load")
 async def load_documents(
     current_user: dict = Depends(get_current_user),
-    ingestion: IngestionService = Depends(get_ingestion),
     config: AppSettings = Depends(get_settings),
+    queue: TaskQueue = Depends(get_task_queue),
 ):
-    """批量加载本地文档（后台执行，通过 /documents/load/status 查询进度）"""
+    """批量加载本地文档（异步入队）"""
     if not os.path.exists(config.DATA_DIR):
         raise HTTPException(status_code=404, detail="数据目录不存在")
 
     files = [f for f in os.listdir(config.DATA_DIR) if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS]
 
     if not files:
-        return {
-            "message": "本地文档目录为空，请先上传文档",
-            "files": [],
-            "total_chunks": 0
-        }
+        return {"message": "本地文档目录为空，请先上传文档", "files": [], "total": 0}
 
-    if not _load_state.try_start(len(files)):
-        raise HTTPException(status_code=409, detail="文档加载任务正在进行中")
+    batch_id = gen_batch_id()
+    messages = []
+    for filename in files:
+        file_path = os.path.join(config.DATA_DIR, filename)
+        messages.append(TaskMessage(
+            task_id=gen_task_id(),
+            batch_id=batch_id,
+            file_path=file_path,
+            source=filename,
+            user_id=current_user.get("id", "anonymous"),
+        ))
 
-    def _run():
-        loaded_files = []
-        total_chunks = 0
-        for file in files:
-            try:
-                file_path = os.path.join(config.DATA_DIR, file)
-                chunks = ingestion.ingest_document(file_path)
-                total_chunks += chunks
-                loaded_files.append(file)
-            except Exception as e:
-                logger.warning("加载文档失败 %s: %s", file, e)
-            finally:
-                _load_state.advance()
-
-        _load_state.finish({
-            "message": f"成功加载 {len(loaded_files)} 个文档",
-            "files": loaded_files,
-            "total_chunks": total_chunks,
-        })
-
-    threading.Thread(target=_run, daemon=True).start()
+    returned_batch_id, task_ids = queue.enqueue_batch(messages)
 
     return {
-        "message": "文档加载任务已启动",
-        "total": len(files),
+        "message": f"已提交 {len(messages)} 个文档加载任务",
+        "batch_id": returned_batch_id,
+        "total": len(messages),
     }
-
-
-@router.get("/documents/load/status")
-async def load_documents_status(current_user: dict = Depends(get_current_user)):
-    """查询批量加载进度"""
-    return _load_state.snapshot()
 
 
 @router.post("/documents/sync")

@@ -11,6 +11,7 @@ from core.services.retrieval_pipeline import RetrievalPipeline
 from core.services.ingestion_service import IngestionService
 from core.services.generation_service import GenerationService
 from core.rag_engine import RAGEngine
+from core.task_queue import TaskQueue
 
 
 def get_settings(request: Request) -> AppSettings:
@@ -47,3 +48,8 @@ def get_db(request: Request):
     """数据库会话（上下文管理器）"""
     from core.db.engine import get_db_session
     return get_db_session()
+
+
+def get_task_queue(request: Request) -> TaskQueue:
+    """任务队列"""
+    return request.app.state.task_queue
