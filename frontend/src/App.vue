@@ -13,6 +13,7 @@
           @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
           @open-docs="showDocs = true"
           @open-eval="showEval = true"
+          @open-models="showModels = true"
           @logout="handleLogout"
         />
       </aside>
@@ -24,6 +25,7 @@
           @toggle-collapse="mobileSidebar = false"
           @open-docs="showDocs = true; mobileSidebar = false"
           @open-eval="showEval = true; mobileSidebar = false"
+          @open-models="showModels = true; mobileSidebar = false"
           @logout="handleLogout"
         />
       </Sheet>
@@ -44,6 +46,11 @@
 
     <!-- Eval dashboard -->
     <EvalDashboard v-model="showEval" />
+
+    <!-- Model manager drawer -->
+    <Sheet v-model="showModels" side="right" class="w-[400px] sm:w-[540px]">
+      <ModelManager />
+    </Sheet>
 
     <!-- Toast container -->
     <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2">
@@ -73,6 +80,7 @@ import AppSidebar from './features/conversations/AppSidebar.vue'
 import ChatShell from './features/chat/ChatShell.vue'
 import DocumentDrawer from './features/documents/DocumentDrawer.vue'
 import EvalDashboard from './features/eval/EvalDashboard.vue'
+import ModelManager from './features/model-manager/ModelManager.vue'
 import LoginView from './features/auth/LoginView.vue'
 
 const authStore = useAuthStore()
@@ -82,6 +90,7 @@ const sidebarCollapsed = ref(false)
 const mobileSidebar = ref(false)
 const showDocs = ref(false)
 const showEval = ref(false)
+const showModels = ref(false)
 
 provide('toggleMobileSidebar', () => { mobileSidebar.value = true })
 
