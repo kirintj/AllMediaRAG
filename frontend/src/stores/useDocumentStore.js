@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import {
   getOverview,
   loadDocuments,
-  getLoadStatus,
   deleteDocument,
   clearAllDocuments,
   syncDocuments as syncDocumentsApi,
@@ -33,35 +32,68 @@ export const useDocumentStore = defineStore('document', () => {
   // 上传单个文件
   async function uploadFile(file) {
     const { uploadDocument } = await import('../api/documents.js')
-    return uploadDocument(file)
+    const result = await uploadDocument(file)
+    // result now has {message, filename, task_id}
+    if (result.task_id) {
+      await _pollTask(result.task_id)
+    }
+    await fetchOverview()
+    return result
   }
 
   // 批量上传
   async function uploadBatch(files) {
     const { uploadBatch: apiUploadBatch } = await import('../api/documents.js')
-    return apiUploadBatch(files)
+    const result = await apiUploadBatch(files)
+    // result now has {message, batch_id, task_ids}
+    if (result.batch_id) {
+      await _pollBatch(result.batch_id)
+    }
+    await fetchOverview()
+    return result
+  }
+
+  // 轮询单个任务状态
+  async function _pollTask(taskId, maxWait = 120000) {
+    const { getTaskStatus } = await import('../api/documents.js')
+    const start = Date.now()
+    while (Date.now() - start < maxWait) {
+      const state = await getTaskStatus(taskId)
+      if (state.status === 'completed' || state.status === 'failed') {
+        return state
+      }
+      await new Promise(r => setTimeout(r, 1000))
+    }
+    return null
+  }
+
+  // 轮询批次状态
+  async function _pollBatch(batchId, maxWait = 300000) {
+    const { getBatchStatus } = await import('../api/documents.js')
+    const start = Date.now()
+    while (Date.now() - start < maxWait) {
+      const state = await getBatchStatus(batchId)
+      if (state.status === 'completed') {
+        return state
+      }
+      await new Promise(r => setTimeout(r, 2000))
+    }
+    return null
   }
 
   // 批量加载文档（后台任务 + 轮询进度）
   async function loadAllDocuments(onProgress) {
     try {
-      await loadDocuments()  // 启动后台任务，立即返回
+      const result = await loadDocuments()  // 启动后台任务，立即返回 {message, batch_id, total}
 
-      // 轮询进度
-      while (true) {
-        await new Promise(r => setTimeout(r, 1000))
-        const status = await getLoadStatus()
-
-        if (onProgress) onProgress(status)
-
-        if (status.status === 'done') {
-          await fetchOverview()
-          return status.result
-        }
-        if (status.status === 'error') {
-          throw new Error(status.error || '文档加载失败')
+      if (result.batch_id) {
+        // 轮询批次状态
+        const finalState = await _pollBatch(result.batch_id)
+        if (finalState && onProgress) {
+          onProgress({ status: 'done', ...finalState })
         }
       }
+      await fetchOverview()
     } catch (error) {
       console.error('加载文档失败:', error)
       throw error

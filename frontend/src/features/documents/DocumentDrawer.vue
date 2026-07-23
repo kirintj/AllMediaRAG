@@ -36,6 +36,23 @@
       <span class="text-sm text-muted-foreground">上传中...</span>
     </div>
 
+    <!-- Task progress indicator -->
+    <div v-if="isProcessing && uploadProgress" class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+      <div class="flex items-center gap-2">
+        <Loader2 class="h-4 w-4 animate-spin text-blue-500" />
+        <span class="text-sm text-blue-700 dark:text-blue-300">
+          {{ phaseLabels[uploadProgress.phase] || uploadProgress.phase }}
+          <span v-if="uploadProgress.source"> — {{ uploadProgress.source }}</span>
+        </span>
+      </div>
+      <div v-if="uploadProgress.status === 'completed'" class="mt-1 text-sm text-green-600">
+        完成，{{ uploadProgress.chunks }} 个文本块
+      </div>
+      <div v-if="uploadProgress.status === 'failed'" class="mt-1 text-sm text-red-600">
+        失败：{{ uploadProgress.error }}
+      </div>
+    </div>
+
     <!-- Action buttons -->
     <div class="flex gap-2">
       <button
@@ -115,6 +132,17 @@ const fileInputRef = ref(null)
 const uploading = ref(false)
 const loading = ref(false)
 const loadStatus = ref('')
+const uploadProgress = ref(null)  // {status, phase, source, chunks}
+const isProcessing = ref(false)
+
+const phaseLabels = {
+  queued: '排队中',
+  parsing: '解析中',
+  chunking: '分块中',
+  embedding: '向量化中',
+  indexing: '索引中',
+  done: '完成',
+}
 
 function cleanName(name) {
   if (!name) return ''
@@ -139,19 +167,62 @@ async function handleDrop(e) {
 
 async function uploadFiles(files) {
   uploading.value = true
+  isProcessing.value = true
+  uploadProgress.value = { status: 'pending', phase: 'queued' }
   try {
     if (files.length === 1) {
-      await docStore.uploadFile(files[0])
+      const result = await docStore.uploadFile(files[0])
+      if (result.task_id) {
+        await pollTaskForUI(result.task_id)
+      }
     } else {
-      await docStore.uploadBatch(files)
+      const result = await docStore.uploadBatch(files)
+      if (result.batch_id) {
+        await pollBatchForUI(result.batch_id)
+      }
     }
-    await docStore.fetchOverview()
   } catch (err) {
     console.error('上传失败:', err)
   } finally {
     uploading.value = false
+    isProcessing.value = false
+    uploadProgress.value = null
     if (fileInputRef.value) fileInputRef.value.value = ''
   }
+}
+
+async function pollTaskForUI(taskId) {
+  const { getTaskStatus } = await import('../../api/documents.js')
+  while (true) {
+    try {
+      const state = await getTaskStatus(taskId)
+      uploadProgress.value = state
+      if (state.status === 'completed' || state.status === 'failed') {
+        break
+      }
+      await new Promise(r => setTimeout(r, 800))
+    } catch {
+      break
+    }
+  }
+  docStore.fetchOverview()
+}
+
+async function pollBatchForUI(batchId) {
+  const { getBatchStatus } = await import('../../api/documents.js')
+  while (true) {
+    try {
+      const state = await getBatchStatus(batchId)
+      uploadProgress.value = state
+      if (state.status === 'completed' || state.status === 'failed') {
+        break
+      }
+      await new Promise(r => setTimeout(r, 1500))
+    } catch {
+      break
+    }
+  }
+  docStore.fetchOverview()
 }
 
 async function handleLoadLocal() {

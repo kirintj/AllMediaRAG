@@ -37,9 +37,16 @@ export async function loadDocuments() {
   return response.data
 }
 
-export async function getLoadStatus() {
-  const response = await api.get('/documents/load/status')
-  return response.data
+// 查询单个任务状态
+export async function getTaskStatus(taskId) {
+  const res = await api.get(`/tasks/${taskId}`)
+  return res.data
+}
+
+// 查询批次状态
+export async function getBatchStatus(batchId) {
+  const res = await api.get(`/batches/${batchId}`)
+  return res.data
 }
 
 export async function deleteDocument(source) {
