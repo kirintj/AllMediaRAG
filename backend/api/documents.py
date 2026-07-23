@@ -419,6 +419,52 @@ async def get_documents(
     return {"documents": sources}
 
 
+@router.get("/documents/overview")
+async def get_documents_overview(
+    current_user: dict = Depends(get_current_user),
+    infra: InfraBundle = Depends(get_infra),
+    ingestion: IngestionService = Depends(get_ingestion),
+    config: AppSettings = Depends(get_settings),
+):
+    """一次返回文档列表 + 详情 + 统计（避免多次全量遍历）"""
+    overview = infra.vector_store.get_overview()
+    index_stats = ingestion.get_index_stats()
+
+    details = []
+    total_size = 0
+    data_dir = config.DATA_DIR
+    for item in overview["source_details"]:
+        source = item["source"]
+        file_path = os.path.join(data_dir, source)
+        file_size = 0
+        if os.path.isfile(file_path):
+            try:
+                file_size = os.path.getsize(file_path)
+                total_size += file_size
+            except OSError:
+                pass
+        ext = os.path.splitext(source)[1].lower().lstrip(".")
+        details.append({
+            "source": source,
+            "chunks": item["chunks"],
+            "file_size": file_size,
+            "file_type": ext,
+        })
+
+    return {
+        "documents": overview["sources"],
+        "details": details,
+        "stats": {
+            "document_count": overview["document_count"],
+            "source_count": len(overview["sources"]),
+            "total_size": total_size,
+            "indexed_documents": index_stats["indexed_documents"],
+            "vector_count": index_stats["vector_count"],
+            "bm25_ready": index_stats["bm25_ready"],
+        },
+    }
+
+
 @router.get("/documents/detail")
 async def get_document_details(
     current_user: dict = Depends(get_current_user),

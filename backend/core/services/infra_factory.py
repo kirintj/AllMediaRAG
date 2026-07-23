@@ -111,7 +111,6 @@ def create_infra(settings) -> InfraBundle:
     bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
     bm25_retriever = BM25Retriever(persist_path=bm25_path)
 
-    bm25_loaded = bm25_retriever.load()
     bm25_lock = threading.Lock()
 
     classifier = QueryClassifier()
@@ -200,17 +199,17 @@ def create_infra(settings) -> InfraBundle:
         metrics_collector=metrics_collector,
         executor=ThreadPoolExecutor(max_workers=3),
         image_store=image_store,
-        bm25_ready=bm25_loaded,
+        bm25_ready=False,
         graph_store=graph_store,
         graph_retriever=graph_retriever,
         kg_extractor=kg_extractor,
     )
 
-    # 后台 BM25 重建（索引文件不存在时触发）
-    if not bm25_loaded:
-
-        def _rebuild():
-            try:
+    # 后台 BM25 加载与重建（不阻塞启动）
+    def _load_bm25():
+        try:
+            loaded = bm25_retriever.load()
+            if not loaded:
                 docs = vector_store.get_all_documents()
                 if docs:
                     with bm25_lock:
@@ -218,11 +217,13 @@ def create_infra(settings) -> InfraBundle:
                     logger.info("BM25 index rebuilt: %d documents", len(docs))
                 else:
                     logger.info("Vector store is empty, BM25 index not built")
-            except Exception as e:
-                logger.warning("Failed to rebuild BM25 index: %s", e)
-            finally:
-                infra.bm25_ready = True
+            else:
+                logger.info("BM25 index loaded from disk")
+        except Exception as e:
+            logger.warning("BM25 init failed: %s", e)
+        finally:
+            infra.bm25_ready = True
 
-        threading.Thread(target=_rebuild, daemon=True).start()
+    threading.Thread(target=_load_bm25, daemon=True).start()
 
     return infra

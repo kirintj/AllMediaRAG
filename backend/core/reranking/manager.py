@@ -27,20 +27,31 @@ class RerankManager:
         # 以支持前端 Settings Drawer 的热更新；此处只保留首次启动时的值。
         self.strategy = config.RERANK_STRATEGY
 
-        # 初始化重排序器
-        self.cohere_reranker = CohereReranker(
-            api_key=config.COHERE_API_KEY,
-            model="rerank-multilingual-v3.0"
-        )
-        self.bge_reranker = BGEReranker(
-            model_path=config.BGE_RERANKER_PATH
-        )
-        self.siliconflow_reranker = SiliconFlowReranker(
-            api_key=getattr(config, 'SILICONFLOW_API_KEY', ''),
-            model=getattr(config, 'SILICONFLOW_RERANKER_MODEL', 'BAAI/bge-reranker-v2-m3'),
-        )
+        # 懒加载：首次使用时才创建对应 reranker 实例
+        self._rerankers: dict[str, RerankerProvider | None] = {}
 
         logger.info("RerankManager initialized with strategy: %s", self.strategy)
+
+    def _get_reranker(self, name: str) -> RerankerProvider | None:
+        """按需创建并缓存 reranker 实例"""
+        if name not in self._rerankers:
+            if name == "cohere":
+                self._rerankers[name] = CohereReranker(
+                    api_key=self.config.COHERE_API_KEY,
+                    model="rerank-multilingual-v3.0",
+                )
+            elif name == "bge":
+                self._rerankers[name] = BGEReranker(
+                    model_path=self.config.BGE_RERANKER_PATH,
+                )
+            elif name == "siliconflow":
+                self._rerankers[name] = SiliconFlowReranker(
+                    api_key=getattr(self.config, "SILICONFLOW_API_KEY", ""),
+                    model=getattr(self.config, "SILICONFLOW_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
+                )
+            else:
+                self._rerankers[name] = None
+        return self._rerankers[name]
 
     def rerank(self, query: str, documents: list[dict],
                top_k: int = None) -> list[dict]:
@@ -82,41 +93,44 @@ class RerankManager:
     def _select_reranker(self) -> Optional[RerankerProvider]:
         """根据策略选择重排序器"""
         if self.strategy == "cohere":
-            # 优先使用Cohere
-            if self.cohere_reranker.is_available():
-                return self.cohere_reranker
+            reranker = self._get_reranker("cohere")
+            if reranker and reranker.is_available():
+                return reranker
             # 回退到BGE
-            elif self.bge_reranker.is_available():
+            fallback = self._get_reranker("bge")
+            if fallback and fallback.is_available():
                 logger.info("Cohere not available, falling back to BGE")
-                return self.bge_reranker
-            else:
-                return None
+                return fallback
+            return None
 
         elif self.strategy == "bge":
-            # 仅使用BGE
-            if self.bge_reranker.is_available():
-                return self.bge_reranker
+            reranker = self._get_reranker("bge")
+            if reranker and reranker.is_available():
+                return reranker
             return None
 
         elif self.strategy == "hybrid":
-            # 混合策略：结合两者分数
-            if self.cohere_reranker.is_available() and self.bge_reranker.is_available():
-                return HybridReranker(self.cohere_reranker, self.bge_reranker)
-            # 回退到任一可用
-            elif self.cohere_reranker.is_available():
-                return self.cohere_reranker
-            elif self.bge_reranker.is_available():
-                return self.bge_reranker
+            cohere = self._get_reranker("cohere")
+            bge = self._get_reranker("bge")
+            cohere_ok = cohere and cohere.is_available()
+            bge_ok = bge and bge.is_available()
+            if cohere_ok and bge_ok:
+                return HybridReranker(cohere, bge)
+            if cohere_ok:
+                return cohere
+            if bge_ok:
+                return bge
             return None
 
         elif self.strategy == "siliconflow":
-            # SiliconFlow 云端重排序
-            if self.siliconflow_reranker.is_available():
-                return self.siliconflow_reranker
+            reranker = self._get_reranker("siliconflow")
+            if reranker and reranker.is_available():
+                return reranker
             # 回退到 BGE 本地模型
-            elif self.bge_reranker.is_available():
+            fallback = self._get_reranker("bge")
+            if fallback and fallback.is_available():
                 logger.info("SiliconFlow not available, falling back to BGE")
-                return self.bge_reranker
+                return fallback
             return None
 
         logger.warning("Unknown rerank strategy: %s", self.strategy)

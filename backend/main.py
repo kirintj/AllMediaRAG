@@ -101,17 +101,6 @@ async def lifespan(app: FastAPI):
     app.state.generation = generation
     app.state.rag_engine = rag_engine
 
-    # Embedding 模型预加载
-    # 为什么预加载：模型懒加载会导致第一个请求延迟 5-10 秒（加载模型到内存/GPU），
-    # 预加载将这个成本转移到启动阶段，用户无感知。
-    if infra.embedding_service:
-        try:
-            logger.info("Pre-loading embedding model...")
-            infra.embedding_service.encode(["warmup"])
-            logger.info("Embedding model loaded successfully")
-        except Exception as e:
-            logger.warning("Embedding model pre-load failed (will lazy-load): %s", e)
-
     logger.info("RAG engine initialized. Server ready!")
 
     yield  # --- application runs ---

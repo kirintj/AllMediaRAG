@@ -33,6 +33,11 @@ export async function getBatchStatus(taskId) {
   return response.data
 }
 
+export async function getOverview() {
+  const response = await api.get('/documents/overview')
+  return response.data
+}
+
 export async function getDocuments() {
   const response = await api.get('/documents')
   return response.data

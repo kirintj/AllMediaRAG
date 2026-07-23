@@ -1,386 +1,200 @@
 <template>
-  <Teleport to="body">
-    <Transition name="drawer">
-      <div v-if="modelValue" class="drawer-overlay" @click.self="close">
-        <div class="drawer-container" :class="drawerClass">
-          <!-- Titlebar -->
-          <header class="drawer-titlebar">
-            <div class="titlebar-content">
-              <div class="titlebar-left">
-                <h2 class="titlebar-title">文档管理</h2>
-                <span class="titlebar-subtitle">
-                  {{ store.stats.source_count }} 个文档 · {{ store.stats.document_count }} 块向量
-                </span>
-              </div>
-              <button class="titlebar-close" @click="close" title="关闭">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-              </button>
-            </div>
-          </header>
+  <div class="flex flex-col h-full p-4 gap-4 overflow-y-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-foreground">文档管理</h2>
+    </div>
 
-          <!-- 内容区 -->
-          <div class="drawer-content cus-scroll">
-            <StatsHeaderCard :stats="store.stats" />
-            <UploadArea @uploaded="handleUploaded" />
-            <DocumentList ref="docListRef" />
-          </div>
+    <!-- Stats -->
+    <div class="flex gap-3">
+      <div class="flex-1 p-3 bg-muted rounded-lg text-center">
+        <div class="text-xl font-bold text-foreground">{{ docStore.stats.document_count || 0 }}</div>
+        <div class="text-[11px] text-muted-foreground">文档</div>
+      </div>
+      <div class="flex-1 p-3 bg-muted rounded-lg text-center">
+        <div class="text-xl font-bold text-foreground">{{ docStore.stats.source_count || 0 }}</div>
+        <div class="text-[11px] text-muted-foreground">来源</div>
+      </div>
+    </div>
 
-          <!-- 底部操作栏 -->
-          <footer class="drawer-footer">
-            <button
-              class="footer-btn primary"
-              :disabled="loading"
-              @click="handleLoadAll"
-            >
-              {{ loading ? '加载中...' : '加载本地文档' }}
-            </button>
-            <button
-              class="footer-btn"
-              :disabled="syncing"
-              @click="handleSync"
-            >
-              {{ syncing ? '同步中...' : '增量同步' }}
-            </button>
-            <button
-              class="footer-btn danger"
-              :disabled="!store.hasDocuments"
-              @click="handleClearAll"
-            >
-              清空
-            </button>
-          </footer>
+    <!-- Upload area -->
+    <div
+      class="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/50 transition-colors"
+      @dragover.prevent
+      @drop.prevent="handleDrop"
+      @click="triggerFileInput"
+    >
+      <Upload class="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+      <p class="text-sm text-muted-foreground">拖拽文件到此处或点击上传</p>
+      <p class="text-[11px] text-muted-foreground/70 mt-1">支持 PDF、Word、TXT 等格式</p>
+      <input ref="fileInputRef" type="file" class="hidden" multiple accept=".pdf,.doc,.docx,.txt,.md" @change="handleFileSelect" />
+    </div>
+
+    <!-- Upload progress -->
+    <div v-if="uploading" class="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+      <Loader2 class="h-4 w-4 animate-spin text-primary" />
+      <span class="text-sm text-muted-foreground">上传中...</span>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex gap-2">
+      <button
+        class="flex-1 h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+        :disabled="loading"
+        @click="handleLoadLocal"
+      >
+        <FolderOpen class="h-3.5 w-3.5" />
+        加载本地
+      </button>
+      <button
+        class="flex-1 h-8 rounded-md border border-input bg-background text-foreground text-sm font-medium hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+        :disabled="loading"
+        @click="handleSync"
+      >
+        <RefreshCw class="h-3.5 w-3.5" />
+        增量同步
+      </button>
+      <button
+        class="h-8 w-8 flex items-center justify-center rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+        :disabled="loading || !docStore.hasDocuments"
+        @click="handleClearAll"
+        title="清空全部"
+      >
+        <Trash2 class="h-3.5 w-3.5" />
+      </button>
+    </div>
+
+    <!-- Loading status -->
+    <div v-if="loadStatus" class="px-3 py-2 bg-muted rounded-lg text-sm text-muted-foreground">
+      {{ loadStatus }}
+    </div>
+
+    <!-- Separator -->
+    <div class="h-px w-full shrink-0 bg-border" />
+
+    <!-- Document list -->
+    <div class="flex-1 min-h-0 overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">已索引文档</span>
+        <button class="text-[11px] text-muted-foreground hover:text-foreground transition-colors" @click="docStore.fetchOverview()">
+          刷新
+        </button>
+      </div>
+
+      <div v-if="!docStore.documents.length" class="text-center py-8 text-sm text-muted-foreground">
+        暂无文档
+      </div>
+
+      <div v-else class="flex flex-col gap-1">
+        <div
+          v-for="doc in docStore.documents"
+          :key="doc"
+          class="group flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
+        >
+          <FileText class="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <span class="flex-1 text-[13px] text-foreground truncate min-w-0">{{ cleanName(doc) }}</span>
+          <button
+            class="flex-shrink-0 h-5 w-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+            @click="handleDeleteDoc(doc)"
+          >
+            <X class="h-3 w-3" />
+          </button>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, onMounted } from 'vue'
+import { Upload, FolderOpen, RefreshCw, Trash2, FileText, X, Loader2 } from 'lucide-vue-next'
 import { useDocumentStore } from '../../stores/useDocumentStore.js'
-import StatsHeaderCard from './StatsHeaderCard.vue'
-import UploadArea from './UploadArea.vue'
-import DocumentList from './DocumentList.vue'
 
-const props = defineProps({
-  modelValue: { type: Boolean, default: false }
-})
-
-const emit = defineEmits(['update:modelValue'])
-
-const store = useDocumentStore()
-const docListRef = ref(null)
+const docStore = useDocumentStore()
+const fileInputRef = ref(null)
+const uploading = ref(false)
 const loading = ref(false)
-const syncing = ref(false)
+const loadStatus = ref('')
 
-// ── 响应式宽度断点 ──
-const windowWidth = ref(window.innerWidth)
-
-const drawerClass = computed(() => {
-  if (windowWidth.value < 768) return 'drawer-full'
-  if (windowWidth.value < 1024) return 'drawer-medium'
-  return 'drawer-wide'
-})
-
-function handleResize() {
-  windowWidth.value = window.innerWidth
+function cleanName(name) {
+  if (!name) return ''
+  return name.replace(/\.[^.]+$/, '')
 }
 
-// ── 键盘 Esc 关闭 ──
-function handleEsc(e) {
-  if (e.key === 'Escape' && props.modelValue) {
-    close()
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+async function handleFileSelect(e) {
+  const files = e.target.files
+  if (!files?.length) return
+  await uploadFiles(Array.from(files))
+}
+
+async function handleDrop(e) {
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  await uploadFiles(Array.from(files))
+}
+
+async function uploadFiles(files) {
+  uploading.value = true
+  try {
+    if (files.length === 1) {
+      await docStore.uploadFile(files[0])
+    } else {
+      await docStore.uploadBatch(files)
+    }
+    await docStore.fetchOverview()
+  } catch (err) {
+    console.error('上传失败:', err)
+  } finally {
+    uploading.value = false
+    if (fileInputRef.value) fileInputRef.value.value = ''
   }
 }
 
-// ── 生命周期 ──
-watch(
-  () => props.modelValue,
-  (open) => {
-    if (open) {
-      // 打开时加载统计和文档详情
-      store.fetchStats()
-      store.fetchDocumentDetails()
-      document.addEventListener('keydown', handleEsc)
-    } else {
-      document.removeEventListener('keydown', handleEsc)
-    }
-  },
-  { immediate: true }
-)
-
-window.addEventListener('resize', handleResize)
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleEsc)
-  window.removeEventListener('resize', handleResize)
-})
-
-// ── 关闭抽屉 ──
-function close() {
-  emit('update:modelValue', false)
-}
-
-// ── 上传完成后刷新数据 ──
-function handleUploaded() {
-  store.fetchStats()
-  docListRef.value?.loadDetails()
-}
-
-// ── 加载本地文档 ──
-async function handleLoadAll() {
+async function handleLoadLocal() {
   loading.value = true
+  loadStatus.value = '正在加载本地文档...'
   try {
-    await store.loadAllDocuments()
-    ElMessage.success('本地文档加载完成')
-    docListRef.value?.loadDetails()
-  } catch (e) {
-    ElMessage.error(e.message || '加载本地文档失败')
+    await docStore.loadAllDocuments((status) => {
+      loadStatus.value = `已加载 ${status.loaded || 0} 个文件...`
+    })
+    loadStatus.value = '加载完成'
+  } catch (err) {
+    loadStatus.value = `加载失败: ${err.message}`
   } finally {
     loading.value = false
+    setTimeout(() => { loadStatus.value = '' }, 3000)
   }
 }
 
-// ── 增量同步 ──
 async function handleSync() {
-  syncing.value = true
+  loading.value = true
+  loadStatus.value = '正在同步...'
   try {
-    await store.syncDocuments()
-    ElMessage.success('增量同步完成')
-    docListRef.value?.loadDetails()
-  } catch (e) {
-    ElMessage.error(e.message || '增量同步失败')
+    const result = await docStore.syncDocuments()
+    loadStatus.value = `同步完成: 新增 ${result?.added || 0}, 删除 ${result?.removed || 0}`
+  } catch (err) {
+    loadStatus.value = `同步失败: ${err.message}`
   } finally {
-    syncing.value = false
+    loading.value = false
+    setTimeout(() => { loadStatus.value = '' }, 3000)
   }
 }
 
-// ── 清空所有文档 ──
+async function handleDeleteDoc(source) {
+  if (!confirm(`删除文档「${cleanName(source)}」？`)) return
+  await docStore.removeDocument(source)
+}
+
 async function handleClearAll() {
-  try {
-    await ElMessageBox.confirm(
-      '清空后所有文档的向量数据将被永久删除，无法恢复。确定继续？',
-      '确认清空',
-      {
-        confirmButtonText: '确认清空',
-        cancelButtonText: '取消',
-        type: 'warning',
-        customClass: 'delete-confirm-box'
-      }
-    )
-
-    await store.removeAllDocuments()
-    ElMessage.success('已清空所有文档')
-  } catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error(e.message || '清空失败')
-    }
-  }
+  if (!confirm('清空全部文档？')) return
+  await docStore.removeAllDocuments()
 }
+
+onMounted(async () => {
+  await docStore.fetchOverview()
+})
 </script>
-
-<style scoped>
-/* ── 遮罩层 ── */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 1000;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* ── 抽屉容器 ── */
-.drawer-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: hsl(var(--background));
-  box-shadow: var(--nb-shadow-lg);
-  overflow: hidden;
-}
-
-/* 响应式宽度 */
-.drawer-wide  { width: 480px; }
-.drawer-medium { width: 400px; }
-.drawer-full  { width: 100vw; }
-
-/* ── Titlebar ── */
-.drawer-titlebar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: hsl(var(--background) / 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid hsl(var(--border));
-  flex-shrink: 0;
-}
-
-.titlebar-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2rem 2rem;
-}
-
-.titlebar-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.titlebar-title {
-  font-size: var(--nb-font-xl);
-  font-weight: 500;
-  color: hsl(var(--foreground));
-  line-height: 1.3;
-}
-
-.titlebar-subtitle {
-  font-size: var(--nb-font-sm);
-  color: hsl(var(--muted-foreground) / 0.7);
-}
-
-.titlebar-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  border-radius: 50%;
-  color: hsl(var(--muted-foreground));
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-  flex-shrink: 0;
-}
-
-.titlebar-close:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--foreground));
-}
-
-.titlebar-close:active {
-  background: hsl(var(--accent) / 0.8);
-  transition-duration: 0.08s;
-}
-
-/* ── 内容区 ── */
-.drawer-content {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem;
-}
-
-/* ── 底部操作栏 ── */
-.drawer-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  display: flex;
-  gap: 0.75rem;
-  padding: 1.25rem 2rem;
-  background: hsl(var(--card));
-  border-top: 1px solid hsl(var(--border));
-  flex-shrink: 0;
-}
-
-.footer-btn {
-  flex: 1;
-  height: 40px;
-  font-size: var(--nb-font-base);
-  font-weight: 500;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.footer-btn:hover:not(:disabled) {
-  background: hsl(var(--accent));
-}
-
-.footer-btn:active:not(:disabled) {
-  background: hsl(var(--accent) / 0.8);
-  transition-duration: 0.08s;
-}
-
-.footer-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 主按钮：品牌色 */
-.footer-btn.primary {
-  background: hsl(var(--nb-brand));
-  border-color: hsl(var(--nb-brand));
-  color: hsl(var(--primary-foreground));
-}
-
-.footer-btn.primary:hover:not(:disabled) {
-  background: hsl(var(--nb-brand-hover));
-  border-color: hsl(var(--nb-brand-hover));
-}
-
-.footer-btn.primary:active:not(:disabled) {
-  background: hsl(var(--nb-brand-pressed));
-  border-color: hsl(var(--nb-brand-pressed));
-}
-
-/* 危险按钮：警告色 */
-.footer-btn.danger {
-  color: hsl(var(--nb-danger));
-  border-color: hsl(var(--nb-danger));
-}
-
-.footer-btn.danger:hover:not(:disabled) {
-  background: hsl(var(--nb-danger-bg));
-}
-
-.footer-btn.danger:active:not(:disabled) {
-  background: hsl(var(--nb-danger-bg));
-}
-
-/* ── 滑入动画 ── */
-.drawer-enter-active {
-  transition: opacity 0.3s ease;
-}
-
-.drawer-enter-active .drawer-container {
-  transition: transform 0.3s ease;
-}
-
-.drawer-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.drawer-leave-active .drawer-container {
-  transition: transform 0.3s ease;
-}
-
-.drawer-enter-from {
-  opacity: 0;
-}
-
-.drawer-enter-from .drawer-container {
-  transform: translateX(100%);
-}
-
-.drawer-leave-to {
-  opacity: 0;
-}
-
-.drawer-leave-to .drawer-container {
-  transform: translateX(100%);
-}
-</style>

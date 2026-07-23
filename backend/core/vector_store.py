@@ -1,7 +1,5 @@
 import uuid
 
-import chromadb
-
 from core.providers.base import VectorStoreProvider
 
 
@@ -9,18 +7,50 @@ class VectorStore(VectorStoreProvider):
     """向量存储服务：封装 Chroma 向量数据库操作"""
 
     def __init__(self, persist_dir: str):
-        """初始化 Chroma 客户端
+        """初始化向量存储（延迟加载 ChromaDB）
 
         Args:
             persist_dir: 持久化目录
         """
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        self.collection = self.client.get_or_create_collection(
-            name="python_docs",
-            metadata={"hnsw:space": "cosine"}
-        )
-        # 源列表缓存（避免每次 get_all_sources 都加载全量数据）
-        self._sources_cache: list[str] | None = None
+        self._persist_dir = persist_dir
+        self._client = None
+        self._collection = None
+        # source -> chunk count 的增量索引（避免每次请求遍历全量 metadata）
+        self._source_stats: dict[str, int] | None = None
+
+    def _ensure_initialized(self):
+        """首次使用时初始化 ChromaDB 客户端"""
+        if self._client is None:
+            import chromadb
+            self._client = chromadb.PersistentClient(path=self._persist_dir)
+            self._collection = self._client.get_or_create_collection(
+                name="python_docs",
+                metadata={"hnsw:space": "cosine"}
+            )
+
+    @property
+    def client(self):
+        self._ensure_initialized()
+        return self._client
+
+    @property
+    def collection(self):
+        self._ensure_initialized()
+        return self._collection
+
+    def _build_source_stats(self) -> dict[str, int]:
+        """一次遍历全量 metadata 构建 source -> chunk_count 索引。仅冷启动时调用。"""
+        stats: dict[str, int] = {}
+        for metadata in self._iter_metadatas():
+            if metadata and "source" in metadata:
+                src = metadata["source"]
+                stats[src] = stats.get(src, 0) + 1
+        return stats
+
+    def _ensure_source_stats(self):
+        """确保 source 索引已构建（延迟初始化）"""
+        if self._source_stats is None:
+            self._source_stats = self._build_source_stats()
 
     def add_documents(self, texts: list[str], embeddings: list, metadatas: list):
         """添加文档到向量库
@@ -37,7 +67,12 @@ class VectorStore(VectorStoreProvider):
             metadatas=metadatas,
             ids=ids
         )
-        self._sources_cache = None
+        # 增量更新 source 索引，无需全量遍历
+        if self._source_stats is not None:
+            for meta in metadatas:
+                if meta and "source" in meta:
+                    src = meta["source"]
+                    self._source_stats[src] = self._source_stats.get(src, 0) + 1
 
     def query(self, embedding: list[float], top_k: int) -> dict:
         """检索最相似的文档
@@ -71,7 +106,9 @@ class VectorStore(VectorStoreProvider):
         )
         if results["ids"]:
             self.collection.delete(ids=results["ids"])
-            self._sources_cache = None
+            # 增量更新 source 索引
+            if self._source_stats is not None:
+                self._source_stats.pop(source, None)
 
     # 分页读取每页大小。Chroma 默认使用 SQLite 存储，
     # SQLITE_MAX_VARIABLE_NUMBER 限制单条语句占位符数量（约 999）；
@@ -105,19 +142,9 @@ class VectorStore(VectorStoreProvider):
             offset += limit
 
     def get_all_sources(self) -> list[str]:
-        """获取所有文档来源（带缓存，跳过嵌入加载）
-
-        Returns:
-            去重后的来源列表
-        """
-        if self._sources_cache is not None:
-            return self._sources_cache
-        sources: set[str] = set()
-        for metadata in self._iter_metadatas():
-            if metadata and "source" in metadata:
-                sources.add(metadata["source"])
-        self._sources_cache = list(sources)
-        return self._sources_cache
+        """获取所有文档来源（O(1) 读取，从增量索引返回）"""
+        self._ensure_source_stats()
+        return list(self._source_stats.keys())
 
     def get_document_count(self) -> int:
         """获取文档总数
@@ -134,24 +161,29 @@ class VectorStore(VectorStoreProvider):
             name="python_docs",
             metadata={"hnsw:space": "cosine"}
         )
-        self._sources_cache = None
+        self._source_stats = {}
 
     def get_source_details(self) -> list[dict]:
-        """获取每个来源的 chunk 数量（跳过嵌入加载）
+        """获取每个来源的 chunk 数量（O(1) 读取，从增量索引返回）"""
+        self._ensure_source_stats()
+        return [{"source": src, "chunks": cnt} for src, cnt in self._source_stats.items()]
 
-        Returns:
-            [{"source": str, "chunks": int}, ...]
-        """
-        counts: dict[str, int] = {}
-        for metadata in self._iter_metadatas():
-            if metadata and "source" in metadata:
-                src = metadata["source"]
-                counts[src] = counts.get(src, 0) + 1
-        return [{"source": src, "chunks": cnt} for src, cnt in counts.items()]
+    def get_overview(self) -> dict:
+        """一次返回前端需要的所有 source 数据，避免多次调用"""
+        self._ensure_source_stats()
+        return {
+            "sources": list(self._source_stats.keys()),
+            "source_details": [
+                {"source": src, "chunks": cnt}
+                for src, cnt in self._source_stats.items()
+            ],
+            "document_count": self.collection.count(),
+        }
 
     def close(self):
         """关闭客户端，释放资源"""
-        self.client.close()
+        if self._client is not None:
+            self._client.close()
 
     def _iter_documents(self, include):
         """分页读取指定字段，返回 (id, text, metadata 列表。

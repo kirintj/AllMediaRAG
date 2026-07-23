@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import {
   getDocuments,
   getDocumentDetails,
+  getOverview,
   loadDocuments,
   getLoadStatus,
   getStats,
@@ -19,6 +20,18 @@ export const useDocumentStore = defineStore('document', () => {
 
   // 计算属性
   const hasDocuments = computed(() => documents.value.length > 0)
+
+  // 一次请求加载列表 + 详情 + 统计（替代多次串行请求）
+  async function fetchOverview() {
+    try {
+      const data = await getOverview()
+      documents.value = data.documents || []
+      documentDetails.value = data.details || []
+      stats.value = data.stats || {}
+    } catch (error) {
+      console.error('获取文档概览失败:', error)
+    }
+  }
 
   // 加载文档列表
   async function fetchDocuments() {
@@ -75,8 +88,7 @@ export const useDocumentStore = defineStore('document', () => {
         if (onProgress) onProgress(status)
 
         if (status.status === 'done') {
-          await fetchDocuments()
-          await fetchStats()
+          await fetchOverview()
           return status.result
         }
         if (status.status === 'error') {
@@ -93,8 +105,7 @@ export const useDocumentStore = defineStore('document', () => {
   async function syncDocuments() {
     try {
       const data = await syncDocumentsApi()
-      await fetchDocuments()
-      await fetchStats()
+      await fetchOverview()
       return data
     } catch (error) {
       console.error('同步文档失败:', error)
@@ -106,9 +117,7 @@ export const useDocumentStore = defineStore('document', () => {
   async function removeDocument(source) {
     try {
       const data = await deleteDocument(source)
-      await fetchDocuments()
-      await fetchDocumentDetails()
-      await fetchStats()
+      await fetchOverview()
       return data
     } catch (error) {
       console.error('删除文档失败:', error)
@@ -120,9 +129,7 @@ export const useDocumentStore = defineStore('document', () => {
   async function removeAllDocuments() {
     try {
       const data = await clearAllDocuments()
-      await fetchDocuments()
-      documentDetails.value = []
-      await fetchStats()
+      await fetchOverview()
       return data
     } catch (error) {
       console.error('清空文档失败:', error)
@@ -135,6 +142,7 @@ export const useDocumentStore = defineStore('document', () => {
     documentDetails,
     stats,
     hasDocuments,
+    fetchOverview,
     fetchDocuments,
     fetchDocumentDetails,
     fetchStats,
