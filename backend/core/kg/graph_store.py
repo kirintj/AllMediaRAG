@@ -184,3 +184,153 @@ class Neo4jGraphStore:
         with self._driver.session() as session:
             result = session.run(cypher, entities=entities_param, limit=max_chunks)
             return [record["chunk_id"] for record in result]
+
+    # ── NetworkX / PageRank ────────────────────────────────────────
+
+    def to_networkx(self) -> "nx.Graph":
+        """导出为 NetworkX 图（用于 PageRank 和社区检测）"""
+        import networkx as nx
+        G = nx.Graph()
+        with self._driver.session() as session:
+            # 获取所有实体节点
+            result = session.run(
+                "MATCH (e:Entity) RETURN e.id AS id, e.name AS name, "
+                "e.type AS type, e.description AS desc"
+            )
+            for record in result:
+                G.add_node(
+                    record["id"],
+                    name=record["name"],
+                    type=record["type"],
+                    description=record["desc"],
+                )
+            # 获取所有关系
+            result = session.run(
+                "MATCH (a:Entity)-[r:RELATES]->(b:Entity) "
+                "RETURN a.id AS src, b.id AS tgt, "
+                "r.description AS desc, r.weight AS weight"
+            )
+            for record in result:
+                if G.has_node(record["src"]) and G.has_node(record["tgt"]):
+                    G.add_edge(
+                        record["src"],
+                        record["tgt"],
+                        description=record["desc"],
+                        weight=record.get("weight", 1),
+                    )
+        return G
+
+    def compute_pagerank(self):
+        """计算 PageRank 并写回 Neo4j"""
+        import networkx as nx
+        G = self.to_networkx()
+        if len(G.nodes) == 0:
+            return
+        pr = nx.pagerank(G, alpha=0.85)
+        with self._driver.session() as session:
+            for node_id, rank in pr.items():
+                session.run(
+                    "MATCH (e:Entity {id: $id}) SET e.pagerank = $rank",
+                    id=node_id, rank=rank,
+                )
+        logger.info("PageRank computed for %d nodes", len(pr))
+
+    # ── Community ──────────────────────────────────────────────────
+
+    def store_community(self, community_id: str, members: list[str],
+                        report: str, weight: int):
+        """存储社区"""
+        with self._driver.session() as session:
+            session.run(
+                "MERGE (c:Community {id: $id}) "
+                "SET c.members = $members, c.report = $report, c.weight = $weight",
+                id=community_id, members=members, report=report, weight=weight,
+            )
+            # 关联社区成员
+            for member_id in members:
+                session.run(
+                    "MATCH (e:Entity {id: $eid}), (c:Community {id: $cid}) "
+                    "MERGE (e)-[:IN_COMMUNITY]->(c)",
+                    eid=member_id, cid=community_id,
+                )
+
+    # ── N-hop Paths ────────────────────────────────────────────────
+
+    def get_n_hop_paths(self, entity_ids: list[str],
+                        max_hops: int = 2) -> list[dict]:
+        """获取 N-hop 路径"""
+        with self._driver.session() as session:
+            result = session.run(
+                """
+                MATCH path = (start)-[*1..""" + str(max_hops) + """]->(end)
+                WHERE start.id IN $ids AND start <> end
+                RETURN [n IN nodes(path) | n.name] AS node_names,
+                       [r IN relationships(path) | r.description] AS rel_descs,
+                       length(path) AS hops
+                LIMIT 50
+                """,
+                ids=entity_ids,
+            )
+            paths = []
+            for record in result:
+                names = record["node_names"]
+                descs = record["rel_descs"]
+                path_text = names[0]
+                for i, desc in enumerate(descs):
+                    path_text += f" →({desc or 'related'})→ {names[i+1]}"
+                paths.append({"path_text": path_text, "hops": record["hops"]})
+            return paths
+
+    # ── Community Reports ──────────────────────────────────────────
+
+    def get_community_reports(self, entity_ids: list[str]) -> list[dict]:
+        """获取包含指定实体的社区报告"""
+        with self._driver.session() as session:
+            result = session.run(
+                """
+                MATCH (e:Entity)-[:IN_COMMUNITY]->(c:Community)
+                WHERE e.id IN $ids
+                RETURN DISTINCT c.id AS id, c.report AS report, c.weight AS weight
+                ORDER BY c.weight DESC LIMIT 5
+                """,
+                ids=entity_ids,
+            )
+            return [
+                {"id": r["id"], "report": r["report"], "weight": r["weight"]}
+                for r in result
+            ]
+
+    # ── Entity Merge ───────────────────────────────────────────────
+
+    def merge_entity_nodes(self, keep_id: str, merge_id: str):
+        """合并两个实体节点（消歧后）
+
+        将 merge_id 的关系重定向到 keep_id，然后删除 merge 节点。
+        使用纯 Cypher（无需 apoc）。
+        """
+        with self._driver.session() as session:
+            # 获取 merge 节点的所有关系
+            result = session.run(
+                "MATCH (m:Entity {id: $merge_id})-[r:RELATES]-(other:Entity) "
+                "RETURN other.id AS other_id, r.description AS desc, "
+                "r.weight AS weight, startNode(r).id AS start_id",
+                merge_id=merge_id,
+            )
+            records = list(result)
+            for record in records:
+                other_id = record["other_id"]
+                if other_id == keep_id:
+                    continue
+                # 在 keep 节点和 other 之间创建关系
+                session.run(
+                    "MATCH (a:Entity {id: $a_id}), (b:Entity {id: $b_id}) "
+                    "MERGE (a)-[r:RELATES]->(b) "
+                    "ON CREATE SET r.description = $desc, r.weight = $weight "
+                    "ON MATCH SET r.weight = r.weight + $weight",
+                    a_id=keep_id, b_id=other_id,
+                    desc=record["desc"], weight=record.get("weight", 1),
+                )
+            # 删除 merge 节点
+            session.run(
+                "MATCH (e:Entity {id: $id}) DETACH DELETE e", id=merge_id,
+            )
