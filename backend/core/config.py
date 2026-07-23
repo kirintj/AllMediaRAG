@@ -100,6 +100,29 @@ class AppSettings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     TASK_TTL_HOURS: int = 24
 
+    # -- 文档格式支持 ------------------------------------------------
+    SUPPORTED_FILE_EXTENSIONS: str = ".pdf,.docx,.html,.htm,.txt,.md,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.xlsx,.csv,.pptx,.json,.mp3,.wav,.m4a"
+
+    # -- LLM 增强（分块后执行）--------------------------------------
+    ENABLE_AUTO_KEYWORDS: bool = False
+    ENABLE_AUTO_QUESTIONS: bool = False
+    ENABLE_METADATA_EXTRACTION: bool = False
+    ENABLE_TOC_EXTRACTION: bool = False
+    AUTO_KEYWORDS_TOPN: int = 5
+    AUTO_QUESTIONS_TOPN: int = 3
+
+    # -- RAPTOR -------------------------------------------------------
+    ENABLE_RAPTOR: bool = False
+    RAPTOR_MAX_CLUSTERS: int = 64
+    RAPTOR_THRESHOLD: float = 0.1
+    RAPTOR_CLUSTERING_METHOD: str = "gmm"
+    RAPTOR_SMALL_LAYER_COLLAPSE: int = 8
+    RAPTOR_MAX_ERRORS: int = 3
+    RAPTOR_MAX_DEPTH: int = 3
+
+    # -- LLM 缓存 ----------------------------------------------------
+    ENRICHMENT_CACHE_TTL: int = 86400
+
     # -- Worker -------------------------------------------------------
     WORKER_CONCURRENCY: int = 4
     WORKER_MAX_RETRIES: int = 3
@@ -211,6 +234,10 @@ class AppSettings(BaseSettings):
             f"postgresql://{self.PG_USER}:{self.PG_PASSWORD}"
             f"@{self.PG_HOST}:{self.PG_PORT}/{self.PG_DATABASE}"
         )
+
+    @property
+    def supported_file_extensions(self) -> set[str]:
+        return {ext.strip() for ext in self.SUPPORTED_FILE_EXTENSIONS.split(",")}
 
 
 # ---------------------------------------------------------------------------

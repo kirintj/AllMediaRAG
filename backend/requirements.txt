@@ -60,6 +60,13 @@ slowapi>=0.1.9
 # paddleocr>=2.7      # PaddleOCR
 # pytesseract>=0.3    # Tesseract OCR
 
+# === 文档解析增强 ===
+openpyxl>=3.1.0
+python-pptx>=0.6.23
+scikit-learn>=1.3.0
+umap-learn>=0.5.0
+jinja2>=3.1.0
+
 # === Knowledge Graph ===
 neo4j>=5.0
 
