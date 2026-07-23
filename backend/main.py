@@ -38,6 +38,7 @@ from api.documents import router as documents_router
 from api.conversations import router as conversations_router
 from api.auth import router as auth_router
 from api.eval import router as eval_router
+from api.models import router as models_router
 
 # 启动时校验关键配置
 if not config.MIMO_API_KEY:
@@ -105,6 +106,25 @@ async def lifespan(app: FastAPI):
     app.state.task_queue = task_queue
 
     logger.info("RAG engine initialized. Server ready!")
+
+    # 创建 LLM 相关表并预置厂商数据
+    from core.db.engine import get_engine, get_db_session
+    from core.db.base import Base
+    from core.db.llm_models import LLMFactories, TenantLLM, TenantDefaultModel  # noqa: F401
+    from core.db.seed_llm_factories import seed_factories
+
+    db_engine = get_engine()
+    if db_engine:
+        Base.metadata.create_all(db_engine, tables=[
+            LLMFactories.__table__,
+            TenantLLM.__table__,
+            TenantDefaultModel.__table__,
+        ])
+        with get_db_session() as session:
+            if session:
+                added = seed_factories(session)
+                if added:
+                    logger.info("Seeded %d LLM factories", added)
 
     yield  # --- application runs ---
 
@@ -232,6 +252,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(conversations_router, prefix="/api")
 app.include_router(eval_router, prefix="/api")
+app.include_router(models_router, prefix="/api")
 
 
 @app.get("/")
