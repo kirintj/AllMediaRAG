@@ -301,7 +301,6 @@ async def get_documents_overview(
             "total_size": total_size,
             "indexed_documents": index_stats["indexed_documents"],
             "vector_count": index_stats["vector_count"],
-            "bm25_ready": index_stats["bm25_ready"],
         },
     }
 
@@ -470,5 +469,4 @@ async def get_stats(
         "total_size": total_size,
         "indexed_documents": index_stats["indexed_documents"],
         "vector_count": index_stats["vector_count"],
-        "bm25_ready": index_stats["bm25_ready"],
     }

@@ -12,13 +12,13 @@ import time
 import hashlib
 import logging
 import asyncio
-import threading
 from collections import Counter
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 from core.observability.metrics_collector import metrics_collector
+from core.providers.base import MatchTextExpr, MatchDenseExpr, FusionExpr
 
 
 class RetrievalPipeline:
@@ -47,9 +47,6 @@ class RetrievalPipeline:
         # Config-derived scalars (used by retrieval methods)
         self.top_k: int = config.TOP_K
         self.bm25_top_k: int = config.BM25_TOP_K
-        self.rrf_k: int = config.RRF_K
-        self.rrf_weight_vector: float = config.RRF_WEIGHT_VECTOR
-        self.rrf_weight_bm25: float = config.RRF_WEIGHT_BM25
         self.similarity_threshold: float = config.SIMILARITY_THRESHOLD
         self.use_hyde: bool = config.USE_HYDE
         self.multi_query_enabled: bool = config.MULTI_QUERY_ENABLED
@@ -57,48 +54,6 @@ class RetrievalPipeline:
         self.rerank_top_k: int = config.RERANK_TOP_K
         self.rerank_gate_threshold: float = getattr(config, "RERANK_GATE_THRESHOLD", 0.3)
         self._refetch_enabled: bool = getattr(config, "RETRIEVAL_REFETCH_ENABLED", True)
-
-        # Lock used by _rebuild_bm25_index
-        self._bm25_lock = threading.Lock()
-
-    # ------------------------------------------------------------------
-    # BM25 readiness
-    # ------------------------------------------------------------------
-
-    def _wait_bm25_ready(self, timeout: float = 30.0):
-        """Wait for BM25 index to be ready (sync, for sync contexts)."""
-        if self.infra.bm25_ready:
-            return
-        deadline = time.time() + timeout
-        while not self.infra.bm25_ready and time.time() < deadline:
-            time.sleep(0.1)
-        if not self.infra.bm25_ready:
-            logger.warning("BM25 index not ready after %.1fs, proceeding without it", timeout)
-
-    async def _wait_bm25_ready_async(self, timeout: float = 30.0):
-        """Wait for BM25 index to be ready (async, non-blocking)."""
-        if self.infra.bm25_ready:
-            return
-        deadline = time.time() + timeout
-        while not self.infra.bm25_ready and time.time() < deadline:
-            await asyncio.sleep(0.2)
-        if not self.infra.bm25_ready:
-            logger.warning("BM25 index not ready after %.1fs, proceeding without it", timeout)
-
-    def _rebuild_bm25_index(self):
-        """Rebuild BM25 index from vector store (called from background thread)."""
-        try:
-            docs = self.infra.vector_store.get_all_documents()
-            if docs:
-                with self._bm25_lock:
-                    self.infra.bm25_retriever.build_index(docs)  # build_index auto-saves
-                logger.info("BM25 index rebuilt: %d documents", len(docs))
-            else:
-                logger.info("Vector store is empty, BM25 index not built")
-        except Exception as e:
-            logger.warning("Failed to rebuild BM25 index: %s", e)
-        finally:
-            self.infra.bm25_ready = True
 
     # ------------------------------------------------------------------
     # Static / class helpers
@@ -122,200 +77,106 @@ class RetrievalPipeline:
         return False
 
     # ------------------------------------------------------------------
-    # Pure utility functions
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def filter_by_similarity(results: dict, threshold: float) -> dict:
-        """Filter results by similarity threshold.
-
-        Args:
-            results: Original retrieval results.
-            threshold: Similarity threshold.
-
-        Returns:
-            Filtered results.
-        """
-        if not results["distances"]:
-            return results
-
-        filtered_docs = []
-        filtered_metas = []
-        filtered_dists = []
-
-        for doc, meta, dist in zip(
-            results["documents"],
-            results["metadatas"],
-            results["distances"]
-        ):
-            similarity = 1 - dist
-            if similarity >= threshold:
-                filtered_docs.append(doc)
-                filtered_metas.append(meta)
-                filtered_dists.append(dist)
-
-        return {
-            "documents": filtered_docs,
-            "metadatas": filtered_metas,
-            "distances": filtered_dists
-        }
-
-    @staticmethod
-    def reciprocal_rank_fusion(
-        results_list: list[list[dict]],
-        weights: list[float],
-        k: int
-    ) -> list[dict]:
-        """Weighted RRF fusion of multi-route retrieval results.
-
-        Args:
-            results_list: Multi-route results, each route is [{"id": str, ...}, ...].
-            weights: Weight for each route.
-            k: RRF constant.
-
-        Returns:
-            Fused and sorted results, each doc enriched with ``rrf_score``.
-        """
-        score_map = {}  # id -> (total_score, doc_dict)
-
-        for weight, results in zip(weights, results_list):
-            for rank, doc in enumerate(results):
-                doc_id = doc["id"]
-                rrf_score = weight / (k + rank + 1)
-
-                if doc_id in score_map:
-                    score_map[doc_id] = (
-                        score_map[doc_id][0] + rrf_score,
-                        score_map[doc_id][1],
-                    )
-                else:
-                    score_map[doc_id] = (rrf_score, doc)
-
-        sorted_docs = sorted(score_map.values(), key=lambda x: x[0], reverse=True)
-        # Inject RRF score into each doc for downstream filtering
-        result = []
-        for score, doc in sorted_docs:
-            enriched = dict(doc)
-            enriched["rrf_score"] = score
-            result.append(enriched)
-        return result
-
-    # ------------------------------------------------------------------
     # Core retrieval (sync)
     # ------------------------------------------------------------------
 
     def _do_retrieve(self, search_queries: list, query: str,
                      vector_weight: float, bm25_weight: float,
                      retrieve_top_k: int) -> dict:
-        """Execute retrieval -> RRF fusion -> dedup -> rerank (sync core)."""
+        """Execute retrieval via ES hybrid search -> rerank (sync core)."""
         t0 = time.time()
-        all_vector_results = []
-        all_bm25_results = []
 
-        # Batch encode + parallel vector/BM25 retrieval
-        executor = self.infra.executor
+        doc_store = self.infra.vector_store
 
-        def vector_search():
-            results = []
-            embeddings = self.infra.embedding_service.encode(search_queries)
-            for q_text, emb in zip(search_queries, embeddings):
-                try:
-                    raw = self.infra.vector_store.query(emb, self.bm25_top_k)
-                    for doc, meta, dist in zip(
-                        raw["documents"], raw["metadatas"], raw["distances"]
-                    ):
-                        results.append({
-                            "id": f"vec_{hashlib.sha256(doc.encode('utf-8')).hexdigest()[:16]}",
-                            "text": doc, "metadata": meta, "distance": dist,
-                        })
-                except Exception as e:
-                    logger.warning("Vector retrieval failed for '%s': %s", q_text[:30], e)
-            return results
+        # 对主查询做一次编码，用于向量检索
+        primary_embedding = self.infra.embedding_service.encode([query])[0]
 
-        def bm25_search():
-            results = []
-            for q_text in search_queries:
-                try:
-                    for r in self.infra.bm25_retriever.search(q_text, self.bm25_top_k):
-                        results.append({
-                            "id": r["id"], "text": r["text"], "metadata": r["metadata"],
-                        })
-                except Exception as e:
-                    logger.warning("BM25 retrieval failed for '%s': %s", q_text[:30], e)
-            return results
+        # 构建表达式
+        expressions = [
+            MatchTextExpr(
+                fields=["text"],
+                matching_text=query,
+                topn=self.bm25_top_k,
+                extra_options={"minimum_should_match": "70%"},
+            ),
+            MatchDenseExpr(
+                embedding_data=primary_embedding,
+                topn=self.top_k,
+            ),
+            FusionExpr(
+                method="weighted_sum",
+                topn=retrieve_top_k,
+                fusion_params={"weights": f"{bm25_weight},{vector_weight}"},
+            ),
+        ]
 
-        vec_f = executor.submit(vector_search)
-        bm25_f = executor.submit(bm25_search)
-
-        # Graph candidate expansion (parallel with vector/BM25)
-        graph_retriever = getattr(self.infra, "graph_retriever", None)
-        graph_f = None
-        if graph_retriever:
-            def graph_search():
-                try:
-                    return graph_retriever.search(query, max_chunks=self.top_k * 4)
-                except Exception as e:
-                    logger.warning("Graph retrieval failed: %s", e)
-                    return []
-            graph_f = executor.submit(graph_search)
-
-        all_vector_results = vec_f.result()
-        all_bm25_results = bm25_f.result()
-        graph_chunk_ids = graph_f.result() if graph_f else []
+        # 单次 ES 混合检索
+        try:
+            raw = doc_store.search(
+                select_fields=["id", "text_raw", "source", "metadata"],
+                condition=None,
+                match_expressions=expressions,
+                limit=retrieve_top_k,
+            )
+        except Exception as e:
+            logger.warning("ES hybrid search failed: %s", e)
+            raw = {"documents": [], "metadatas": [], "distances": [], "total": 0}
 
         t_search = time.time()
-        logger.debug("Retrieval: %.0fms (queries=%d, vec=%d, bm25=%d, graph=%d)",
-                      (t_search - t0) * 1000, len(search_queries),
-                      len(all_vector_results), len(all_bm25_results),
-                      len(graph_chunk_ids))
+        logger.debug("ES retrieval: %.0fms, hits=%d",
+                      (t_search - t0) * 1000, raw.get("total", 0))
 
-        # RRF fusion
-        fused = self.reciprocal_rank_fusion(
-            [all_vector_results, all_bm25_results],
-            weights=[vector_weight, bm25_weight],
-            k=self.rrf_k,
-        )
+        # 转换为内部格式
+        fused = []
+        for doc, meta, dist in zip(raw["documents"], raw["metadatas"], raw["distances"]):
+            fused.append({
+                "id": meta.get("id", ""),
+                "text": doc,
+                "metadata": meta,
+                "distance": dist,
+            })
 
-        # Inject graph candidates (bypass RRF, go straight to candidate pool)
-        if graph_chunk_ids:
-            existing_ids = {doc["id"] for doc in fused}
-            for cid in graph_chunk_ids:
-                # Check if this chunk is already in the fused results
-                already_present = False
-                for doc in fused:
-                    if cid in doc.get("id", ""):
-                        already_present = True
-                        break
-                if not already_present:
-                    # Look up chunk text from document_chunks table via infra
-                    try:
-                        from core.db.models import DocumentChunkModel
-                        from core.db.engine import get_session_factory
-                        factory = get_session_factory()
-                        if factory is None:
+        # Graph candidate expansion（独立于 ES 检索）
+        graph_retriever = getattr(self.infra, "graph_retriever", None)
+        if graph_retriever:
+            try:
+                graph_chunk_ids = graph_retriever.search(query, max_chunks=self.top_k * 4)
+                if graph_chunk_ids:
+                    existing_ids = {d["id"] for d in fused}
+                    for cid in graph_chunk_ids:
+                        if any(cid in d.get("id", "") for d in fused):
                             continue
-                        session = factory()
                         try:
-                            chunk_row = session.query(DocumentChunkModel).filter(
-                                DocumentChunkModel.id == cid
-                            ).first()
-                            if chunk_row:
-                                fused.append({
-                                    "id": f"graph_{cid}",
-                                    "text": chunk_row.text,
-                                    "metadata": {
-                                        "source": chunk_row.source,
-                                        "section": chunk_row.section,
-                                        "chunk_index": chunk_row.chunk_index,
-                                        "retrieval_source": "knowledge_graph",
-                                    },
-                                })
-                        finally:
-                            session.close()
-                    except Exception:
-                        pass  # Skip if chunk not found
+                            from core.db.models import DocumentChunkModel
+                            from core.db.engine import get_session_factory
+                            factory = get_session_factory()
+                            if factory is None:
+                                continue
+                            session = factory()
+                            try:
+                                chunk_row = session.query(DocumentChunkModel).filter(
+                                    DocumentChunkModel.id == cid
+                                ).first()
+                                if chunk_row:
+                                    fused.append({
+                                        "id": f"graph_{cid}",
+                                        "text": chunk_row.text,
+                                        "metadata": {
+                                            "source": chunk_row.source,
+                                            "section": chunk_row.section,
+                                            "chunk_index": chunk_row.chunk_index,
+                                            "retrieval_source": "knowledge_graph",
+                                        },
+                                    })
+                            finally:
+                                session.close()
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.warning("Graph retrieval failed: %s", e)
 
-        # Chunk-level dedup (max 2 chunks per source)
+        # Dedup: max 2 chunks per source
+        from collections import Counter
         source_counts = Counter()
         deduplicated = []
         for doc in fused:
@@ -323,18 +184,6 @@ class RetrievalPipeline:
             if source_counts[src] < 2:
                 deduplicated.append(doc)
                 source_counts[src] += 1
-
-        # RRF score filter: remove clearly irrelevant docs (below 15% of top score)
-        if deduplicated and len(deduplicated) > retrieve_top_k:
-            top_rrf = deduplicated[0].get("rrf_score", 0)
-            if top_rrf > 0:
-                threshold = top_rrf * 0.15
-                filtered = [d for d in deduplicated if d.get("rrf_score", 0) >= threshold]
-                # Keep at least retrieve_top_k candidates to avoid over-filtering
-                if len(filtered) >= retrieve_top_k:
-                    deduplicated = filtered
-                    logger.debug("RRF filter: %d -> %d docs (threshold=%.4f)",
-                                 len(fused), len(deduplicated), threshold)
 
         # Rerank
         try:
@@ -345,7 +194,7 @@ class RetrievalPipeline:
 
         t_rerank = time.time()
 
-        # Relevance gating: remove noisy docs with low rerank scores
+        # Relevance gating
         if reranked and len(reranked) > self.top_k:
             gated = [d for d in reranked
                      if d.get("rerank_score", 0) >= self.rerank_gate_threshold]
@@ -388,7 +237,6 @@ class RetrievalPipeline:
             return {"documents": [], "metadatas": [], "distances": []}
 
         t_total = time.time()
-        self._wait_bm25_ready()
 
         # 1. Normalised cache key
         cache_key = f"rag:{hashlib.md5(self._normalize_query(query).encode()).hexdigest()}"
@@ -438,8 +286,8 @@ class RetrievalPipeline:
                     logger.warning("%s failed: %s", key, e)
 
         # 4. Route params (reuse step 3 route_config)
-        vector_weight = route_config.get("weights", {}).get("vector", self.rrf_weight_vector)
-        bm25_weight = route_config.get("weights", {}).get("bm25", self.rrf_weight_bm25)
+        vector_weight = route_config.get("weights", {}).get("vector", self.infra.settings.RRF_WEIGHT_VECTOR)
+        bm25_weight = route_config.get("weights", {}).get("bm25", self.infra.settings.RRF_WEIGHT_BM25)
         retrieve_top_k = route_config.get("rerank_top_k", self.rerank_top_k)
 
         # 5. Build search queries
@@ -551,7 +399,6 @@ class RetrievalPipeline:
             return {"documents": [], "metadatas": [], "distances": []}
 
         t_total = time.time()
-        await self._wait_bm25_ready_async()
 
         # 1. Normalised cache key
         cache_key = f"rag:{hashlib.md5(self._normalize_query(query).encode()).hexdigest()}"
@@ -619,8 +466,8 @@ class RetrievalPipeline:
                           (time.time() - t_classify) * 1000, need_hyde, need_mq)
 
         # 4. Route params
-        vector_weight = route_config.get("weights", {}).get("vector", self.rrf_weight_vector)
-        bm25_weight = route_config.get("weights", {}).get("bm25", self.rrf_weight_bm25)
+        vector_weight = route_config.get("weights", {}).get("vector", self.infra.settings.RRF_WEIGHT_VECTOR)
+        bm25_weight = route_config.get("weights", {}).get("bm25", self.infra.settings.RRF_WEIGHT_BM25)
         retrieve_top_k = route_config.get("rerank_top_k", self.rerank_top_k)
 
         # 5. Build search queries

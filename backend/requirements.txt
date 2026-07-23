@@ -9,16 +9,14 @@ pydantic>=2.0.0
 openai>=1.6.0
 
 # === 向量数据库 ===
-chromadb>=0.4.0
+elasticsearch>=8.0.0,<9.0.0
 
 # === 任务队列 ===
 redis>=5.0.0
 
-# === PostgreSQL + pgvector ===
+# === PostgreSQL（用户/对话存储，保留）===
 sqlalchemy>=2.0.0
-pgvector>=0.2.0
 psycopg2-binary>=2.9.0
-alembic>=1.13.0
 
 # === Embedding & Reranking ===
 sentence-transformers>=2.2.0
@@ -27,7 +25,6 @@ sentence-transformers>=2.2.0
 
 # === 文本处理 ===
 jieba>=0.42.1
-rank-bm25>=0.2.2
 beautifulsoup4>=4.12.0
 numpy>=1.24.0
 

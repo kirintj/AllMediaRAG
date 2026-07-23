@@ -20,7 +20,6 @@ class InfraBundle:
     embedding_service: Any
     vector_store: Any
     llm_client: Any
-    bm25_retriever: Any
     document_processor: Any
     rerank_manager: Any
     cache_manager: Any
@@ -34,7 +33,6 @@ class InfraBundle:
     metrics_collector: Any = None
     executor: Any = None  # ThreadPoolExecutor
     image_store: Any = None
-    bm25_ready: bool = False
     graph_store: Any = None
     graph_retriever: Any = None
     kg_extractor: Any = None

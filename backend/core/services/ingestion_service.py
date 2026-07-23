@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+from datetime import datetime, timezone
 
 from core.index_manager import IndexManager
 
@@ -14,12 +15,11 @@ class IngestionService:
         self._infra = infra
         self._document_processor = infra.document_processor
         self._embedding_service = infra.embedding_service
-        self._vector_store = infra.vector_store
-        self._bm25_retriever = infra.bm25_retriever
+        self._doc_store = infra.vector_store  # ElasticsearchStore
         self._index_manager = infra.index_manager
         self._cache_manager = infra.cache_manager
-        # 支持 ImageStore 的惰性注入，老版本 infra 可能没有该属性
         self._image_store = getattr(infra, "image_store", None)
+        self._tenant_id = getattr(infra.settings, "DEFAULT_TENANT_ID", "default")
 
     # ------------------------------------------------------------------
     # Public API
@@ -59,18 +59,25 @@ class IngestionService:
             for i, emb in zip(missing_idx, missing_embs):
                 embeddings[i] = emb
 
-        # 写入向量库
-        self._vector_store.add_documents(texts, embeddings, metadatas)
+        # 构建 ES 写入行（jieba 预分词）
+        rows = []
+        for text, emb, meta in zip(texts, embeddings, metadatas):
+            rows.append({
+                "id": str(uuid.uuid4()),
+                "text": self._doc_store._tokenize(text),  # jieba 分词后存入 text 字段
+                "text_raw": text,                          # 原始文本存入 text_raw
+                "embedding": emb,
+                "source": meta.get("source", source),
+                "metadata": meta,
+                "tenant_id": self._tenant_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
 
-        # 写入 BM25 索引
-        doc_ids = [str(uuid.uuid4()) for _ in range(len(texts))]
-        bm25_docs = [
-            {"id": doc_id, "text": text, "metadata": meta}
-            for doc_id, text, meta in zip(doc_ids, texts, metadatas)
-        ]
-        self._bm25_retriever.add_documents(bm25_docs)
+        errors = self._doc_store.insert(rows)
+        if errors:
+            logger.warning("Insert errors for %s: %s", source, errors)
 
-        # KG extraction + ingest (after vector/BM25 writes)
+        # KG extraction + ingest
         graph_store = getattr(self._infra, "graph_store", None)
         kg_extractor = getattr(self._infra, "kg_extractor", None)
         if graph_store and kg_extractor:
@@ -88,23 +95,24 @@ class IngestionService:
         return len(chunks)
 
     def delete_by_source(self, source: str):
-        """按来源删除文档（图片 → 向量库 → BM25 → 缓存）
+        """按来源删除文档（图片 → ES → 缓存）
 
-        为什么先删图片再删向量库：
-        ImageStore.cleanup_by_source 需要从向量库 metadata 中
-        查询该来源的所有 image_path。如果先删了向量库数据，
+        为什么先删图片再删 ES：
+        ImageStore.cleanup_by_source 需要从 ES metadata 中
+        查询该来源的所有 image_path。如果先删了 ES 数据，
         metadata 丢失，图片文件就变成孤儿文件永远留在磁盘上。
         """
-        # 1. 先清理图片文件——依赖向量库 metadata 定位文件路径
+        # 1. 先清理图片文件——依赖 ES metadata 定位文件路径
         if self._image_store:
             try:
                 self._image_store.cleanup_by_source(source)
             except Exception as e:
                 logger.warning("Image cleanup failed for %s: %s", source, e)
 
-        # 2. 再删向量库和 BM25（此时图片已清理完毕，metadata 可安全丢弃）
-        self._vector_store.delete_by_source(source)
-        self._bm25_retriever.delete_by_source(source)
+        # 2. 再删 ES（此时图片已清理完毕，metadata 可安全丢弃）
+        deleted = self._doc_store.delete({"source": source})
+        logger.info("Deleted %d chunks for source: %s", deleted, source)
+
         # 3. 缓存失效——避免检索端命中已删除文档的陈旧结果
         self._cache_manager.invalidate_by_source(source)
 
@@ -118,12 +126,8 @@ class IngestionService:
 
     def delete_all(self):
         """清空所有文档"""
-        self._vector_store.delete_all()
-        self._bm25_retriever.delete_all()
-        # 删除持久化文件
-        if self._bm25_retriever.persist_path and os.path.exists(self._bm25_retriever.persist_path):
-            os.remove(self._bm25_retriever.persist_path)
-        # 清空缓存
+        self._doc_store.delete_idx()
+        self._doc_store.create_idx(self._doc_store._index_name, self._doc_store._embedding_dim)
         self._cache_manager.clear()
 
     def sync_index(self, data_dir: str) -> dict:
@@ -185,8 +189,7 @@ class IngestionService:
         """获取索引统计信息"""
         return {
             "indexed_documents": self._index_manager.get_record_count(),
-            "vector_count": self._vector_store.get_document_count(),
-            "bm25_ready": self._infra.bm25_ready,
+            "vector_count": self._doc_store.get_document_count(),
         }
 
     def close(self):

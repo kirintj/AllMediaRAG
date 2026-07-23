@@ -27,14 +27,18 @@ class AppSettings(BaseSettings):
     # -- Embedding ----------------------------------------------------
     EMBEDDING_MODEL_PATH: str = "./models/bge-m3"
 
-    # -- Chroma -------------------------------------------------------
-    CHROMA_PERSIST_DIR: str = "./chroma_db"
-
     # -- Data directory -----------------------------------------------
     DATA_DIR: str = "./data/knowledge-base"
 
-    # -- BM25 persistence ---------------------------------------------
-    BM25_PERSIST_DIR: str = ""
+    # -- Elasticsearch ------------------------------------------------
+    ES_HOSTS: str = "http://localhost:9200"
+    ES_USERNAME: str = ""
+    ES_PASSWORD: str = ""
+    ES_INDEX_PREFIX: str = "allrag"
+    ES_NUMBER_OF_SHARDS: int = 1
+    ES_NUMBER_OF_REPLICAS: int = 0
+    EMBEDDING_DIM: int = 1024
+    DEFAULT_TENANT_ID: str = "default"
 
     # -- PostgreSQL ---------------------------------------------------
     DATABASE_URL: str = ""

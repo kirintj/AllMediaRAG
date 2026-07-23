@@ -4,20 +4,16 @@ create_infra 按 AppSettings 构建所有共享依赖并返回 InfraBundle。
 组装顺序：
 1. 核心三件套（embedding / vector_store / llm）
 2. 可选组件（OCR / VLM / 文件读取器 / 分块策略）
-3. 检索增强（BM25 / query understanding / reranking / cache）
+3. 检索增强（query understanding / reranking / cache）
 4. 验证与可观测性（citation / self-rag / confidence / metrics）
 5. 知识图谱（Neo4j / extractor / retriever）
 """
-import os
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from core.embedding_service import EmbeddingService
-from core.vector_store import VectorStore
 from core.llm_client import LLMClient
 from core.document_processor import DocumentProcessor
-from core.bm25_retriever import BM25Retriever
 from core.query_understanding.classifier import QueryClassifier
 from core.query_understanding.router import QueryRouter
 from core.query_understanding.rewriters import HyDERewriter, MultiQueryRewriter
@@ -64,17 +60,19 @@ def create_infra(settings) -> InfraBundle:
     else:
         embedding_service = EmbeddingService(config.EMBEDDING_MODEL_PATH)
 
-    _vs_provider = getattr(config, "VECTOR_STORE_PROVIDER", "chroma")
-    if _vs_provider == "pgvector":
-        from core.providers.pgvector_adapter import PgVectorStoreAdapter
+    # Elasticsearch 唯一后端
+    from core.providers.elasticsearch_store import ElasticsearchStore
 
-        vector_store = PgVectorStoreAdapter(database_url=config.database_url)
-    elif _vs_provider == "simple":
-        from core.providers.simple_vector_store import SimpleVectorStore
-
-        vector_store = SimpleVectorStore(config.CHROMA_PERSIST_DIR)
-    else:
-        vector_store = VectorStore(config.CHROMA_PERSIST_DIR)
+    vector_store = ElasticsearchStore(
+        hosts=getattr(config, "ES_HOSTS", "http://localhost:9200"),
+        index_prefix=getattr(config, "ES_INDEX_PREFIX", "allrag"),
+        tenant_id=getattr(config, "DEFAULT_TENANT_ID", "default"),
+        username=getattr(config, "ES_USERNAME", ""),
+        password=getattr(config, "ES_PASSWORD", ""),
+        embedding_dim=getattr(config, "EMBEDDING_DIM", 1024),
+        number_of_shards=getattr(config, "ES_NUMBER_OF_SHARDS", 1),
+        number_of_replicas=getattr(config, "ES_NUMBER_OF_REPLICAS", 0),
+    )
 
     llm_client = LLMClient(
         config.MIMO_API_KEY,
@@ -107,12 +105,6 @@ def create_infra(settings) -> InfraBundle:
     document_processor.set_embedding_service(embedding_service)
 
     # ---- 3. 检索增强 ---------------------------------------------------
-    bm25_base_dir = getattr(config, "BM25_PERSIST_DIR", "") or config.CHROMA_PERSIST_DIR
-    bm25_path = os.path.join(bm25_base_dir, "bm25_index.pkl")
-    bm25_retriever = BM25Retriever(persist_path=bm25_path)
-
-    bm25_lock = threading.Lock()
-
     classifier = QueryClassifier()
     router = QueryRouter()
 
@@ -138,14 +130,7 @@ def create_infra(settings) -> InfraBundle:
         }
     )
 
-    if getattr(config, "VECTOR_STORE_PROVIDER", "chroma") == "pgvector":
-        from core.providers.pgvector_index_adapter import PgIndexManager
-
-        index_manager = PgIndexManager(database_url=config.database_url)
-    else:
-        index_manager = IndexManager(
-            state_file=os.path.join(config.CHROMA_PERSIST_DIR, "index_state.json"),
-        )
+    index_manager = IndexManager(state_file="./index_state.json")
 
     # ---- 4. 验证与可观测性 ---------------------------------------------
     citation_verifier = CitationVerifier(
@@ -185,7 +170,6 @@ def create_infra(settings) -> InfraBundle:
         embedding_service=embedding_service,
         vector_store=vector_store,
         llm_client=llm_client,
-        bm25_retriever=bm25_retriever,
         document_processor=document_processor,
         rerank_manager=rerank_manager,
         cache_manager=cache_manager,
@@ -199,31 +183,9 @@ def create_infra(settings) -> InfraBundle:
         metrics_collector=metrics_collector,
         executor=ThreadPoolExecutor(max_workers=3),
         image_store=image_store,
-        bm25_ready=False,
         graph_store=graph_store,
         graph_retriever=graph_retriever,
         kg_extractor=kg_extractor,
     )
-
-    # 后台 BM25 加载与重建（不阻塞启动）
-    def _load_bm25():
-        try:
-            loaded = bm25_retriever.load()
-            if not loaded:
-                docs = vector_store.get_all_documents()
-                if docs:
-                    with bm25_lock:
-                        bm25_retriever.build_index(docs)
-                    logger.info("BM25 index rebuilt: %d documents", len(docs))
-                else:
-                    logger.info("Vector store is empty, BM25 index not built")
-            else:
-                logger.info("BM25 index loaded from disk")
-        except Exception as e:
-            logger.warning("BM25 init failed: %s", e)
-        finally:
-            infra.bm25_ready = True
-
-    threading.Thread(target=_load_bm25, daemon=True).start()
 
     return infra

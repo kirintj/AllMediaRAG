@@ -40,7 +40,6 @@ class RAGEngine:
         # 高频访问属性快捷方式（scripts/rebuild_index.py 等使用）
         self.embedding_service = self._infra.embedding_service
         self.vector_store = self._infra.vector_store
-        self.bm25_retriever = self._infra.bm25_retriever
 
         logger.info("RAGEngine initialized (infra + 3 services)")
 
@@ -67,7 +66,6 @@ class RAGEngine:
 
         instance.embedding_service = infra.embedding_service
         instance.vector_store = infra.vector_store
-        instance.bm25_retriever = infra.bm25_retriever
 
         logger.info("RAGEngine initialized (from pre-existing services)")
         return instance

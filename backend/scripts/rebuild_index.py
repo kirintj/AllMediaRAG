@@ -53,7 +53,6 @@ def full_rebuild(engine, data_dir):
     print(f"  文件数: {len(files)}")
     print(f"  总 chunk: {total_chunks}")
     print(f"  向量库: {engine.vector_store.get_document_count()} docs")
-    print(f"  BM25: {len(engine.bm25_retriever.doc_ids)} docs")
     print(f"{'='*40}")
 
 

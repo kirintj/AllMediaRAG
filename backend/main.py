@@ -260,9 +260,6 @@ async def health(request: Request):
             checks["vector_store"] = f"error: {e}"
             overall_healthy = False
 
-        # BM25 索引就绪
-        checks["bm25"] = "ok" if infra.bm25_ready else "not_ready"
-
         # Embedding 模型加载
         try:
             infra.embedding_service.encode(["healthcheck"])

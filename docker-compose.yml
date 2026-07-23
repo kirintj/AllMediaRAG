@@ -39,6 +39,28 @@ services:
     networks:
       - multimodal-rag-network
 
+  # ---------- Elasticsearch ----------
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: multimodal-rag-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - multimodal_rag_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - multimodal-rag-network
+
   # ---------- 后端 ----------
   backend:
     build:
@@ -52,10 +74,12 @@ services:
       - .env
     volumes:
       - ./models:/app/models:ro
-      - multimodal_rag_chroma_data:/app/chroma_db
+      - multimodal_rag_es_data:/app/chroma_db  # ES 替代 Chroma，挂载点保留兼容
       - ./data:/app/data
     depends_on:
       redis:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -80,10 +104,11 @@ services:
       - .env
     volumes:
       - ./models:/app/models:ro
-      - multimodal_rag_chroma_data:/app/chroma_db
       - ./data:/app/data
     depends_on:
       redis:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
       backend:
         condition: service_started
@@ -117,7 +142,7 @@ services:
       - multimodal-rag-network
 
 volumes:
-  multimodal_rag_chroma_data:
+  multimodal_rag_es_data:
     driver: local
   multimodal_rag_redis_data:
     driver: local
