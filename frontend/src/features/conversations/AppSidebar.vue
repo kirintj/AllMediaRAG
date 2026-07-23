@@ -60,7 +60,7 @@
 </template>
 
 <script setup>
-import { Plus, PanelLeftClose, Sparkles, FileText, BarChart3, Cpu, LogOut } from 'lucide-vue-next'
+import { Plus, PanelLeftClose, Sparkles, FileText, BarChart3, Cpu, LogOut, Tags, Settings, Network } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/useChatStore.js'
 import ConversationList from './ConversationList.vue'
 
@@ -68,7 +68,7 @@ defineProps({
   collapsed: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['toggle-collapse', 'open-docs', 'open-eval', 'open-models', 'logout'])
+const emit = defineEmits(['toggle-collapse', 'open-docs', 'open-eval', 'open-models', 'open-tag-kb', 'open-settings', 'open-graph', 'logout'])
 const chatStore = useChatStore()
 
 function newChat() {
@@ -78,6 +78,9 @@ function newChat() {
 const bottomActions = [
   { label: '文档管理', icon: FileText, handler: () => emit('open-docs') },
   { label: '模型管理', icon: Cpu, handler: () => emit('open-models') },
+  { label: '标签知识库', icon: Tags, handler: () => emit('open-tag-kb') },
+  { label: 'RAG 设置', icon: Settings, handler: () => emit('open-settings') },
+  { label: '知识图谱', icon: Network, handler: () => emit('open-graph') },
   { label: '评测看板', icon: BarChart3, handler: () => emit('open-eval') },
   { label: '退出登录', icon: LogOut, handler: () => emit('logout') },
 ]

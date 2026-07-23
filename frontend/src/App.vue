@@ -14,6 +14,9 @@
           @open-docs="showDocs = true"
           @open-eval="showEval = true"
           @open-models="showModels = true"
+          @open-tag-kb="showTagKb = true"
+          @open-settings="showRagSettings = true"
+          @open-graph="showGraph = true"
           @logout="handleLogout"
         />
       </aside>
@@ -26,6 +29,9 @@
           @open-docs="showDocs = true; mobileSidebar = false"
           @open-eval="showEval = true; mobileSidebar = false"
           @open-models="showModels = true; mobileSidebar = false"
+          @open-tag-kb="showTagKb = true; mobileSidebar = false"
+          @open-settings="showRagSettings = true; mobileSidebar = false"
+          @open-graph="showGraph = true; mobileSidebar = false"
           @logout="handleLogout"
         />
       </Sheet>
@@ -51,6 +57,19 @@
     <Sheet v-model="showModels" side="right" class="w-[400px] sm:w-[540px]">
       <ModelManager />
     </Sheet>
+
+    <!-- Tag KB drawer -->
+    <Sheet v-model="showTagKb" side="right" class="w-[400px] sm:w-[540px]">
+      <TagKbDrawer />
+    </Sheet>
+
+    <!-- RAG settings drawer -->
+    <Sheet v-model="showRagSettings" side="right" class="w-[400px] sm:w-[540px]">
+      <RagSettingsDrawer />
+    </Sheet>
+
+    <!-- Graph viewer -->
+    <GraphViewer :open="showGraph" @close="showGraph = false" />
 
     <!-- Toast container -->
     <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2">
@@ -81,6 +100,9 @@ import ChatShell from './features/chat/ChatShell.vue'
 import DocumentDrawer from './features/documents/DocumentDrawer.vue'
 import EvalDashboard from './features/eval/EvalDashboard.vue'
 import ModelManager from './features/model-manager/ModelManager.vue'
+import TagKbDrawer from './features/tag-kb/TagKbDrawer.vue'
+import RagSettingsDrawer from './features/settings/RagSettingsDrawer.vue'
+import GraphViewer from './features/graph/GraphViewer.vue'
 import LoginView from './features/auth/LoginView.vue'
 
 const authStore = useAuthStore()
@@ -91,6 +113,9 @@ const mobileSidebar = ref(false)
 const showDocs = ref(false)
 const showEval = ref(false)
 const showModels = ref(false)
+const showTagKb = ref(false)
+const showRagSettings = ref(false)
+const showGraph = ref(false)
 
 provide('toggleMobileSidebar', () => { mobileSidebar.value = true })
 
