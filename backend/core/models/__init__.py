@@ -76,7 +76,7 @@ def _discover_providers(module_name: str, model_type: str):
         return
 
     registry = _REGISTRY_MAP.get(model_type)
-    if not registry:
+    if registry is None:
         return
 
     for name, cls in inspect.getmembers(module, inspect.isclass):
