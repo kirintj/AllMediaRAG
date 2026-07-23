@@ -1,3 +1,8 @@
+"""EmbeddingService -- DEPRECATED, use core.models.llm_bundle.LLMBundle instead.
+
+This module is kept for backward compatibility with existing tests and
+direct imports. New code should use LLMBundle.from_config(model_type="embedding", ...).
+"""
 import logging
 from collections import OrderedDict
 

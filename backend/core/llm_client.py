@@ -1,3 +1,9 @@
+"""LLMClient -- DEPRECATED, use core.models.llm_bundle.LLMBundle instead.
+
+This module is kept for backward compatibility with existing tests and
+direct imports. New code should use LLMBundle.from_config() or the
+LLMBundle(tenant_id, model_type, tenant_llm_service) constructor.
+"""
 from openai import OpenAI, APIError, RateLimitError
 from typing import Generator
 

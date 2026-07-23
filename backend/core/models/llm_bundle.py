@@ -143,3 +143,72 @@ class LLMBundle:
 
     def transcription(self, audio_path: str) -> str:
         return self._mdl.transcription(audio_path)
+
+    # -- Legacy compatibility (matches old LLMClient API) --
+
+    def generate(self, prompt: str, images: list[str] | None = None) -> str:
+        """兼容旧 LLMClient.generate() 接口"""
+        content = prompt
+        if images:
+            content = [{"type": "text", "text": prompt}]
+            for img in images:
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
+        messages = [{"role": "user", "content": content}]
+        return self.chat(messages)
+
+    def stream_generate(self, prompt: str, images: list[str] | None = None):
+        """兼容旧 LLMClient.stream_generate() 接口（同步生成器）"""
+        import asyncio
+        content = prompt
+        if images:
+            content = [{"type": "text", "text": prompt}]
+            for img in images:
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
+        messages = [{"role": "user", "content": content}]
+
+        async def _collect():
+            chunks = []
+            async for chunk in self.chat_streamly(messages):
+                chunks.append(chunk)
+            return chunks
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, _collect())
+                for chunk in future.result():
+                    yield chunk
+        else:
+            for chunk in asyncio.run(_collect()):
+                yield chunk
+
+    @classmethod
+    def from_config(
+        cls,
+        model_type: str,
+        llm_factory: str,
+        llm_name: str,
+        api_key: str,
+        api_base: str = "",
+        tenant_id: str = "default",
+    ) -> LLMBundle:
+        """从配置直接创建（不经过数据库），用于向后兼容"""
+        instance = cls.__new__(cls)
+        instance._model_type = model_type
+        instance._tenant_id = tenant_id
+        instance._mdl = instance._model_instance({
+            "llm_factory": llm_factory,
+            "llm_name": llm_name,
+            "api_key": api_key,
+            "api_base": api_base,
+        })
+        logger.info(
+            "LLMBundle from_config: type=%s, factory=%s, model=%s",
+            model_type, llm_factory, llm_name,
+        )
+        return instance

@@ -11,8 +11,7 @@ create_infra 按 AppSettings 构建所有共享依赖并返回 InfraBundle。
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from core.embedding_service import EmbeddingService
-from core.llm_client import LLMClient
+from core.models.llm_bundle import LLMBundle
 from core.document_processor import DocumentProcessor
 from core.query_understanding.classifier import QueryClassifier
 from core.query_understanding.router import QueryRouter
@@ -45,20 +44,21 @@ def create_infra(settings) -> InfraBundle:
     config = settings
 
     # ---- 1. 核心三件套 -----------------------------------------------
-    embedding_provider = getattr(config, "EMBEDDING_PROVIDER", "sentence-transformer")
-    if embedding_provider == "siliconflow":
-        from core.providers.siliconflow_adapter import SiliconFlowEmbeddingAdapter
-
-        embedding_service = SiliconFlowEmbeddingAdapter(
+    _embedding_provider = getattr(config, "EMBEDDING_PROVIDER", "sentence-transformer")
+    if _embedding_provider == "siliconflow":
+        embedding_service = LLMBundle.from_config(
+            model_type="embedding",
+            llm_factory="SILICONFLOW",
+            llm_name=getattr(config, "SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-m3"),
             api_key=getattr(config, "SILICONFLOW_API_KEY", ""),
-            model=getattr(config, "SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-m3"),
-        )
-        logger.info(
-            "Using SiliconFlow cloud embedding: %s",
-            getattr(config, "SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-m3"),
         )
     else:
-        embedding_service = EmbeddingService(config.EMBEDDING_MODEL_PATH)
+        embedding_service = LLMBundle.from_config(
+            model_type="embedding",
+            llm_factory="HuggingFace",
+            llm_name=getattr(config, "EMBEDDING_MODEL_PATH", "./models/bge-m3"),
+            api_key="",
+        )
 
     # Elasticsearch 唯一后端
     from core.providers.elasticsearch_store import ElasticsearchStore
@@ -74,10 +74,12 @@ def create_infra(settings) -> InfraBundle:
         number_of_replicas=getattr(config, "ES_NUMBER_OF_REPLICAS", 0),
     )
 
-    llm_client = LLMClient(
-        config.MIMO_API_KEY,
-        config.MIMO_API_BASE,
-        config.MIMO_MODEL,
+    llm_client = LLMBundle.from_config(
+        model_type="chat",
+        llm_factory="OpenAI",
+        llm_name=config.MIMO_MODEL,
+        api_key=config.MIMO_API_KEY,
+        api_base=config.MIMO_API_BASE,
     )
 
     # ---- 2. 可选组件（OCR / VLM / 文件读取器 / 分块策略）------------
