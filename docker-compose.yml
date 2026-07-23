@@ -68,6 +68,28 @@ services:
     networks:
       - multimodal-rag-network
 
+  # ---------- Worker（异步任务消费） ----------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multimodal-rag-worker
+    restart: unless-stopped
+    command: python worker.py
+    env_file:
+      - .env
+    volumes:
+      - ./models:/app/models:ro
+      - multimodal_rag_chroma_data:/app/chroma_db
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - multimodal-rag-network
+
   # ---------- Neo4j (Knowledge Graph) ----------
   neo4j:
     image: neo4j:5-community
