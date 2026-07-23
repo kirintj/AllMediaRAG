@@ -74,7 +74,6 @@ services:
       - .env
     volumes:
       - ./models:/app/models:ro
-      - multimodal_rag_es_data:/app/chroma_db  # ES 替代 Chroma，挂载点保留兼容
       - ./data:/app/data
     depends_on:
       redis:
@@ -109,6 +108,8 @@ services:
       redis:
         condition: service_healthy
       elasticsearch:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       backend:
         condition: service_started
