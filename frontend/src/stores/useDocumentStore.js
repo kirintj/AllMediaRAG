@@ -1,12 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  getDocuments,
-  getDocumentDetails,
   getOverview,
   loadDocuments,
   getLoadStatus,
-  getStats,
   deleteDocument,
   clearAllDocuments,
   syncDocuments as syncDocumentsApi,
@@ -30,36 +27,6 @@ export const useDocumentStore = defineStore('document', () => {
       stats.value = data.stats || {}
     } catch (error) {
       console.error('获取文档概览失败:', error)
-    }
-  }
-
-  // 加载文档列表
-  async function fetchDocuments() {
-    try {
-      const data = await getDocuments()
-      documents.value = data.documents || []
-    } catch (error) {
-      console.error('获取文档列表失败:', error)
-    }
-  }
-
-  // 加载文档详情
-  async function fetchDocumentDetails() {
-    try {
-      const data = await getDocumentDetails()
-      documentDetails.value = data.documents || []
-    } catch (error) {
-      console.error('获取文档详情失败:', error)
-    }
-  }
-
-  // 获取统计信息
-  async function fetchStats() {
-    try {
-      const data = await getStats()
-      stats.value = data
-    } catch (error) {
-      console.error('获取统计失败:', error)
     }
   }
 
@@ -143,9 +110,6 @@ export const useDocumentStore = defineStore('document', () => {
     stats,
     hasDocuments,
     fetchOverview,
-    fetchDocuments,
-    fetchDocumentDetails,
-    fetchStats,
     uploadFile,
     uploadBatch,
     loadAllDocuments,

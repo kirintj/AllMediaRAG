@@ -27,24 +27,8 @@ export async function uploadBatch(files) {
   return response.data
 }
 
-// 查询批量上传进度
-export async function getBatchStatus(taskId) {
-  const response = await api.get(`/upload/batch/status/${taskId}`)
-  return response.data
-}
-
 export async function getOverview() {
   const response = await api.get('/documents/overview')
-  return response.data
-}
-
-export async function getDocuments() {
-  const response = await api.get('/documents')
-  return response.data
-}
-
-export async function getDocumentDetails() {
-  const response = await api.get('/documents/detail')
   return response.data
 }
 
@@ -55,11 +39,6 @@ export async function loadDocuments() {
 
 export async function getLoadStatus() {
   const response = await api.get('/documents/load/status')
-  return response.data
-}
-
-export async function getStats() {
-  const response = await api.get('/stats')
   return response.data
 }
 

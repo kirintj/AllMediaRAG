@@ -173,10 +173,7 @@ class VectorStore(VectorStoreProvider):
         self._ensure_source_stats()
         return {
             "sources": list(self._source_stats.keys()),
-            "source_details": [
-                {"source": src, "chunks": cnt}
-                for src, cnt in self._source_stats.items()
-            ],
+            "source_details": self.get_source_details(),
             "document_count": self.collection.count(),
         }
 
