@@ -1,3 +1,5 @@
+name: multimodal-rag
+
 services:
   # ---------- Redis ----------
   redis:
@@ -119,6 +121,8 @@ services:
   # ---------- Neo4j (Knowledge Graph) ----------
   neo4j:
     image: neo4j:5-community
+    container_name: multimodal-rag-neo4j
+    restart: unless-stopped
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4jtest}
     ports:
@@ -126,6 +130,8 @@ services:
       - "7687:7687"
     volumes:
       - neo4j_data:/data
+    networks:
+      - multimodal-rag-network
 
   # ---------- 前端 + Nginx ----------
   frontend:

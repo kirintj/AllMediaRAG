@@ -40,6 +40,98 @@ class IngestionService:
         if not chunks:
             return 0
 
+        # ---- LLM 增强（可选）----
+        config = self._infra.settings
+        llm_client = getattr(self._infra, 'llm_client', None)
+        enrichment_cache = None
+
+        if llm_client and any([
+            getattr(config, 'ENABLE_AUTO_KEYWORDS', False),
+            getattr(config, 'ENABLE_AUTO_QUESTIONS', False),
+            getattr(config, 'ENABLE_METADATA_EXTRACTION', False),
+            getattr(config, 'ENABLE_TOC_EXTRACTION', False),
+            getattr(config, 'ENABLE_RAPTOR', False),
+        ]):
+            from core.enrichment.cache import LLMCache
+            import redis as redis_lib
+            try:
+                redis_url = getattr(config, 'REDIS_URL', '')
+                if redis_url:
+                    r = redis_lib.from_url(redis_url, decode_responses=True)
+                    enrichment_cache = LLMCache(r, ttl=getattr(config, 'ENRICHMENT_CACHE_TTL', 86400))
+                else:
+                    enrichment_cache = LLMCache(None)
+            except Exception:
+                enrichment_cache = LLMCache(None)
+
+        if enrichment_cache and llm_client:
+            # 自动关键词
+            if getattr(config, 'ENABLE_AUTO_KEYWORDS', False):
+                try:
+                    from core.enrichment.keyword_extractor import KeywordExtractor
+                    chunks = KeywordExtractor(
+                        llm_client, enrichment_cache,
+                        topn=getattr(config, 'AUTO_KEYWORDS_TOPN', 5)
+                    ).extract(chunks)
+                    logger.info("Auto-keywords extracted for %s", source)
+                except Exception as e:
+                    logger.warning("Auto-keywords failed for %s: %s", source, e)
+
+            # 自动问题
+            if getattr(config, 'ENABLE_AUTO_QUESTIONS', False):
+                try:
+                    from core.enrichment.question_generator import QuestionGenerator
+                    chunks = QuestionGenerator(
+                        llm_client, enrichment_cache,
+                        topn=getattr(config, 'AUTO_QUESTIONS_TOPN', 3)
+                    ).generate(chunks)
+                    logger.info("Auto-questions generated for %s", source)
+                except Exception as e:
+                    logger.warning("Auto-questions failed for %s: %s", source, e)
+
+            # 结构化元数据
+            if getattr(config, 'ENABLE_METADATA_EXTRACTION', False):
+                try:
+                    from core.enrichment.metadata_extractor import MetadataExtractor
+                    chunks = MetadataExtractor(llm_client, enrichment_cache).extract(chunks)
+                    logger.info("Metadata extracted for %s", source)
+                except Exception as e:
+                    logger.warning("Metadata extraction failed for %s: %s", source, e)
+
+            # TOC 提取
+            if getattr(config, 'ENABLE_TOC_EXTRACTION', False):
+                try:
+                    from core.enrichment.toc_builder import TOCBuilder
+                    toc = TOCBuilder(llm_client, enrichment_cache).build(source, chunks)
+                    if toc:
+                        logger.info("TOC built for %s: %d entries", source, len(toc.get('items', [])))
+                except Exception as e:
+                    logger.warning("TOC extraction failed for %s: %s", source, e)
+
+            # RAPTOR
+            if getattr(config, 'ENABLE_RAPTOR', False):
+                try:
+                    from core.enrichment.raptor import RAPTORProcessor
+                    embedding_service = getattr(self._infra, 'embedding_service', None)
+                    if embedding_service:
+                        raptor = RAPTORProcessor(
+                            llm_bundle=llm_client,
+                            embedding_bundle=embedding_service,
+                            cache=enrichment_cache,
+                            max_cluster=getattr(config, 'RAPTOR_MAX_CLUSTERS', 64),
+                            threshold=getattr(config, 'RAPTOR_THRESHOLD', 0.1),
+                            clustering_method=getattr(config, 'RAPTOR_CLUSTERING_METHOD', 'gmm'),
+                            small_layer_collapse=getattr(config, 'RAPTOR_SMALL_LAYER_COLLAPSE', 8),
+                            max_errors=getattr(config, 'RAPTOR_MAX_ERRORS', 3),
+                            max_depth=getattr(config, 'RAPTOR_MAX_DEPTH', 3),
+                        )
+                        summaries = raptor.process(chunks, source)
+                        if summaries:
+                            chunks.extend(summaries)
+                            logger.info("RAPTOR: added %d summary chunks for %s", len(summaries), source)
+                except Exception as e:
+                    logger.warning("RAPTOR failed for %s: %s", source, e)
+
         texts = [c["text"] for c in chunks]
         metadatas = [c["metadata"] for c in chunks]
 

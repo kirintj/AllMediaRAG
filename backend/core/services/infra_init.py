@@ -176,6 +176,10 @@ def _build_file_reader_registry(ocr_provider, vlm_provider) -> dict:
         DocxReader,
         HtmlReader,
         ImageReader,
+        ExcelReader,
+        PptxReader,
+        JsonReader,
+        AudioReader,
     )
 
     readers = [
@@ -184,6 +188,10 @@ def _build_file_reader_registry(ocr_provider, vlm_provider) -> dict:
         DocxReader(),
         HtmlReader(),
         ImageReader(ocr_provider=ocr_provider, vlm_provider=vlm_provider),
+        ExcelReader(),
+        PptxReader(),
+        JsonReader(),
+        AudioReader(),  # ASR bundle not yet available; configure via set_asr_bundle()
     ]
     registry: dict = {}
     for reader in readers:
