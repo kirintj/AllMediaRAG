@@ -51,6 +51,7 @@ class IngestionService:
             getattr(config, 'ENABLE_METADATA_EXTRACTION', False),
             getattr(config, 'ENABLE_TOC_EXTRACTION', False),
             getattr(config, 'ENABLE_RAPTOR', False),
+            getattr(config, 'ENABLE_CONTENT_TAGGING', False),
         ]):
             from core.enrichment.cache import LLMCache
             import redis as redis_lib
@@ -131,6 +132,23 @@ class IngestionService:
                             logger.info("RAPTOR: added %d summary chunks for %s", len(summaries), source)
                 except Exception as e:
                     logger.warning("RAPTOR failed for %s: %s", source, e)
+
+            # Content Tagging
+            if getattr(config, 'ENABLE_CONTENT_TAGGING', False):
+                try:
+                    from core.enrichment.content_tagger import ContentTagger
+                    from core.tag_kb import TagKBManager
+                    tag_kb_ids_str = getattr(config, 'CONTENT_TAG_KB_IDS', '')
+                    tag_kb_ids = [x.strip() for x in tag_kb_ids_str.split(',') if x.strip()]
+                    if tag_kb_ids:
+                        tag_kb_mgr = TagKBManager(self._doc_store)
+                        chunks = ContentTagger(
+                            llm_client, enrichment_cache, tag_kb_mgr,
+                            topn=getattr(config, 'CONTENT_TAG_TOPN', 3)
+                        ).tag(chunks, tag_kb_ids)
+                        logger.info("Content tagging done for %s", source)
+                except Exception as e:
+                    logger.warning("Content tagging failed for %s: %s", source, e)
 
         texts = [c["text"] for c in chunks]
         metadatas = [c["metadata"] for c in chunks]

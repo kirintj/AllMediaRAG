@@ -39,6 +39,7 @@ from api.conversations import router as conversations_router
 from api.auth import router as auth_router
 from api.eval import router as eval_router
 from api.models import router as models_router
+from api.tag_kb import router as tag_kb_router
 
 # 启动时校验关键配置
 if not config.MIMO_API_KEY:
@@ -253,6 +254,7 @@ app.include_router(documents_router, prefix="/api")
 app.include_router(conversations_router, prefix="/api")
 app.include_router(eval_router, prefix="/api")
 app.include_router(models_router, prefix="/api")
+app.include_router(tag_kb_router, prefix="/api")
 
 
 @app.get("/")

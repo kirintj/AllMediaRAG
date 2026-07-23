@@ -111,6 +111,11 @@ class AppSettings(BaseSettings):
     AUTO_KEYWORDS_TOPN: int = 5
     AUTO_QUESTIONS_TOPN: int = 3
 
+    # -- Content Tagging -----------------------------------------------
+    ENABLE_CONTENT_TAGGING: bool = False
+    CONTENT_TAG_TOPN: int = 3
+    CONTENT_TAG_KB_IDS: str = ""  # comma-separated tag KB ID list
+
     # -- RAPTOR -------------------------------------------------------
     ENABLE_RAPTOR: bool = False
     RAPTOR_MAX_CLUSTERS: int = 64
