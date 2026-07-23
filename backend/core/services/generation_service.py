@@ -234,6 +234,16 @@ class GenerationService:
                     "metadata": meta
                 })
 
+        # GraphRAG context（独立返回，拼接到 prompt）
+        graph_context = None
+        if getattr(self._infra.settings, 'GRAPHRAG_ENABLED', False):
+            try:
+                graph_retriever = getattr(self._infra, 'graph_retriever', None)
+                if graph_retriever:
+                    graph_context = graph_retriever.retrieve(question)
+            except Exception as e:
+                logger.debug("GraphRAG retrieval failed: %s", e)
+
         # 查询分类（用于决定是否启用 Self-RAG）
         try:
             intent = self._classifier.classify(question)
@@ -242,6 +252,9 @@ class GenerationService:
             intent_type = "factoid"
 
         prompt = self.build_prompt(question, contexts, history=history)
+
+        if graph_context:
+            prompt += f"\n\n## 知识图谱参考\n{graph_context}"
 
         sources = []
         seen_sources = set()

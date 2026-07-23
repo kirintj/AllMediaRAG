@@ -150,6 +150,13 @@ class IngestionService:
                 except Exception as e:
                     logger.warning("Content tagging failed for %s: %s", source, e)
 
+            # GraphRAG
+            if getattr(config, 'GRAPHRAG_ENABLED', False):
+                try:
+                    self._run_graphrag(chunks, source, config)
+                except Exception as e:
+                    logger.warning("GraphRAG failed for %s: %s", source, e)
+
         texts = [c["text"] for c in chunks]
         metadatas = [c["metadata"] for c in chunks]
 
@@ -203,6 +210,110 @@ class IngestionService:
                     logger.warning("KG extraction failed for chunk in %s: %s", source, e)
 
         return len(chunks)
+
+    def _run_graphrag(self, chunks: list[dict], source: str, config):
+        """GraphRAG 摄入流水线：提取 → 合并 → 写入 → 消歧 → 社区 → PageRank"""
+        from core.kg.merger import GraphMerger
+        from core.kg.entity_resolution import EntityResolver
+        from core.kg.community import CommunityDetector
+
+        graph_store = getattr(self._infra, 'graph_store', None)
+        if not graph_store:
+            logger.debug("GraphRAG: no graph store configured")
+            return
+
+        llm = getattr(self._infra, 'llm_client', None)
+        if not llm:
+            return
+
+        # 1. 选择提取后端
+        method = getattr(config, 'GRAPHRAG_METHOD', 'general')
+        entity_types = config.graphrag_entity_types
+
+        if method == "general":
+            from core.kg.extractors.general_extractor import GeneralExtractor
+            extractor = GeneralExtractor(
+                llm, entity_types=entity_types,
+                max_gleanings=getattr(config, 'GRAPHRAG_MAX_GLEANINGS', 2)
+            )
+        elif method == "light":
+            from core.kg.extractors.light_extractor import LightExtractor
+            extractor = LightExtractor(llm, entity_types=entity_types)
+        elif method == "ner":
+            from core.kg.extractors.ner_extractor import NERExtractor
+            extractor = NERExtractor()
+        else:
+            logger.warning("Unknown GraphRAG method: %s", method)
+            return
+
+        # 2. 提取
+        entities, relations = extractor.extract(chunks)
+        if not entities:
+            logger.info("GraphRAG: no entities extracted from %s", source)
+            return
+
+        logger.info("GraphRAG: extracted %d entities, %d relations from %s",
+                     len(entities), len(relations), source)
+
+        # 3. 合并
+        merger = GraphMerger()
+        entities = merger.merge_entities(entities, llm)
+        relations = merger.merge_relations(relations)
+        relations = merger.validate_relations(relations)
+
+        logger.info("GraphRAG: after merge: %d entities, %d relations",
+                     len(entities), len(relations))
+
+        # 4. 写入 Neo4j
+        for ent in entities:
+            graph_store.ingest_entity(ent)
+        for rel in relations:
+            graph_store.ingest_relation(rel)
+
+        # 5. 实体消歧
+        if getattr(config, 'GRAPHRAG_ENABLE_RESOLUTION', True):
+            try:
+                resolver = EntityResolver(llm)
+                existing = graph_store.get_all_entities()
+                new_ents = [e for e in entities]
+                candidates = resolver.find_candidates(new_ents, existing)
+                if candidates:
+                    confirmed = resolver.confirm_batch(candidates)
+                    for new_e, old_e in confirmed:
+                        graph_store.merge_entity_nodes(old_e.get("id", ""), new_e.get("id", ""))
+                    logger.info("GraphRAG: resolved %d entity pairs", len(confirmed))
+            except Exception as e:
+                logger.warning("Entity resolution failed: %s", e)
+
+        # 6. 社区检测
+        if getattr(config, 'GRAPHRAG_ENABLE_COMMUNITY', True):
+            try:
+                detector = CommunityDetector(llm)
+                G = graph_store.to_networkx()
+                communities = detector.detect(G)
+                for i, members in enumerate(communities):
+                    comm_entities = [G.nodes[n] for n in members if G.has_node(n)]
+                    comm_relations = []
+                    for u, v in G.edges(members):
+                        if G.has_edge(u, v):
+                            comm_relations.append(G.edges[u, v])
+                    report = detector.generate_report(comm_entities, comm_relations)
+                    graph_store.store_community(
+                        community_id=f"community_{source}_{i}",
+                        members=members,
+                        report=report,
+                        weight=len(members),
+                    )
+                logger.info("GraphRAG: detected %d communities", len(communities))
+            except Exception as e:
+                logger.warning("Community detection failed: %s", e)
+
+        # 7. PageRank
+        if getattr(config, 'GRAPHRAG_PAGERANK_ENABLED', True):
+            try:
+                graph_store.compute_pagerank()
+            except Exception as e:
+                logger.warning("PageRank computation failed: %s", e)
 
     def delete_by_source(self, source: str):
         """按来源删除文档（图片 → ES → 缓存）
