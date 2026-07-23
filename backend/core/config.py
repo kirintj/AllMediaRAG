@@ -125,6 +125,15 @@ class AppSettings(BaseSettings):
     RAPTOR_MAX_ERRORS: int = 3
     RAPTOR_MAX_DEPTH: int = 3
 
+    # -- GraphRAG ------------------------------------------------------
+    GRAPHRAG_ENABLED: bool = False
+    GRAPHRAG_METHOD: str = "general"  # general / light / ner
+    GRAPHRAG_ENTITY_TYPES: str = "organization,person,geo,event,category"
+    GRAPHRAG_MAX_GLEANINGS: int = 2
+    GRAPHRAG_ENABLE_RESOLUTION: bool = True
+    GRAPHRAG_ENABLE_COMMUNITY: bool = True
+    GRAPHRAG_PAGERANK_ENABLED: bool = True
+
     # -- LLM 缓存 ----------------------------------------------------
     ENRICHMENT_CACHE_TTL: int = 86400
 
@@ -243,6 +252,10 @@ class AppSettings(BaseSettings):
     @property
     def supported_file_extensions(self) -> set[str]:
         return {ext.strip() for ext in self.SUPPORTED_FILE_EXTENSIONS.split(",")}
+
+    @property
+    def graphrag_entity_types(self) -> list[str]:
+        return [t.strip() for t in self.GRAPHRAG_ENTITY_TYPES.split(",")]
 
 
 # ---------------------------------------------------------------------------
