@@ -91,6 +91,16 @@ class AppSettings(BaseSettings):
     USE_REDIS: bool = False
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+
+    # -- Task Queue (Redis Stream) ------------------------------------
+    REDIS_URL: str = "redis://localhost:6379/0"
+    TASK_TTL_HOURS: int = 24
+
+    # -- Worker -------------------------------------------------------
+    WORKER_CONCURRENCY: int = 4
+    WORKER_MAX_RETRIES: int = 3
+    WORKER_RETRY_DELAYS: str = "5,15,30"  # comma-separated seconds
+
     CACHE_L2_TTL: int = 600
     SEMANTIC_CACHE_ENABLED: bool = True
     SEMANTIC_CACHE_THRESHOLD: float = 0.95
@@ -179,6 +189,10 @@ class AppSettings(BaseSettings):
     MULTIMODAL_MAX_IMAGES: int = 3
 
     # -- Computed properties ------------------------------------------
+
+    @property
+    def worker_retry_delays(self) -> list[int]:
+        return [int(x.strip()) for x in self.WORKER_RETRY_DELAYS.split(",")]
 
     @property
     def database_url(self) -> str:
