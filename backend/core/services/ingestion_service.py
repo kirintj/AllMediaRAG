@@ -178,13 +178,18 @@ class IngestionService:
 
         # 构建 ES 写入行（jieba 预分词）
         rows = []
+        chunk_ids = []
         for text, emb, meta in zip(texts, embeddings, metadatas):
+            cid = str(uuid.uuid4())
+            chunk_ids.append(cid)
+            meta["chunk_id"] = cid
             rows.append({
-                "id": str(uuid.uuid4()),
+                "id": cid,
                 "text": self._doc_store._tokenize(text),  # jieba 分词后存入 text 字段
                 "text_raw": text,                          # 原始文本存入 text_raw
                 "embedding": emb,
                 "source": meta.get("source", source),
+                "chunk_id": cid,
                 "metadata": meta,
                 "tenant_id": self._tenant_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -199,13 +204,11 @@ class IngestionService:
         kg_extractor = getattr(self._infra, "kg_extractor", None)
         if graph_store and kg_extractor:
             import asyncio
-            for chunk, meta in zip(chunks, metadatas):
+            for chunk, meta, cid in zip(chunks, metadatas, chunk_ids):
                 try:
-                    chunk_id = meta.get("chunk_id", str(uuid.uuid4()))
-                    meta["chunk_id"] = chunk_id
                     entities = asyncio.run(kg_extractor.extract_entities(chunk["text"]))
                     relations = asyncio.run(kg_extractor.extract_relations(chunk["text"], entities))
-                    graph_store.ingest(chunk_id, source, entities, relations)
+                    graph_store.ingest(cid, source, entities, relations)
                 except Exception as e:
                     logger.warning("KG extraction failed for chunk in %s: %s", source, e)
 

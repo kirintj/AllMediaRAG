@@ -14,7 +14,6 @@ def _make_config():
     config.MIMO_API_BASE = "https://api.test.com/v1"
     config.MIMO_MODEL = "test-model"
     config.EMBEDDING_MODEL_PATH = "test-model-path"
-    config.CHROMA_PERSIST_DIR = "/tmp/test_chroma"
     config.TOP_K = 3
     config.BM25_TOP_K = 6
     config.RRF_K = 60

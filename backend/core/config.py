@@ -175,7 +175,7 @@ class AppSettings(BaseSettings):
     # -- Factory mode -------------------------------------------------
     USE_FACTORY_MODE: bool = False
     EMBEDDING_PROVIDER: str = "sentence-transformer"
-    VECTOR_STORE_PROVIDER: str = "chroma"
+    VECTOR_STORE_PROVIDER: str = "elasticsearch"
     LLM_PROVIDER: str = "openai-compatible"
 
     # -- Performance --------------------------------------------------

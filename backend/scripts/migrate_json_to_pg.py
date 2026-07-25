@@ -131,7 +131,7 @@ def main():
     print("=" * 60)
     print("\n存储方案:")
     print("  - 用户/对话: PostgreSQL")
-    print("  - 向量存储: ChromaDB")
+    print("  - 向量存储: Elasticsearch")
 
     return True
 

@@ -14,7 +14,7 @@
 
 - **5 阶段检索管线**：查询理解 → 多路召回（向量 + BM25 并行） → 加权 RRF 融合 → Cross-Encoder 重排序 → 置信度评估与自适应补召回，端到端命中率显著优于单路检索
 - **多模态文档全链路**：原生支持 PDF / DOCX / Markdown / HTML / 图片，集成 PaddleOCR、Tesseract、VLM 视觉语言模型三级 OCR 引擎；支持 Qwen-VL-Max 统一版面分析 + OCR + 图表理解，按区域类型（文本 / 表格 / 图片 / 公式）智能分块，查询时原图附带给多模态 LLM 生成更准确的回答
-- **可插拔组件工厂**：Embedding（本地 BGE-M3 / SiliconFlow 云端）、向量存储（ChromaDB / pgvector）、重排序（Cohere / BGE / SiliconFlow / 混合）均通过 Provider 模式热切换，零代码更换底层实现
+- **可插拔组件工厂**：Embedding（本地 BGE-M3 / SiliconFlow 云端）、向量存储（Elasticsearch）、重排序（Cohere / BGE / SiliconFlow / 混合）均通过 Provider 模式热切换，零代码更换底层实现
 - **全链路评测框架**：内置 RAGAS 标准评测 + 自定义检索指标（Hit Rate / MRR / NDCG / MAP），支持 A/B 配对 t 检验、自动配置对比、分维度（查询类型 × 难度）分析，评测数据集可由 LLM 自动生成
 - **生产级基础设施**：L1 内存 + L2 Redis 多级缓存（含语义去重）、结构化 JSON 日志、关联 ID 请求追踪、30s 端到端超时保护、Embedding 模型启动预加载、错误率实时告警、优雅关闭与请求排空、JWT 认证与速率限制
 
@@ -33,7 +33,7 @@
 | **视觉语言模型** | MiMo-v2.5 VLM / Qwen-VL-Max | 图表 / 流程图理解；新版统一提取器（版面分析 + OCR + 理解） |
 | **文本向量化** | BGE-M3（本地 sentence-transformers）/ SiliconFlow 云端 | 多语言稠密向量 |
 | **关键词检索** | jieba + rank-bm25 | 中文分词 BM25 |
-| **向量数据库** | ChromaDB / PostgreSQL + pgvector | 嵌入式 / 生产级双后端 |
+| **向量数据库** | Elasticsearch 8.x | 混合检索（向量 + BM25） |
 | **关系数据库** | PostgreSQL 16 | 用户、对话、文档元数据存储 |
 | **缓存** | Redis 7 + 内存 LRU | L1 / L2 多级缓存 |
 | **重排序** | Cohere / BGE / SiliconFlow / 混合 | Cross-Encoder 精排 |
@@ -62,7 +62,6 @@
 │   │   ├── config.py                     # 统一配置管理（pydantic-settings）
 │   │   ├── rag_engine.py                 # RAG 引擎门面（三服务编排）
 │   │   ├── embedding_service.py          # Embedding 服务（GPU 自动检测 + LRU 缓存）
-│   │   ├── vector_store.py               # ChromaDB 向量存储封装
 │   │   ├── llm_client.py                 # OpenAI 兼容 LLM 客户端（支持多模态图片输入）
 │   │   ├── document_processor.py         # 文档解析、OCR、分块（双管线：新 VLM 提取 / 旧 OCR+VLM）
 │   │   ├── image_store.py                # 原图文件系统存储（MD5 去重，查询时多模态 LLM 使用）
@@ -97,7 +96,7 @@
 │   │   │   ├── base.py                   # 组件抽象基类
 │   │   │   ├── factory.py                # ProviderFactory
 │   │   │   ├── siliconflow_adapter.py    # SiliconFlow 云 API 适配器
-│   │   │   ├── pgvector_adapter.py       # pgvector 向量存储适配器
+│   │   │   ├── elasticsearch_store.py    # Elasticsearch 向量存储适配器
 │   │   │   └── readers/                  # 文件格式读取器
 │   │   │       ├── pdf_reader.py
 │   │   │       ├── enhanced_pdf_reader.py
@@ -246,7 +245,8 @@ docker compose up -d
 | 后端 API | http://localhost:8000 | FastAPI 服务 |
 | Swagger 文档 | http://localhost:8000/docs | 交互式 API 文档 |
 | Redis | localhost:6381 | L2 缓存 |
-| PostgreSQL | localhost:5433 | pgvector 向量数据库 |
+| Elasticsearch | localhost:9200 | 向量 + 全文混合检索 |
+| PostgreSQL | localhost:5433 | 用户、文档元数据存储 |
 
 ```bash
 # 查看日志
@@ -378,24 +378,17 @@ BGE_RERANKER_PATH=./models/bge-reranker-base
 RERANK_STRATEGY=hybrid
 ```
 
-### 向量存储切换
+### 向量存储
+
+使用 Elasticsearch 8.x 作为唯一向量存储后端，支持向量 + BM25 混合检索：
 
 ```bash
-# ChromaDB 嵌入式（默认，零配置）
-VECTOR_STORE_PROVIDER=chroma
-CHROMA_PERSIST_DIR=./chroma_db
-
-# PostgreSQL + pgvector（生产推荐）
-VECTOR_STORE_PROVIDER=pgvector
-DATABASE_URL=postgresql://rag_user:rag_password@localhost:5432/rag_db
+# Elasticsearch（默认，需启动 ES 实例）
+VECTOR_STORE_PROVIDER=elasticsearch
+ES_HOSTS=http://localhost:9200
 ```
 
-切换后需重建索引：
-
-```bash
-cd backend
-python scripts/rebuild_index.py
-```
+Docker Compose 已包含 Elasticsearch 服务，`docker compose up -d` 即可使用。
 
 ### 评测与基准测试
 
@@ -471,8 +464,7 @@ python eval/generate_dataset.py --count 5 --output eval_dataset_auto.json
 | `EMBEDDING_MODEL_PATH` | string | 否 | 本地 Embedding 模型路径 | `./models/bge-m3` |
 | `EMBEDDING_PROVIDER` | string | 否 | Embedding 提供商：`sentence-transformer` / `siliconflow` | `sentence-transformer` |
 | `SILICONFLOW_API_KEY` | string | 否 | SiliconFlow API Key（云端 Embedding / Reranking） | - |
-| `VECTOR_STORE_PROVIDER` | string | 否 | 向量存储后端：`chroma` / `pgvector` | `chroma` |
-| `CHROMA_PERSIST_DIR` | string | 否 | ChromaDB 数据目录 | `./chroma_db` |
+| `VECTOR_STORE_PROVIDER` | string | 否 | 向量存储后端（仅支持 `elasticsearch`） | `elasticsearch` |
 | `DATABASE_URL` | string | 否 | PostgreSQL 完整连接 URL（优先于分项配置） | - |
 | `PG_HOST` | string | 否 | PostgreSQL 主机 | `localhost` |
 | `PG_PORT` | int | 否 | PostgreSQL 端口 | `5432` |
@@ -639,23 +631,19 @@ EMBEDDING_PROVIDER=siliconflow
 SILICONFLOW_API_KEY=your_key
 ```
 
-### Q: ChromaDB 报错 `readonly` 或数据损坏
+### Q: Elasticsearch 连接失败
+
+确认 Elasticsearch 已启动并可访问：
 
 ```bash
-rm -rf ./chroma_db
-python backend/scripts/rebuild_index.py
+curl http://localhost:9200/_cluster/health
 ```
 
-### Q: pgvector 模式连接失败
-
-确认 PostgreSQL 已安装 pgvector 扩展，并运行数据库迁移：
+Docker Compose 部署时 ES 自动启动，本地开发需单独安装或使用 Docker：
 
 ```bash
-cd backend
-alembic upgrade head
+docker run -d --name es -p 9200:9200 -e "discovery.type=single-node" elasticsearch:8.13.0
 ```
-
-详细安装指南参考 `docs/pgvector-install.md` 和 `docs/postgresql-setup.md`。
 
 ### Q: 前端无法访问后端 API
 

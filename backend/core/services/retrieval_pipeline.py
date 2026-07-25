@@ -147,29 +147,18 @@ class RetrievalPipeline:
                         if any(cid in d.get("id", "") for d in fused):
                             continue
                         try:
-                            from core.db.models import DocumentChunkModel
-                            from core.db.engine import get_session_factory
-                            factory = get_session_factory()
-                            if factory is None:
-                                continue
-                            session = factory()
-                            try:
-                                chunk_row = session.query(DocumentChunkModel).filter(
-                                    DocumentChunkModel.id == cid
-                                ).first()
-                                if chunk_row:
-                                    fused.append({
-                                        "id": f"graph_{cid}",
-                                        "text": chunk_row.text,
-                                        "metadata": {
-                                            "source": chunk_row.source,
-                                            "section": chunk_row.section,
-                                            "chunk_index": chunk_row.chunk_index,
-                                            "retrieval_source": "knowledge_graph",
-                                        },
-                                    })
-                            finally:
-                                session.close()
+                            doc = self.infra.vector_store.get(cid)
+                            if doc:
+                                fused.append({
+                                    "id": f"graph_{cid}",
+                                    "text": doc.get("text_raw", doc.get("text", "")),
+                                    "metadata": {
+                                        "source": doc.get("source", ""),
+                                        "section": doc.get("metadata", {}).get("section", ""),
+                                        "chunk_index": doc.get("metadata", {}).get("chunk_index", 0),
+                                        "retrieval_source": "knowledge_graph",
+                                    },
+                                })
                         except Exception:
                             pass
             except Exception as e:

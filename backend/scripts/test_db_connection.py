@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL 数据库连接测试脚本
-验证数据库连接、pgvector 扩展和表结构
+验证数据库连接和表结构
 """
 
 import sys
@@ -17,7 +17,7 @@ def test_connection():
     print("=" * 60)
 
     # 测试同步连接
-    print("\n[1/5] 测试同步连接...")
+    print("\n[1/3] 测试同步连接...")
     try:
         from sqlalchemy import create_engine, text
         from core.config import config
@@ -36,7 +36,7 @@ def test_connection():
         return False
 
     # 测试异步连接
-    print("\n[2/5] 测试异步连接...")
+    print("\n[2/3] 测试异步连接...")
     try:
         import asyncio
         from sqlalchemy.ext.asyncio import create_async_engine
@@ -56,78 +56,13 @@ def test_connection():
         print(f"✗ 异步连接失败: {e}")
         return False
 
-    # 测试 pgvector 扩展
-    print("\n[3/5] 测试 pgvector 扩展...")
-    try:
-        from sqlalchemy import create_engine, text
-        from core.config import config
-
-        engine = create_engine(config.DATABASE_URL_SYNC)
-
-        with engine.connect() as conn:
-            result = conn.execute(text(
-                "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'"
-            ))
-            row = result.fetchone()
-
-            if row:
-                print(f"✓ pgvector 扩展已安装")
-                print(f"  版本: {row[1]}")
-            else:
-                print(f"✗ pgvector 扩展未安装")
-                return False
-
-        engine.dispose()
-    except Exception as e:
-        print(f"✗ 检查 pgvector 扩展失败: {e}")
-        return False
-
-    # 测试向量操作
-    print("\n[4/5] 测试向量操作...")
-    try:
-        from sqlalchemy import create_engine, text
-        from core.config import config
-        from pgvector.sqlalchemy import Vector
-
-        engine = create_engine(config.DATABASE_URL_SYNC)
-
-        with engine.connect() as conn:
-            # 创建测试表
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS vector_test (
-                    id SERIAL PRIMARY KEY,
-                    embedding VECTOR(3)
-                )
-            """))
-
-            # 插入测试向量
-            conn.execute(text(
-                "INSERT INTO vector_test (embedding) VALUES (ARRAY[1.0, 2.0, 3.0]::vector)"
-            ))
-
-            # 查询测试向量
-            result = conn.execute(text("SELECT * FROM vector_test"))
-            rows = result.fetchall()
-
-            print(f"✓ 向量操作成功")
-            print(f"  插入和查询 {len(rows)} 条记录")
-
-            # 清理测试表
-            conn.execute(text("DROP TABLE IF EXISTS vector_test"))
-            conn.commit()
-
-        engine.dispose()
-    except Exception as e:
-        print(f"✗ 向量操作失败: {e}")
-        return False
-
     # 测试 ORM 模型
-    print("\n[5/5] 测试 ORM 模型...")
+    print("\n[3/3] 测试 ORM 模型...")
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from core.config import config
-        from core.db.models import Base, DocumentChunk
+        from core.db.models import Base, DocumentModel
 
         engine = create_engine(config.DATABASE_URL_SYNC)
 
@@ -138,9 +73,9 @@ def test_connection():
         session = Session()
 
         # 测试查询
-        count = session.query(DocumentChunk).count()
+        count = session.query(DocumentModel).count()
         print(f"✓ ORM 模型正常")
-        print(f"  当前文档块数量: {count}")
+        print(f"  当前文档数量: {count}")
 
         session.close()
         engine.dispose()
