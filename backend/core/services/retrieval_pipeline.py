@@ -55,6 +55,14 @@ class RetrievalPipeline:
         self.rerank_gate_threshold: float = getattr(config, "RERANK_GATE_THRESHOLD", 0.3)
         self._refetch_enabled: bool = getattr(config, "RETRIEVAL_REFETCH_ENABLED", True)
 
+    def _ensure_tenant(self, tenant_id: str):
+        """确保 ES store 使用正确的租户索引"""
+        if hasattr(self.infra.vector_store, '_tenant_id'):
+            if self.infra.vector_store._tenant_id != tenant_id:
+                self.infra.vector_store._tenant_id = tenant_id
+                self.infra.vector_store._ensure_index()
+                logger.info("Retrieval: switched ES index to tenant: %s", tenant_id)
+
     # ------------------------------------------------------------------
     # Static / class helpers
     # ------------------------------------------------------------------

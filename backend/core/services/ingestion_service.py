@@ -25,11 +25,13 @@ class IngestionService:
     # Public API
     # ------------------------------------------------------------------
 
-    def ingest_document(self, file_path: str) -> int:
+    def ingest_document(self, file_path: str, tenant_id: str = "default", kb_id: str = "") -> int:
         """导入文档，返回 chunk 数量
 
         Args:
             file_path: 文档文件路径
+            tenant_id: 租户 ID（用于 ES 索引隔离）
+            kb_id: 知识库 ID（可选）
 
         Returns:
             处理的 chunk 数量
@@ -39,6 +41,13 @@ class IngestionService:
 
         if not chunks:
             return 0
+
+        # 确保使用正确的租户索引
+        if hasattr(self._doc_store, '_tenant_id'):
+            if self._doc_store._tenant_id != tenant_id:
+                self._doc_store._tenant_id = tenant_id
+                self._doc_store._ensure_index()
+                logger.info("Switched ES index to tenant: %s", tenant_id)
 
         # ---- LLM 增强（可选）----
         config = self._infra.settings
@@ -191,7 +200,8 @@ class IngestionService:
                 "source": meta.get("source", source),
                 "chunk_id": cid,
                 "metadata": meta,
-                "tenant_id": self._tenant_id,
+                "tenant_id": tenant_id,
+                "kb_id": kb_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
 

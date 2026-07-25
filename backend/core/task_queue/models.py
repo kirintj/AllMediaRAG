@@ -21,6 +21,8 @@ class TaskMessage:
     file_path: str
     source: str
     user_id: str
+    tenant_id: str = "default"  # NEW: 租户隔离
+    kb_id: str = ""             # NEW: 知识库 ID
     parser_type: str = "auto"
     enrichment: str = "{}"
     retry: int = 0
@@ -32,6 +34,8 @@ class TaskMessage:
             "file_path": self.file_path,
             "source": self.source,
             "user_id": self.user_id,
+            "tenant_id": self.tenant_id,
+            "kb_id": self.kb_id,
             "parser_type": self.parser_type,
             "enrichment": self.enrichment,
             "retry": str(self.retry),
@@ -45,6 +49,8 @@ class TaskMessage:
             file_path=d["file_path"],
             source=d["source"],
             user_id=d["user_id"],
+            tenant_id=d.get("tenant_id", "default"),
+            kb_id=d.get("kb_id", ""),
             parser_type=d.get("parser_type", "auto"),
             enrichment=d.get("enrichment", "{}"),
             retry=int(d.get("retry", 0)),

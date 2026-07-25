@@ -142,6 +142,7 @@ async def upload_document(
             file_path=file_path,
             source=safe_name,
             user_id=current_user.get("id", "anonymous"),
+            tenant_id=current_user.get("tenant_id", "default"),
         )
         queue.enqueue(msg, priority="high")
 
@@ -232,6 +233,8 @@ async def upload_to_knowledgebase(
             file_path=file_key,  # MinIO key instead of local path
             source=safe_name,
             user_id=user_id,
+            tenant_id=tenant_id,
+            kb_id=kb_id,
         )
         queue.enqueue(msg, priority="high")
 
@@ -305,6 +308,7 @@ async def batch_upload(
             file_path=file_path,
             source=safe_name,
             user_id=current_user.get("id", "anonymous"),
+            tenant_id=current_user.get("tenant_id", "default"),
         ))
 
     if not messages:
@@ -498,6 +502,7 @@ async def load_documents(
             file_path=file_path,
             source=filename,
             user_id=current_user.get("id", "anonymous"),
+            tenant_id=current_user.get("tenant_id", "default"),
         ))
 
     returned_batch_id, task_ids = queue.enqueue_batch(messages)

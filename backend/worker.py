@@ -54,6 +54,30 @@ def process_message(
         # Phase: parsing
         queue.update_state(task_id, status="processing", phase="parsing")
 
+        # Determine if file is in MinIO or local
+        file_path = msg.file_path
+        actual_file_path = file_path
+
+        if "/" in file_path and not os.path.exists(file_path):
+            # MinIO download
+            queue.update_state(task_id, phase="downloading")
+            from core.storage.minio_storage import MinIOStorage
+
+            storage = MinIOStorage(
+                config.MINIO_ENDPOINT,
+                config.MINIO_ACCESS_KEY,
+                config.MINIO_SECRET_KEY,
+                config.MINIO_BUCKET,
+                config.MINIO_SECURE,
+            )
+
+            # Download to temp location
+            temp_dir = os.path.join(config.DATA_DIR, "_temp")
+            os.makedirs(temp_dir, exist_ok=True)
+            actual_file_path = os.path.join(temp_dir, msg.source)
+            storage.download_to_file(file_path, actual_file_path)
+            logger.info("Downloaded from MinIO: %s -> %s", file_path, actual_file_path)
+
         # Phase: chunking
         queue.update_state(task_id, phase="chunking")
 
@@ -63,7 +87,11 @@ def process_message(
         # Phase: indexing
         queue.update_state(task_id, phase="indexing")
 
-        chunks = ingestion.ingest_document(msg.file_path)
+        chunks = ingestion.ingest_document(
+            actual_file_path,
+            tenant_id=msg.tenant_id,
+            kb_id=msg.kb_id,
+        )
 
         # Complete
         queue.update_state(
