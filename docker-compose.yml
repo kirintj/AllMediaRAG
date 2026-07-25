@@ -41,6 +41,28 @@ services:
     networks:
       - multimodal-rag-network
 
+  # ---------- MinIO (文件存储) ----------
+  minio:
+    image: minio/minio:latest
+    container_name: multimodal-rag-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - multimodal_rag_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - multimodal-rag-network
+
   # ---------- Elasticsearch ----------
   elasticsearch:
     image: elasticsearch:8.13.0
@@ -154,6 +176,8 @@ volumes:
   multimodal_rag_redis_data:
     driver: local
   multimodal_rag_postgres_data:
+    driver: local
+  multimodal_rag_minio_data:
     driver: local
   neo4j_data:
     driver: local

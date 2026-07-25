@@ -22,6 +22,7 @@ from core.config import config
 from core.db.base import Base
 from core.db.models import DocumentModel  # noqa: F401
 from core.db.user_models import UserModel, ConversationModel, MessageModel  # noqa: F401
+from core.db.llm_models import LLMFactories, TenantLLM, TenantDefaultModel  # noqa: F401
 
 def main():
     print("=" * 60)
@@ -49,7 +50,7 @@ def main():
     inspector = inspect(engine)
 
     tables = inspector.get_table_names()
-    expected_tables = ['users', 'conversations', 'messages', 'documents']
+    expected_tables = ['users', 'conversations', 'messages', 'documents', 'llm_factories', 'tenant_llm', 'tenant_default_models']
 
     for table_name in expected_tables:
         if table_name in tables:

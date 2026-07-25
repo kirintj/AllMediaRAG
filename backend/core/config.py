@@ -50,6 +50,13 @@ class AppSettings(BaseSettings):
     PG_POOL_SIZE: int = 5
     PG_MAX_OVERFLOW: int = 10
 
+    # -- MinIO/S3 文件存储 ------------------------------------------
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "allrag-files"
+    MINIO_SECURE: bool = False
+
     # -- RAG parameters -----------------------------------------------
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50

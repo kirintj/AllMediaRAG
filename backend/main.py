@@ -3,7 +3,6 @@ import os
 import uuid
 import asyncio
 import logging
-import signal
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -26,13 +25,10 @@ import uvicorn
 from core.config import config
 from core.rate_limit import limiter
 from core.rag_engine import RAGEngine
-from core.services import create_infra, InfraBundle
 from core.observability.logger import JSONFormatter
 
 logger = logging.getLogger(__name__)
-from core.services.retrieval_pipeline import RetrievalPipeline
-from core.services.ingestion_service import IngestionService
-from core.services.generation_service import GenerationService
+from core.task_queue import TaskQueue
 from api.chat import router as chat_router
 from api.documents import router as documents_router
 from api.conversations import router as conversations_router
@@ -85,55 +81,45 @@ REQUEST_TIMEOUT_SECONDS = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "30"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: startup creates infra + services, shutdown cleans up."""
+    """Application lifespan: startup creates RAG engine, shutdown cleans up.
+
+    为什么用 RAGEngine 而非手动组装：RAGEngine.__init__ 内部已完成
+    create_infra + 三个 Service 的初始化，main.py 只需提取引用即可。
+    """
     logging.info("Initializing RAG engine...")
 
-    # Create infra bundle + three services
-    infra = create_infra(config)
-    from core.task_queue import TaskQueue
+    rag_engine = RAGEngine(config)
+
     task_queue = TaskQueue(config.REDIS_URL, task_ttl=config.TASK_TTL_HOURS * 3600)
-    retrieval = RetrievalPipeline(infra)
-    ingestion = IngestionService(infra)
-    generation = GenerationService(infra, retrieval)
 
-    # Build backward-compat RAGEngine facade (reuses the same infra + services)
-    rag_engine = RAGEngine.from_services(config, infra, retrieval, ingestion, generation)
-
-    # Store everything on app.state for dependency injection
+    # 存储到 app.state 供依赖注入（api/deps.py）
     app.state.config = config
-    app.state.infra = infra
-    app.state.retrieval = retrieval
-    app.state.ingestion = ingestion
-    app.state.generation = generation
+    app.state.infra = rag_engine._infra
+    app.state.retrieval = rag_engine.retrieval
+    app.state.ingestion = rag_engine.ingestion
+    app.state.generation = rag_engine.generation
     app.state.rag_engine = rag_engine
     app.state.task_queue = task_queue
 
     logger.info("RAG engine initialized. Server ready!")
 
-    # 创建 LLM 相关表并预置厂商数据
-    from core.db.engine import get_engine, get_db_session
-    from core.db.base import Base
-    from core.db.llm_models import LLMFactories, TenantLLM, TenantDefaultModel  # noqa: F401
-    from core.db.seed_llm_factories import seed_factories
-
+    # 创建多租户相关表（如果不存在）
+    from core.db.tenant_models import Tenant, UserTenant, Knowledgebase, KBDocument
+    from core.db.base import Base as DBBase
+    from core.db.engine import get_engine
     db_engine = get_engine()
-    if db_engine:
-        Base.metadata.create_all(db_engine, tables=[
-            LLMFactories.__table__,
-            TenantLLM.__table__,
-            TenantDefaultModel.__table__,
+    if db_engine is not None:
+        DBBase.metadata.create_all(db_engine, tables=[
+            Tenant.__table__,
+            UserTenant.__table__,
+            Knowledgebase.__table__,
+            KBDocument.__table__,
         ])
-        with get_db_session() as session:
-            if session:
-                added = seed_factories(session)
-                if added:
-                    logger.info("Seeded %d LLM factories", added)
+        logger.info("Tenant tables ensured in database")
 
     yield  # --- application runs ---
 
     # 优雅关闭：等待活跃请求排空
-    # 为什么等待：Kubernetes 发送 SIGTERM 后有 terminationGracePeriodSeconds（默认 30s），
-    # 在此期间应正常处理完进行中的请求，而非强制断开。
     logger.info("Shutdown: waiting for active requests to drain...")
     import time
     deadline = time.time() + 15  # 最多等 15 秒
@@ -150,10 +136,10 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Shutdown: all requests drained")
 
-    # 关闭连接池和线程池
+    # 释放 RAG 引擎资源（含 embedding 模型、GPU 缓存、线程池）
     logger.info("Shutdown: releasing resources...")
-    if hasattr(rag_engine, 'close'):
-        rag_engine.close()
+    rag_engine.close()
+    infra = rag_engine._infra
     if infra.executor:
         infra.executor.shutdown(wait=False)
     logger.info("Shutdown complete")
@@ -233,20 +219,8 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
-# Dependency injection providers
-# （已迁移到 api/deps.py，此处保留 get_settings / get_infra 供 health 端点等使用）
-# ---------------------------------------------------------------------------
-
-def get_settings(request: Request):
-    return request.app.state.config
-
-
-def get_infra(request: Request) -> InfraBundle:
-    return request.app.state.infra
-
-
-# ---------------------------------------------------------------------------
 # Register routes
+# （依赖注入提供者已统一定义在 api/deps.py）
 # ---------------------------------------------------------------------------
 
 # 注册路由（auth 路由无需认证）
