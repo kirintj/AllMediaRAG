@@ -1,4 +1,5 @@
 import os
+import uuid as uuid_lib
 import logging
 import shutil
 from typing import List
@@ -10,6 +11,9 @@ from core.services import InfraBundle
 from core.services.ingestion_service import IngestionService
 from core.task_queue import TaskQueue, TaskMessage, gen_task_id, gen_batch_id
 from api.deps import get_settings, get_infra, get_ingestion, get_task_queue
+from core.db.tenant_models import Knowledgebase, KBDocument
+from core.db.engine import get_db_session
+from core.storage.minio_storage import MinIOStorage
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +154,97 @@ async def upload_document(
         raise
     except Exception as e:
         logger.exception("文档上传失败")
+        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# KB-aware upload (MinIO + async processing)
+# ---------------------------------------------------------------------------
+
+@router.post("/knowledgebases/{kb_id}/upload")
+async def upload_to_knowledgebase(
+    kb_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    config: AppSettings = Depends(get_settings),
+    queue: TaskQueue = Depends(get_task_queue),
+):
+    """上传文档到指定知识库（MinIO + 异步处理）"""
+    safe_name = os.path.basename(file.filename)
+    _validate_upload_file(file, safe_name)
+
+    tenant_id = current_user["tenant_id"]
+    user_id = current_user["user_id"]
+
+    # 验证知识库存在
+    with get_db_session() as session:
+        if session is None:
+            raise HTTPException(503, "数据库不可用")
+        kb = session.query(Knowledgebase).get(kb_id)
+        if not kb:
+            raise HTTPException(404, "知识库不存在")
+
+    try:
+        content = await file.read()
+
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"文件过大，最大允许 {MAX_FILE_SIZE // (1024 * 1024)}MB",
+            )
+
+        doc_id = str(uuid_lib.uuid4())
+        file_key = f"{tenant_id}/{kb_id}/{doc_id}/{safe_name}"
+
+        # 上传到 MinIO
+        storage = MinIOStorage(
+            config.MINIO_ENDPOINT,
+            config.MINIO_ACCESS_KEY,
+            config.MINIO_SECRET_KEY,
+            config.MINIO_BUCKET,
+            config.MINIO_SECURE,
+        )
+        storage.upload(content, file_key)
+
+        # 创建文档记录
+        with get_db_session() as session:
+            if session is None:
+                raise HTTPException(503, "数据库不可用")
+            doc = KBDocument(
+                id=uuid_lib.UUID(doc_id),
+                kb_id=kb_id,
+                tenant_id=tenant_id,
+                name=safe_name,
+                file_key=file_key,
+                file_size=len(content),
+                file_type=os.path.splitext(safe_name)[1].lower(),
+                status="pending",
+                created_by=user_id,
+            )
+            session.add(doc)
+            session.commit()
+
+        # 入队（后续 Worker 从 MinIO 下载处理）
+        task_id = gen_task_id()
+        msg = TaskMessage(
+            task_id=task_id,
+            batch_id=f"kb_{kb_id}",
+            file_path=file_key,  # MinIO key instead of local path
+            source=safe_name,
+            user_id=user_id,
+        )
+        queue.enqueue(msg, priority="high")
+
+        return {
+            "message": "上传成功，正在处理",
+            "doc_id": doc_id,
+            "task_id": task_id,
+            "filename": safe_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("KB document upload failed")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 

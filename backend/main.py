@@ -39,6 +39,7 @@ from api.tag_kb import router as tag_kb_router
 from api.settings import router as settings_router
 from api.graph import router as graph_router
 from api.knowledgebases import router as kb_router
+from api.team import router as team_router
 
 # 启动时校验关键配置
 if not config.MIMO_API_KEY:
@@ -235,6 +236,7 @@ app.include_router(tag_kb_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(kb_router, prefix="/api")
+app.include_router(team_router, prefix="/api")
 
 
 @app.get("/")
