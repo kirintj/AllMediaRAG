@@ -17,6 +17,8 @@
           @open-tag-kb="showTagKb = true"
           @open-settings="showRagSettings = true"
           @open-graph="showGraph = true"
+          @open-kb="showKb = true"
+          @open-team="showTeam = true"
           @logout="handleLogout"
         />
       </aside>
@@ -32,6 +34,8 @@
           @open-tag-kb="showTagKb = true; mobileSidebar = false"
           @open-settings="showRagSettings = true; mobileSidebar = false"
           @open-graph="showGraph = true; mobileSidebar = false"
+          @open-kb="showKb = true; mobileSidebar = false"
+          @open-team="showTeam = true; mobileSidebar = false"
           @logout="handleLogout"
         />
       </Sheet>
@@ -71,6 +75,12 @@
     <!-- Graph viewer -->
     <GraphViewer :open="showGraph" @close="showGraph = false" />
 
+    <!-- Knowledgebase drawer -->
+    <KnowledgebaseDrawer :open="showKb" @close="showKb = false" />
+
+    <!-- Team drawer -->
+    <TeamDrawer :open="showTeam" @close="showTeam = false" />
+
     <!-- Toast container -->
     <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2">
       <div
@@ -103,6 +113,8 @@ import ModelManager from './features/model-manager/ModelManager.vue'
 import TagKbDrawer from './features/tag-kb/TagKbDrawer.vue'
 import RagSettingsDrawer from './features/settings/RagSettingsDrawer.vue'
 import GraphViewer from './features/graph/GraphViewer.vue'
+import KnowledgebaseDrawer from './features/kb/KnowledgebaseDrawer.vue'
+import TeamDrawer from './features/team/TeamDrawer.vue'
 import LoginView from './features/auth/LoginView.vue'
 
 const authStore = useAuthStore()
@@ -116,6 +128,8 @@ const showModels = ref(false)
 const showTagKb = ref(false)
 const showRagSettings = ref(false)
 const showGraph = ref(false)
+const showKb = ref(false)
+const showTeam = ref(false)
 
 provide('toggleMobileSidebar', () => { mobileSidebar.value = true })
 
