@@ -109,7 +109,21 @@ def register_user(username: str, password: str) -> dict:
             user = create_user(db, username, hashed)
             db.commit()
             logger.info("新用户注册(DB): %s", username)
-            return {"username": user.username, "created_at": user.created_at.timestamp()}
+
+            # Create a tenant + owner membership for the new user
+            from core.db.tenant_models import Tenant, UserTenant
+            tenant = Tenant(id=user.id, name=f"{username}'s workspace")
+            db.add(tenant)
+            user_tenant = UserTenant(
+                user_id=user.id,
+                tenant_id=tenant.id,
+                role="owner",
+                status="active",
+            )
+            db.add(user_tenant)
+            db.commit()
+
+            return {"username": user.username, "user_id": str(user.id), "created_at": user.created_at.timestamp()}
 
     # 降级到 JSON
     users = _load_users()
@@ -152,10 +166,64 @@ def _user_exists(username: str) -> bool:
     return username in _load_users()
 
 
+def _resolve_tenant(username: str) -> dict | None:
+    """Resolve a user's primary tenant.
+
+    Returns a dict with ``user_id``, ``tenant_id``, and ``role`` on success,
+    or ``None`` when the database is unavailable or the user is not found.
+    """
+    from core.db.engine import get_db_session
+    from core.db.crud import get_user_by_username
+    from core.db.tenant_models import Tenant, UserTenant
+
+    with get_db_session() as session:
+        if session is None:
+            return None
+
+        user = get_user_by_username(session, username)
+        if user is None:
+            return None
+
+        # Look for an existing owner-level tenant membership
+        user_tenant = (
+            session.query(UserTenant)
+            .filter(UserTenant.user_id == user.id, UserTenant.role == "owner")
+            .first()
+        )
+
+        if user_tenant is None:
+            # Backward compatibility: auto-create a tenant for pre-existing users
+            tenant = Tenant(id=user.id, name=f"{username}'s workspace")
+            session.add(tenant)
+            user_tenant = UserTenant(
+                user_id=user.id,
+                tenant_id=tenant.id,
+                role="owner",
+                status="active",
+            )
+            session.add(user_tenant)
+            session.commit()
+            session.refresh(tenant)
+            session.refresh(user_tenant)
+            tenant_id = str(tenant.id)
+        else:
+            tenant_id = str(user_tenant.tenant_id)
+
+    return {
+        "user_id": str(user.id),
+        "tenant_id": tenant_id,
+        "role": "owner",
+    }
+
+
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
-    """FastAPI 依赖：从 Authorization header 解析当前用户"""
+    """FastAPI 依赖：从 Authorization header 解析当前用户
+
+    返回值包含 ``user_id``, ``username``, ``tenant_id``, ``role``。
+    数据库不可用时 ``user_id`` 和 ``tenant_id`` 降级为 "default"。
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -187,4 +255,20 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return {"username": username}
+    # Resolve tenant context
+    tenant_info = _resolve_tenant(username)
+    if tenant_info is None:
+        # Database unavailable -- degrade gracefully
+        return {
+            "user_id": username,
+            "username": username,
+            "tenant_id": "default",
+            "role": "owner",
+        }
+
+    return {
+        "user_id": tenant_info["user_id"],
+        "username": username,
+        "tenant_id": tenant_info["tenant_id"],
+        "role": tenant_info["role"],
+    }
