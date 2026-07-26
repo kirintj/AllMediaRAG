@@ -4,6 +4,7 @@
 所有函数接收 SQLAlchemy Session，不自行管理事务。
 """
 import uuid
+import secrets
 import logging
 from typing import Optional
 
@@ -61,6 +62,7 @@ def list_conversations_by_user(db, user_id) -> list[dict]:
             "title": c.title,
             "mode": c.mode,
             "is_archived": c.is_archived,
+            "is_favorite": c.is_favorite,
             "created_at": c.created_at.timestamp() if c.created_at else None,
             "updated_at": c.updated_at.timestamp() if c.updated_at else None,
             "message_count": len(c.messages) if c.messages else 0,
@@ -182,3 +184,88 @@ def clear_conversations_db(db, user_id) -> int:
         db.delete(conv)
     db.commit()
     return count
+
+
+def update_conversation_fields(db, conv_id: str, user_id, **fields) -> Optional[dict]:
+    """部分更新对话字段（title, is_favorite, is_archived 等）"""
+    try:
+        conv_uuid = uuid.UUID(conv_id)
+    except ValueError:
+        return None
+    stmt = (
+        select(ConversationModel)
+        .where(ConversationModel.id == conv_uuid, ConversationModel.user_id == user_id)
+        .options(selectinload(ConversationModel.messages))
+    )
+    conv = db.execute(stmt).scalar_one_or_none()
+    if conv is None:
+        return None
+    for key, value in fields.items():
+        if hasattr(conv, key) and key not in ('id', 'user_id', 'created_at'):
+            setattr(conv, key, value)
+    db.commit()
+    db.refresh(conv)
+    return conv.to_dict(include_messages=False)
+
+
+def duplicate_conversation_db(db, conv_id: str, user_id) -> Optional[dict]:
+    """复制对话及其所有消息"""
+    try:
+        conv_uuid = uuid.UUID(conv_id)
+    except ValueError:
+        return None
+    stmt = (
+        select(ConversationModel)
+        .where(ConversationModel.id == conv_uuid, ConversationModel.user_id == user_id)
+        .options(selectinload(ConversationModel.messages))
+    )
+    orig = db.execute(stmt).scalar_one_or_none()
+    if orig is None:
+        return None
+
+    new_conv = ConversationModel(
+        user_id=user_id,
+        title=f"{orig.title} (副本)",
+        mode=orig.mode,
+    )
+    db.add(new_conv)
+    db.flush()
+
+    for msg in orig.messages:
+        new_msg = MessageModel(
+            conversation_id=new_conv.id,
+            role=msg.role,
+            content=msg.content,
+            sources=msg.sources,
+            extra_metadata=msg.extra_metadata,
+        )
+        db.add(new_msg)
+    db.commit()
+    db.refresh(new_conv)
+    return new_conv.to_dict(include_messages=False)
+
+
+def share_conversation_db(db, conv_id: str, user_id) -> Optional[dict]:
+    """为对话生成分享令牌，返回分享信息"""
+    try:
+        conv_uuid = uuid.UUID(conv_id)
+    except ValueError:
+        return None
+    stmt = (
+        select(ConversationModel)
+        .where(ConversationModel.id == conv_uuid, ConversationModel.user_id == user_id)
+    )
+    conv = db.execute(stmt).scalar_one_or_none()
+    if conv is None:
+        return None
+
+    if conv.shared_token is None:
+        conv.shared_token = secrets.token_urlsafe(32)
+        db.commit()
+        db.refresh(conv)
+
+    return {
+        "id": str(conv.id),
+        "shared_token": conv.shared_token,
+        "share_url": f"/share/{conv.shared_token}",
+    }

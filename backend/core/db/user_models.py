@@ -7,6 +7,7 @@
 """
 
 import uuid
+import secrets
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -65,6 +66,8 @@ class ConversationModel(Base):
     title = mapped_column(String(200), nullable=False, default="新对话", comment="对话标题")
     mode = mapped_column(String(20), nullable=False, default="rag", comment="对话模式")
     is_archived = mapped_column(Boolean, default=False, comment="是否归档")
+    is_favorite = mapped_column(Boolean, default=False, comment="是否收藏")
+    shared_token = mapped_column(String(64), nullable=True, unique=True, comment="分享令牌")
     created_at = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, comment="创建时间")
     updated_at = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow, comment="更新时间")
 
@@ -84,6 +87,8 @@ class ConversationModel(Base):
             "title": self.title,
             "mode": self.mode,
             "is_archived": self.is_archived,
+            "is_favorite": self.is_favorite,
+            "has_share": self.shared_token is not None,
             "created_at": self.created_at.timestamp() if self.created_at else None,
             "updated_at": self.updated_at.timestamp() if self.updated_at else None,
             "message_count": len(self.messages) if self.messages else 0,

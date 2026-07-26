@@ -193,7 +193,7 @@ class VectorStoreProvider(ABC):
 
     def get_all_sources(self) -> list[str]:
         """获取所有来源（兼容旧接口）"""
-        res = self.search(["source"], None, [], limit=99999)
+        res = self.search(["source"], None, [], limit=10000)
         seen: set[str] = set()
         sources: list[str] = []
         for m in res.get("metadatas", []):
@@ -210,7 +210,7 @@ class VectorStoreProvider(ABC):
 
     def get_source_details(self) -> list[dict]:
         """获取每个来源的详情（兼容旧接口）"""
-        res = self.search(["source"], None, [], limit=99999)
+        res = self.search(["source"], None, [], limit=10000)
         counts: dict[str, int] = {}
         for m in res.get("metadatas", []):
             src = m.get("source", "")
@@ -230,7 +230,7 @@ class VectorStoreProvider(ABC):
 
     def get_all_documents(self) -> list[dict]:
         """获取所有文档（兼容旧接口）"""
-        res = self.search(["id", "text", "metadata"], None, [], limit=99999)
+        res = self.search(["id", "text", "metadata"], None, [], limit=10000)
         docs = []
         for meta in res.get("metadatas", []):
             docs.append({

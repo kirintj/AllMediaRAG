@@ -209,8 +209,11 @@ def _resolve_tenant(username: str) -> dict | None:
         else:
             tenant_id = str(user_tenant.tenant_id)
 
+        # 必须在 session 关闭前读取 user.id，否则 ORM 对象脱离 session 会报 DetachedInstanceError
+        user_id = str(user.id)
+
     return {
-        "user_id": str(user.id),
+        "user_id": user_id,
         "tenant_id": tenant_id,
         "role": "owner",
     }

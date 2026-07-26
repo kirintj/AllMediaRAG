@@ -413,6 +413,50 @@ class ElasticsearchStore(VectorStoreProvider):
             return False
 
     # ------------------------------------------------------------------
+    # 聚合（覆盖基类实现，避免 ES result_window 上限问题）
+    # ------------------------------------------------------------------
+
+    def get_all_sources(self) -> list[str]:
+        """使用 ES terms 聚合获取所有来源名称。"""
+        body = {
+            "size": 0,
+            "aggs": {
+                "by_source": {
+                    "terms": {"field": "source", "size": 10000},
+                }
+            },
+        }
+        try:
+            resp = self._client.search(index=self._index_name, body=body)
+            buckets = resp["aggregations"]["by_source"]["buckets"]
+            return [b["key"] for b in buckets if b["key"]]
+        except Exception as e:
+            logger.warning("ES aggregation failed, falling back to base: %s", e)
+            return super().get_all_sources()
+
+    def get_source_details(self) -> list[dict]:
+        """使用 ES terms 聚合按 source 统计 chunk 数量，无需拉取全量数据。"""
+        body = {
+            "size": 0,
+            "aggs": {
+                "by_source": {
+                    "terms": {"field": "source", "size": 10000},
+                }
+            },
+        }
+        try:
+            resp = self._client.search(index=self._index_name, body=body)
+            buckets = resp["aggregations"]["by_source"]["buckets"]
+            return [
+                {"source": b["key"], "chunks": b["doc_count"]}
+                for b in buckets
+                if b["key"]
+            ]
+        except Exception as e:
+            logger.warning("ES aggregation failed, falling back to base: %s", e)
+            return super().get_source_details()
+
+    # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
 

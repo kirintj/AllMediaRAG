@@ -7,10 +7,12 @@ import os
 import re
 import json
 import time
+import secrets
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from core.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,12 @@ router = APIRouter()
 
 # conv_id 校验正则：仅允许字母数字、下划线、短横线
 _CONV_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+    is_favorite: Optional[bool] = None
+    is_archived: Optional[bool] = None
 
 
 def _validate_conv_id(conv_id: str) -> str:
@@ -240,3 +248,135 @@ async def delete_conversation(conv_id: str, current_user: dict = Depends(get_cur
     if ok:
         return {"message": "已删除对话"}
     raise HTTPException(status_code=404, detail="对话不存在")
+
+
+@router.patch("/conversations/{conv_id}")
+async def update_conversation(
+    conv_id: str,
+    body: ConversationUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """部分更新对话（重命名、收藏、归档）"""
+    _validate_conv_id(conv_id)
+    username = current_user["username"]
+
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="没有要更新的字段")
+
+    from core.db.engine import get_db_session
+    from core.db.crud import update_conversation_fields, get_user_by_username
+    with get_db_session() as db:
+        if db is not None:
+            user = get_user_by_username(db, username)
+            if user:
+                result = update_conversation_fields(db, conv_id, user.id, **fields)
+                if result:
+                    return result
+                raise HTTPException(status_code=404, detail="对话不存在")
+
+    # JSON 降级：只支持 title 和 is_favorite
+    data = _get_conversation_json(conv_id, username)
+    if data is None:
+        raise HTTPException(status_code=404, detail="对话不存在")
+    if "title" in fields:
+        data["title"] = fields["title"]
+    if "is_favorite" in fields:
+        data["is_favorite"] = fields["is_favorite"]
+    if "is_archived" in fields:
+        data["is_archived"] = fields["is_archived"]
+    data["updated_at"] = time.time()
+    user_dir = _get_user_dir(username)
+    path = os.path.join(user_dir, f"{conv_id}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {
+        "id": data["id"],
+        "title": data.get("title", "新对话"),
+        "is_favorite": data.get("is_favorite", False),
+        "is_archived": data.get("is_archived", False),
+        "updated_at": data["updated_at"],
+    }
+
+
+@router.post("/conversations/{conv_id}/duplicate")
+async def duplicate_conversation(conv_id: str, current_user: dict = Depends(get_current_user)):
+    """复制对话"""
+    _validate_conv_id(conv_id)
+    username = current_user["username"]
+
+    from core.db.engine import get_db_session
+    from core.db.crud import duplicate_conversation_db, get_user_by_username
+    with get_db_session() as db:
+        if db is not None:
+            user = get_user_by_username(db, username)
+            if user:
+                result = duplicate_conversation_db(db, conv_id, user.id)
+                if result:
+                    return result
+                raise HTTPException(status_code=404, detail="对话不存在")
+
+    # JSON 降级
+    data = _get_conversation_json(conv_id, username)
+    if data is None:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    import uuid as _uuid
+    new_id = str(_uuid.uuid4())[:8]
+    new_data = {
+        "id": new_id,
+        "username": username,
+        "title": f"{data.get('title', '新对话')} (副本)",
+        "created_at": time.time(),
+        "updated_at": time.time(),
+        "mode": data.get("mode", "rag"),
+        "messages": data.get("messages", []),
+    }
+    user_dir = _get_user_dir(username)
+    path = os.path.join(user_dir, f"{new_id}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(new_data, f, ensure_ascii=False, indent=2)
+    return {
+        "id": new_id,
+        "title": new_data["title"],
+        "created_at": new_data["created_at"],
+        "updated_at": new_data["updated_at"],
+        "message_count": len(new_data["messages"]),
+    }
+
+
+@router.post("/conversations/{conv_id}/share")
+async def share_conversation(conv_id: str, current_user: dict = Depends(get_current_user)):
+    """生成分享链接"""
+    _validate_conv_id(conv_id)
+    username = current_user["username"]
+
+    from core.db.engine import get_db_session
+    from core.db.crud import share_conversation_db, get_user_by_username
+    with get_db_session() as db:
+        if db is not None:
+            user = get_user_by_username(db, username)
+            if user:
+                result = share_conversation_db(db, conv_id, user.id)
+                if result:
+                    return result
+                raise HTTPException(status_code=404, detail="对话不存在")
+
+    # JSON 降级：生成 token 并写入文件
+    data = _get_conversation_json(conv_id, username)
+    if data is None:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    if not data.get("shared_token"):
+        data["shared_token"] = secrets.token_urlsafe(32)
+        data["updated_at"] = time.time()
+        user_dir = _get_user_dir(username)
+        path = os.path.join(user_dir, f"{conv_id}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    return {
+        "id": data["id"],
+        "shared_token": data["shared_token"],
+        "share_url": f"/share/{data['shared_token']}",
+    }
