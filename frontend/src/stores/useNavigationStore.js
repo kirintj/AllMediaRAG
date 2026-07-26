@@ -17,6 +17,9 @@ export const useNavigationStore = defineStore('navigation', () => {
   /** Active settings section for settings page navigation */
   const activeSettingsSection = ref('overview')
 
+  /** Active full-page view within a nav section */
+  const activePage = ref('')
+
   /** Minimum and maximum L2 width */
   const L2_MIN = 240
   const L2_MAX = 440
@@ -27,6 +30,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       l2Expanded.value = !l2Expanded.value
     } else {
       activeNav.value = nav
+      activePage.value = ''
       l2Expanded.value = true
     }
   }
@@ -63,12 +67,17 @@ export const useNavigationStore = defineStore('navigation', () => {
     activeSettingsSection.value = section
   }
 
+  function setActivePage(page) {
+    activePage.value = page
+  }
+
   return {
     activeNav,
     l2Expanded,
     l2Width,
     mobileSidebarOpen,
     activeSettingsSection,
+    activePage,
     L2_MIN,
     L2_MAX,
     setActiveNav,
@@ -80,5 +89,6 @@ export const useNavigationStore = defineStore('navigation', () => {
     openMobileSidebar,
     closeMobileSidebar,
     setActiveSettingsSection,
+    setActivePage,
   }
 })
