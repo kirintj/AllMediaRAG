@@ -126,8 +126,10 @@
 import { ref, onMounted } from 'vue'
 import { Upload, FolderOpen, RefreshCw, Trash2, FileText, X, Loader2 } from 'lucide-vue-next'
 import { useDocumentStore } from '../../stores/useDocumentStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 
 const docStore = useDocumentStore()
+const confirmStore = useConfirmStore()
 const fileInputRef = ref(null)
 const uploading = ref(false)
 const loading = ref(false)
@@ -256,12 +258,12 @@ async function handleSync() {
 }
 
 async function handleDeleteDoc(source) {
-  if (!confirm(`删除文档「${cleanName(source)}」？`)) return
+  if (!await confirmStore.confirm({ message: `删除文档「${cleanName(source)}」？`, destructive: true })) return
   await docStore.removeDocument(source)
 }
 
 async function handleClearAll() {
-  if (!confirm('清空全部文档？')) return
+  if (!await confirmStore.confirm({ message: '清空全部文档？', destructive: true, confirmText: '清空' })) return
   await docStore.removeAllDocuments()
 }
 

@@ -50,6 +50,9 @@
         {{ toast.msg }}
       </div>
     </div>
+
+    <!-- Confirm dialog -->
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -66,6 +69,7 @@ import SettingsView from './features/settings/SettingsView.vue'
 import KbPage from './features/kb/KbPage.vue'
 import TeamPage from './features/team/TeamPage.vue'
 import LoginView from './features/auth/LoginView.vue'
+import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()

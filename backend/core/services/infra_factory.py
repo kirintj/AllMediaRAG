@@ -52,6 +52,13 @@ def create_infra(settings) -> InfraBundle:
             llm_name=getattr(config, "SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-m3"),
             api_key=getattr(config, "SILICONFLOW_API_KEY", ""),
         )
+    elif _embedding_provider == "tongyi":
+        embedding_service = LLMBundle.from_config(
+            model_type="embedding",
+            llm_factory="Tongyi-Qianwen",
+            llm_name=getattr(config, "DASHSCOPE_EMBEDDING_MODEL", "text-embedding-v3"),
+            api_key=getattr(config, "DASHSCOPE_API_KEY", ""),
+        )
     else:
         embedding_service = LLMBundle.from_config(
             model_type="embedding",

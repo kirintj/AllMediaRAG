@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 h-12 border-b border-border flex-shrink-0">
+    <div class="flex items-center justify-between px-4 h-11 border-b border-border flex-shrink-0">
       <h3 class="text-sm font-semibold text-foreground">对话</h3>
       <div class="flex items-center gap-0.5">
         <button

@@ -67,11 +67,12 @@ watch(() => settingsStore.settings, (val) => {
 
 async function handleSave() {
   try {
+    const tagKbIds = form.value.tagging_tag_kb_ids
+      ? form.value.tagging_tag_kb_ids.split(',').map(s => s.trim()).filter(Boolean).join(',')
+      : ''
     const payload = {
       ...form.value,
-      tagging_tag_kb_ids: form.value.tagging_tag_kb_ids
-        ? form.value.tagging_tag_kb_ids.split(',').map(s => s.trim()).filter(Boolean)
-        : [],
+      tagging_tag_kb_ids: tagKbIds,
     }
     await settingsStore.saveSettings(payload)
     toast.success('配置已保存')

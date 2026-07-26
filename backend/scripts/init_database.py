@@ -34,9 +34,16 @@ def main():
     # 创建引擎
     engine = create_engine(config.DATABASE_URL)
 
-    # 创建所有表
-    print("\n[1/2] 创建表结构...")
+    # 先删旧表再重建（确保模型变更能生效）
+    print("\n[1/3] 删除旧表...")
+    try:
+        Base.metadata.drop_all(engine)
+        print("[OK] 旧表已删除")
+    except Exception as e:
+        print(f"[WARN] 删除旧表时出错（可忽略，表可能不存在）: {e}")
 
+    # 创建所有表
+    print("\n[2/3] 创建表结构...")
     try:
         Base.metadata.create_all(engine)
         print("[OK] 表结构创建成功")
@@ -45,7 +52,7 @@ def main():
         return False
 
     # 验证表是否创建成功
-    print("\n[2/2] 验证表结构...")
+    print("\n[3/3] 验证表结构...")
     from sqlalchemy import inspect
     inspector = inspect(engine)
 

@@ -95,6 +95,11 @@ class AppSettings(BaseSettings):
     SILICONFLOW_EMBEDDING_MODEL: str = "BAAI/bge-m3"
     SILICONFLOW_RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
+    # -- DashScope (阿里云) -------------------------------------------
+    DASHSCOPE_API_KEY: str = ""
+    DASHSCOPE_EMBEDDING_MODEL: str = "text-embedding-v3"
+    DASHSCOPE_RERANKER_MODEL: str = "gte-rerank"
+
     # -- Cache --------------------------------------------------------
     USE_CACHE: bool = True
     CACHE_L1_MAX_SIZE: int = 1000

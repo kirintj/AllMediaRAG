@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToastStore } from '../../stores/useToastStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 import { X, UserPlus, Trash2, Users, Shield } from 'lucide-vue-next'
 import { listMembers, inviteMember, removeMember } from '../../api/team.js'
 
@@ -8,6 +9,7 @@ const props = defineProps({ open: Boolean })
 const emit = defineEmits(['close'])
 
 const toast = useToastStore()
+const confirmStore = useConfirmStore()
 const members = ref([])
 const inviteUsername = ref('')
 const loading = ref(false)
@@ -37,7 +39,7 @@ async function handleInvite() {
 }
 
 async function handleRemove(userId, username) {
-  if (!confirm(`确定移除成员 ${username}？`)) return
+  if (!await confirmStore.confirm({ message: `确定移除成员 ${username}？`, destructive: true })) return
   try {
     await removeMember(userId)
     toast.success('成员已移除')

@@ -6,6 +6,7 @@ from .base import RerankerProvider
 from .cohere_reranker import CohereReranker
 from .bge_reranker import BGEReranker
 from .siliconflow_reranker import SiliconFlowReranker
+from .dashscope_reranker import DashScopeReranker
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,11 @@ class RerankManager:
                 self._rerankers[name] = SiliconFlowReranker(
                     api_key=getattr(self.config, "SILICONFLOW_API_KEY", ""),
                     model=getattr(self.config, "SILICONFLOW_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
+                )
+            elif name == "dashscope":
+                self._rerankers[name] = DashScopeReranker(
+                    api_key=getattr(self.config, "DASHSCOPE_API_KEY", ""),
+                    model=getattr(self.config, "DASHSCOPE_RERANKER_MODEL", "gte-rerank"),
                 )
             else:
                 self._rerankers[name] = None

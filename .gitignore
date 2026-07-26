@@ -155,3 +155,4 @@ prometheus_data/
 .local/
 .dev/
 
+.gstack/

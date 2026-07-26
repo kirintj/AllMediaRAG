@@ -61,6 +61,7 @@ import { computed } from 'vue'
 import { Calendar, MessageSquare, Star, StarOff, Copy, Archive, Share2, Trash2 } from 'lucide-vue-next'
 import Sheet from '../../components/ui/sheet.vue'
 import { useConversationStore } from '../../stores/useConversationStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -69,6 +70,7 @@ const props = defineProps({
 const open = defineModel({ type: Boolean, default: false })
 
 const conversationStore = useConversationStore()
+const confirmStore = useConfirmStore()
 
 const formattedDate = computed(() => {
   if (!props.conversation?.created_at) return ''
@@ -113,7 +115,7 @@ const actions = computed(() => [
     icon: Trash2,
     destructive: true,
     handler: async () => {
-      if (confirm(`删除「${props.conversation.title}」？`)) {
+      if (await confirmStore.confirm({ message: `删除「${props.conversation.title}」？`, destructive: true })) {
         await conversationStore.removeConversation(props.conversation.id)
         open.value = false
       }

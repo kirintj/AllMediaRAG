@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useKbStore } from '../../stores/useKbStore.js'
 import { useToastStore } from '../../stores/useToastStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 import { X, Plus, Trash2, FolderOpen, Upload, ChevronDown, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps({ open: Boolean })
@@ -9,6 +10,7 @@ const emit = defineEmits(['close'])
 
 const kbStore = useKbStore()
 const toast = useToastStore()
+const confirmStore = useConfirmStore()
 
 const showCreate = ref(false)
 const expandedKb = ref(null)
@@ -29,7 +31,7 @@ async function handleCreate() {
 }
 
 async function handleDelete(kbId, name) {
-  if (!confirm(`确定删除知识库"${name}"？所有文档将被删除。`)) return
+  if (!await confirmStore.confirm({ message: `确定删除知识库"${name}"？所有文档将被删除。`, destructive: true })) return
   try {
     await kbStore.deleteKb(kbId)
     toast.success('知识库已删除')

@@ -9,6 +9,7 @@ const stats = ref(null)
 const searchQuery = ref('')
 const selectedNode = ref(null)
 const loading = ref(false)
+const error = ref(null)
 const dragNode = ref(null)
 
 // Node type colors
@@ -35,13 +36,19 @@ function initNodes(rawNodes) {
 
 async function loadGraph() {
   loading.value = true
+  error.value = null
   try {
     const data = await getGraphData(200)
     nodes.value = initNodes(data.nodes || [])
     edges.value = data.edges || []
     stats.value = await getGraphStats()
   } catch (err) {
-    console.error('Failed to load graph:', err)
+    if (err.response?.status === 503) {
+      error.value = err.response.data?.detail || '知识图谱未配置，请先启动 Neo4j 并设置 USE_KNOWLEDGE_GRAPH=true'
+    } else {
+      console.error('Failed to load graph:', err)
+      error.value = '图谱加载失败'
+    }
   } finally {
     loading.value = false
   }
@@ -211,8 +218,22 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <!-- Error state -->
+    <div v-if="error" class="flex-1 flex items-center justify-center p-8">
+      <div class="text-center space-y-3">
+        <div class="text-4xl opacity-50">&#x1F578;&#xFE0F;</div>
+        <p class="text-sm text-muted-foreground max-w-sm">{{ error }}</p>
+        <button
+          class="px-4 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          @click="loadGraph"
+        >
+          重试
+        </button>
+      </div>
+    </div>
+
     <!-- Graph -->
-    <div class="flex-1 relative overflow-hidden">
+    <div v-else class="flex-1 relative overflow-hidden">
       <svg
         class="w-full h-full"
         @mousemove="onMouseMove"

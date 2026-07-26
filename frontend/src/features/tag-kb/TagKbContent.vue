@@ -2,10 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { useTagKbStore } from '../../stores/useTagKbStore.js'
 import { useToastStore } from '../../stores/useToastStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 import { Upload, Trash2, Loader2, Tags, ChevronDown, ChevronRight, X, FileSpreadsheet } from 'lucide-vue-next'
 
 const tagKbStore = useTagKbStore()
 const toast = useToastStore()
+const confirmStore = useConfirmStore()
 
 const fileInputRef = ref(null)
 const uploading = ref(false)
@@ -42,7 +44,7 @@ async function uploadFile(file) {
 }
 
 async function handleDelete(tagKbId) {
-  if (!confirm('确认删除该标签知识库？')) return
+  if (!await confirmStore.confirm({ message: '确认删除该标签知识库？', destructive: true })) return
   try {
     await tagKbStore.remove(tagKbId)
     toast.success('已删除')

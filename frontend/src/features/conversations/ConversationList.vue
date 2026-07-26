@@ -100,6 +100,7 @@ import { ref, nextTick, computed, onMounted } from 'vue'
 import { MessageSquare, X, Pencil, Star, Copy, Archive, Share2, Trash2 } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/useChatStore.js'
 import { useConversationStore } from '../../stores/useConversationStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 import ContextMenu from '../../components/ui/context-menu.vue'
 import ContextMenuTrigger from '../../components/ui/context-menu-trigger.vue'
 import ContextMenuContent from '../../components/ui/context-menu-content.vue'
@@ -113,6 +114,7 @@ const props = defineProps({
 
 const chatStore = useChatStore()
 const conversationStore = useConversationStore()
+const confirmStore = useConfirmStore()
 
 // Inline rename state
 const renamingId = ref(null)
@@ -162,13 +164,13 @@ async function confirmRename(conv) {
 }
 
 async function handleDelete(conv) {
-  if (!confirm(`删除「${conv.title}」？`)) return
+  if (!await confirmStore.confirm({ message: `删除「${conv.title}」？`, destructive: true })) return
   await conversationStore.removeConversation(conv.id)
 }
 
 async function handleClearAll() {
   const count = conversationStore.conversations.length
-  if (!confirm(`清空全部 ${count} 条对话？`)) return
+  if (!await confirmStore.confirm({ message: `清空全部 ${count} 条对话？`, destructive: true, confirmText: '清空' })) return
   await conversationStore.removeAllConversations()
 }
 

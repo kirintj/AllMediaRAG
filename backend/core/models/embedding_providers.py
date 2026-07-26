@@ -151,8 +151,13 @@ class TongyiQianwenEmbedding:
         from openai import OpenAI
 
         client = OpenAI(api_key=self._api_key, base_url=self._base_url)
-        resp = client.embeddings.create(model=self._model, input=texts)
-        return [item.embedding for item in resp.data]
+        all_embeddings: list[list[float]] = []
+        batch_size = 20  # DashScope 限制单次最多 20 条
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            resp = client.embeddings.create(model=self._model, input=batch)
+            all_embeddings.extend(item.embedding for item in resp.data)
+        return all_embeddings
 
     def encode_queries(self, queries: list[str]) -> list[list[float]]:
         return self.encode(queries)

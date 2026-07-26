@@ -1,10 +1,10 @@
 <template>
   <div
-    class="mb-5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
+    class="mb-5 flex animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
     :style="{ animationDelay: `${Math.min(index * 0.06, 0.3)}s` }"
   >
     <!-- User message: right-aligned pill -->
-    <div v-if="message.role === 'user'" class="ml-auto max-w-[min(85%,36rem)]">
+    <div v-if="message.role === 'user'" class="ml-auto max-w-[min(85%,36rem)] min-w-0">
       <div class="rounded-[18px] bg-secondary/70 px-4 py-2 text-base leading-[1.75] whitespace-pre-wrap text-foreground">
         {{ message.content }}
       </div>

@@ -17,12 +17,16 @@ def _get_tag_kb_manager(request: Request) -> TagKBManager:
     return TagKBManager(infra.vector_store)
 
 
+def _get_settings(request: Request):
+    return request.app.state.config
+
+
 @router.post("/tag-kb/upload")
 async def upload_tag_file(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
-    tag_kb_manager: TagKBManager = Depends(lambda r: _get_tag_kb_manager(r)),
-    settings=Depends(lambda r: r.app.state.config),
+    tag_kb_manager: TagKBManager = Depends(_get_tag_kb_manager),
+    settings=Depends(_get_settings),
 ):
     """Upload a tag file (Excel/CSV) to create a tag knowledge base."""
     ext = os.path.splitext(file.filename)[1].lower()
@@ -53,7 +57,7 @@ async def upload_tag_file(
 @router.get("/tag-kb")
 async def list_tag_kbs(
     current_user: dict = Depends(get_current_user),
-    tag_kb_manager: TagKBManager = Depends(lambda r: _get_tag_kb_manager(r)),
+    tag_kb_manager: TagKBManager = Depends(_get_tag_kb_manager),
 ):
     """List all tag knowledge bases."""
     return {"tag_kbs": tag_kb_manager.list_tag_kbs()}
@@ -63,7 +67,7 @@ async def list_tag_kbs(
 async def delete_tag_kb(
     tag_kb_id: str,
     current_user: dict = Depends(get_current_user),
-    tag_kb_manager: TagKBManager = Depends(lambda r: _get_tag_kb_manager(r)),
+    tag_kb_manager: TagKBManager = Depends(_get_tag_kb_manager),
 ):
     """Delete a tag knowledge base."""
     tag_kb_manager.delete_tag_kb(tag_kb_id)
@@ -74,7 +78,7 @@ async def delete_tag_kb(
 async def get_tags(
     tag_kb_id: str,
     current_user: dict = Depends(get_current_user),
-    tag_kb_manager: TagKBManager = Depends(lambda r: _get_tag_kb_manager(r)),
+    tag_kb_manager: TagKBManager = Depends(_get_tag_kb_manager),
 ):
     """Get the tag set for a tag knowledge base."""
     tags = tag_kb_manager.get_all_tags(tag_kb_id)

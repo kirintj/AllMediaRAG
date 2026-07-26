@@ -110,8 +110,11 @@ async def create_knowledgebase(
             raise HTTPException(503, "Database not available")
         session.add(kb)
         session.commit()
+        session.refresh(kb)
+        kb_id = str(kb.id)
+        kb_name = kb.name
 
-    return {"message": "知识库创建成功", "id": str(kb.id), "name": kb.name}
+    return {"message": "知识库创建成功", "id": kb_id, "name": kb_name}
 
 
 @router.get("/knowledgebases/{kb_id}")

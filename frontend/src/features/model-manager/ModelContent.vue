@@ -2,12 +2,14 @@
 import { ref, onMounted, computed } from 'vue'
 import { useModelStore } from '../../stores/useModelStore.js'
 import { useToastStore } from '../../stores/useToastStore.js'
+import { useConfirmStore } from '../../stores/useConfirmStore.js'
 import { X, Plus, Trash2, Star, Cpu, Settings, Loader2 } from 'lucide-vue-next'
 import Button from '../../components/ui/button.vue'
 import Input from '../../components/ui/input.vue'
 
 const modelStore = useModelStore()
 const toast = useToastStore()
+const confirmStore = useConfirmStore()
 
 // Add model form state
 const showAddForm = ref(false)
@@ -82,7 +84,7 @@ async function handleAdd() {
 }
 
 async function handleDelete(modelId) {
-  if (!confirm('确认删除该模型？')) return
+  if (!await confirmStore.confirm({ message: '确认删除该模型？', destructive: true })) return
   try {
     await modelStore.removeModel(modelId)
     toast.success('模型已删除')

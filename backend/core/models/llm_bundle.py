@@ -157,8 +157,18 @@ class LLMBundle:
         return self.chat(messages)
 
     def stream_generate(self, prompt: str, images: list[str] | None = None):
-        """兼容旧 LLMClient.stream_generate() 接口（同步生成器）"""
+        """兼容旧 LLMClient.stream_generate() 接口（同步生成器）
+
+        通过线程安全队列桥接异步流式生成和同步调用方，
+        保证每个 token 即时 yield，而非收集全部后再一次性返回。
+
+        架构：
+          生产者线程 (asyncio.run + chat_streamly) → queue.Queue → 消费者 (本生成器)
+        """
         import asyncio
+        import queue
+        import threading
+
         content = prompt
         if images:
             content = [{"type": "text", "text": prompt}]
@@ -166,26 +176,41 @@ class LLMBundle:
                 content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
         messages = [{"role": "user", "content": content}]
 
-        async def _collect():
-            chunks = []
-            async for chunk in self.chat_streamly(messages):
-                chunks.append(chunk)
-            return chunks
+        _SENTINEL = object()
+        _q: queue.Queue = queue.Queue()
 
+        # ── 生产者：在独立线程中运行异步流式生成 ──
+        async def _produce():
+            try:
+                async for chunk in self.chat_streamly(messages):
+                    _q.put(chunk)
+            except Exception as e:
+                _q.put(e)
+            finally:
+                _q.put(_SENTINEL)
+
+        producer = threading.Thread(
+            target=asyncio.run, args=(_produce(),), daemon=True
+        )
+        producer.start()
+
+        # ── 消费者：逐个从队列读取并 yield（queue.get 是阻塞的，无忙等）──
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, _collect())
-                for chunk in future.result():
-                    yield chunk
-        else:
-            for chunk in asyncio.run(_collect()):
-                yield chunk
+            while True:
+                item = _q.get()
+                if item is _SENTINEL:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            # 确保生产者线程不会残留
+            if producer.is_alive():
+                # 放入哨兵让生产者退出（如果它还在运行）
+                try:
+                    _q.put(_SENTINEL)
+                except Exception:
+                    pass
 
     @classmethod
     def from_config(
