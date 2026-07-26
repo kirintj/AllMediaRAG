@@ -102,7 +102,7 @@ App.vue
 │        │
 │  ↕     │  ← 弹性空间
 │        │
-│  ?     │  ← 帮助 / 快捷键提示
+│  ?     │  ← 帮助（点击弹出快捷键帮助 Modal，非路由页面）
 │  [头像] │  ← 用户头像（hover → 退出登录 Popover）
 └────────┘
   48px
@@ -211,10 +211,13 @@ App.vue
 
 ### Mobile Sheet 行为
 
+- 复用当前 `components/ui/sheet.vue`（基于 Radix Vue DialogRoot），`side="left"`
 - Sheet 宽度：`min(288px, 100vw-12px)`
-- Sheet 内部包含图标轨道 + 当前模块的上下文面板
-- 点击对话项/知识库项后自动关闭 Sheet 并路由到对应页面
-- 汉堡按钮位于主内容区顶部 ChatHeader 中
+- Sheet 内部包含图标轨道 + 当前模块的上下文面板，图标轨道和面板垂直堆叠（非水平），图标轨道在顶部作为 Tab 切换器
+- 点击图标切换模块时 Sheet 内容随之变化（面板部分替换）
+- 点击对话项/知识库项后自动关闭 Sheet（`v-model` 设为 false）并路由到对应页面
+- 汉堡按钮位于主内容区顶部 ChatHeader 中（`lg:hidden`）
+- Sheet 打开时自动聚焦第一个可交互元素
 
 ---
 
@@ -285,7 +288,7 @@ App.vue
 
 ### 右键上下文菜单
 
-对话列表项和知识库项支持右键菜单：置顶、重命名、复制链接、删除。减少列表项的视觉杂乱。
+对话列表项和知识库项支持右键菜单：置顶、重命名、复制链接、删除。使用 Radix Vue 的 `DropdownMenu` 原语实现（`DropdownMenuContent` 配合 `DropdownMenuItem`）。减少列表项的视觉杂乱。
 
 ### 面板宽度拖拽
 
