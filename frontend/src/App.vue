@@ -6,40 +6,22 @@
       <!-- L1: Icon sidebar (always visible on desktop) -->
       <L1Sidebar class="hidden lg:flex" @logout="handleLogout" />
 
-      <!-- L2: Content panel (hidden when settings is active) -->
+      <!-- L2: Content panel (visible only when chat is active) -->
       <L2Sidebar
-        v-if="navigationStore.activeNav !== 'settings'"
+        v-if="navigationStore.activeNav === 'chat'"
         class="hidden lg:block"
         :width="navigationStore.l2Width"
         :expanded="navigationStore.l2Expanded"
         @update:width="navigationStore.setL2Width($event)"
-        @open-docs="showDocs = true"
-        @open-eval="showEval = true"
-        @open-models="showModels = true"
-        @open-tag-kb="showTagKb = true"
-        @open-graph="showGraph = true"
-        @open-kb="showKb = true"
-        @open-team="showTeam = true"
         @logout="handleLogout"
       />
 
       <!-- Main content -->
       <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
-        <SettingsView
-          v-if="navigationStore.activeNav === 'settings'"
-          @open-docs="showDocs = true"
-          @open-eval="showEval = true"
-          @open-models="showModels = true"
-          @open-tag-kb="showTagKb = true"
-          @open-graph="showGraph = true"
-          @open-kb="showKb = true"
-          @open-team="showTeam = true"
-        />
-        <ChatShell
-          v-else
-          @open-docs="showDocs = true"
-          @open-eval="showEval = true"
-        />
+        <SettingsView v-if="navigationStore.activeNav === 'settings'" />
+        <KbPage v-else-if="navigationStore.activeNav === 'kb'" />
+        <TeamPage v-else-if="navigationStore.activeNav === 'team'" />
+        <ChatShell v-else />
       </main>
     </div>
 
@@ -48,43 +30,9 @@
       <L2Sidebar
         :width="280"
         :expanded="true"
-        @open-docs="showDocs = true; navigationStore.closeMobileSidebar()"
-        @open-eval="showEval = true; navigationStore.closeMobileSidebar()"
-        @open-models="showModels = true; navigationStore.closeMobileSidebar()"
-        @open-tag-kb="showTagKb = true; navigationStore.closeMobileSidebar()"
-        @open-graph="showGraph = true; navigationStore.closeMobileSidebar()"
-        @open-kb="showKb = true; navigationStore.closeMobileSidebar()"
-        @open-team="showTeam = true; navigationStore.closeMobileSidebar()"
         @logout="handleLogout"
       />
     </Sheet>
-
-    <!-- Document drawer -->
-    <Sheet v-model="showDocs" side="right" class="w-[400px] sm:w-[540px]">
-      <DocumentDrawer />
-    </Sheet>
-
-    <!-- Eval dashboard -->
-    <EvalDashboard v-model="showEval" />
-
-    <!-- Model manager drawer -->
-    <Sheet v-model="showModels" side="right" class="w-[400px] sm:w-[540px]">
-      <ModelManager />
-    </Sheet>
-
-    <!-- Tag KB drawer -->
-    <Sheet v-model="showTagKb" side="right" class="w-[400px] sm:w-[540px]">
-      <TagKbDrawer />
-    </Sheet>
-
-    <!-- Graph viewer -->
-    <GraphViewer :open="showGraph" @close="showGraph = false" />
-
-    <!-- Knowledgebase drawer -->
-    <KnowledgebaseDrawer :open="showKb" @close="showKb = false" />
-
-    <!-- Team drawer -->
-    <TeamDrawer :open="showTeam" @close="showTeam = false" />
 
     <!-- Toast container -->
     <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2">
@@ -106,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, provide, onMounted, onUnmounted } from 'vue'
+import { provide, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from './stores/useAuthStore.js'
 import { useToastStore } from './stores/useToastStore.js'
 import { useNavigationStore } from './stores/useNavigationStore.js'
@@ -114,27 +62,14 @@ import Sheet from './components/ui/sheet.vue'
 import L1Sidebar from './features/navigation/L1Sidebar.vue'
 import L2Sidebar from './features/navigation/L2Sidebar.vue'
 import ChatShell from './features/chat/ChatShell.vue'
-import DocumentDrawer from './features/documents/DocumentDrawer.vue'
-import EvalDashboard from './features/eval/EvalDashboard.vue'
-import ModelManager from './features/model-manager/ModelManager.vue'
-import TagKbDrawer from './features/tag-kb/TagKbDrawer.vue'
 import SettingsView from './features/settings/SettingsView.vue'
-import GraphViewer from './features/graph/GraphViewer.vue'
-import KnowledgebaseDrawer from './features/kb/KnowledgebaseDrawer.vue'
-import TeamDrawer from './features/team/TeamDrawer.vue'
+import KbPage from './features/kb/KbPage.vue'
+import TeamPage from './features/team/TeamPage.vue'
 import LoginView from './features/auth/LoginView.vue'
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const navigationStore = useNavigationStore()
-
-const showDocs = ref(false)
-const showEval = ref(false)
-const showModels = ref(false)
-const showTagKb = ref(false)
-const showGraph = ref(false)
-const showKb = ref(false)
-const showTeam = ref(false)
 
 provide('toggleMobileSidebar', () => { navigationStore.openMobileSidebar() })
 

@@ -12,12 +12,12 @@ import SettingsDocParsing from './SettingsDocParsing.vue'
 import SettingsRaptor from './SettingsRaptor.vue'
 import SettingsTagging from './SettingsTagging.vue'
 import SettingsGraphRAG from './SettingsGraphRAG.vue'
+import ModelContent from '../model-manager/ModelContent.vue'
+import EvalContent from '../eval/EvalContent.vue'
 
 const settingsStore = useSettingsStore()
 const navigationStore = useNavigationStore()
 const toast = useToastStore()
-
-defineEmits(['open-docs', 'open-kb', 'open-models', 'open-tag-kb', 'open-graph', 'open-team', 'open-eval'])
 
 const form = ref({
   auto_keywords: false,
@@ -90,13 +90,6 @@ onMounted(() => {
     <!-- Settings sidebar -->
     <SettingsSidebar
       class="hidden lg:flex"
-      @open-docs="$emit('open-docs')"
-      @open-kb="$emit('open-kb')"
-      @open-models="$emit('open-models')"
-      @open-tag-kb="$emit('open-tag-kb')"
-      @open-graph="$emit('open-graph')"
-      @open-team="$emit('open-team')"
-      @open-eval="$emit('open-eval')"
     />
 
     <!-- Content area -->
@@ -135,6 +128,8 @@ onMounted(() => {
               :form="form"
               @update:form="form = $event"
             />
+            <ModelContent v-else-if="navigationStore.activeSettingsSection === 'models'" />
+            <EvalContent v-else-if="navigationStore.activeSettingsSection === 'eval'" />
 
             <!-- Save button (not on overview) -->
             <div v-if="navigationStore.activeSettingsSection !== 'overview'" class="mt-6 flex flex-col items-center gap-2">
