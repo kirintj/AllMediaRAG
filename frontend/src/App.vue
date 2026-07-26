@@ -6,8 +6,9 @@
       <!-- L1: Icon sidebar (always visible on desktop) -->
       <L1Sidebar class="hidden lg:flex" @logout="handleLogout" />
 
-      <!-- L2: Content panel (collapsible, resizable) -->
+      <!-- L2: Content panel (hidden when settings is active) -->
       <L2Sidebar
+        v-if="navigationStore.activeNav !== 'settings'"
         class="hidden lg:block"
         :width="navigationStore.l2Width"
         :expanded="navigationStore.l2Expanded"
@@ -16,7 +17,6 @@
         @open-eval="showEval = true"
         @open-models="showModels = true"
         @open-tag-kb="showTagKb = true"
-        @open-settings="showRagSettings = true"
         @open-graph="showGraph = true"
         @open-kb="showKb = true"
         @open-team="showTeam = true"
@@ -25,7 +25,9 @@
 
       <!-- Main content -->
       <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+        <SettingsView v-if="navigationStore.activeNav === 'settings'" />
         <ChatShell
+          v-else
           @open-docs="showDocs = true"
           @open-eval="showEval = true"
         />
@@ -41,7 +43,6 @@
         @open-eval="showEval = true; navigationStore.closeMobileSidebar()"
         @open-models="showModels = true; navigationStore.closeMobileSidebar()"
         @open-tag-kb="showTagKb = true; navigationStore.closeMobileSidebar()"
-        @open-settings="showRagSettings = true; navigationStore.closeMobileSidebar()"
         @open-graph="showGraph = true; navigationStore.closeMobileSidebar()"
         @open-kb="showKb = true; navigationStore.closeMobileSidebar()"
         @open-team="showTeam = true; navigationStore.closeMobileSidebar()"
@@ -65,11 +66,6 @@
     <!-- Tag KB drawer -->
     <Sheet v-model="showTagKb" side="right" class="w-[400px] sm:w-[540px]">
       <TagKbDrawer />
-    </Sheet>
-
-    <!-- RAG settings drawer -->
-    <Sheet v-model="showRagSettings" side="right" class="w-[400px] sm:w-[540px]">
-      <RagSettingsDrawer />
     </Sheet>
 
     <!-- Graph viewer -->
@@ -113,7 +109,7 @@ import DocumentDrawer from './features/documents/DocumentDrawer.vue'
 import EvalDashboard from './features/eval/EvalDashboard.vue'
 import ModelManager from './features/model-manager/ModelManager.vue'
 import TagKbDrawer from './features/tag-kb/TagKbDrawer.vue'
-import RagSettingsDrawer from './features/settings/RagSettingsDrawer.vue'
+import SettingsView from './features/settings/SettingsView.vue'
 import GraphViewer from './features/graph/GraphViewer.vue'
 import KnowledgebaseDrawer from './features/kb/KnowledgebaseDrawer.vue'
 import TeamDrawer from './features/team/TeamDrawer.vue'
@@ -127,7 +123,6 @@ const showDocs = ref(false)
 const showEval = ref(false)
 const showModels = ref(false)
 const showTagKb = ref(false)
-const showRagSettings = ref(false)
 const showGraph = ref(false)
 const showKb = ref(false)
 const showTeam = ref(false)
