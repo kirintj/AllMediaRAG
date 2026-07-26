@@ -1,11 +1,16 @@
 <script setup>
 import { useNavigationStore } from '../../stores/useNavigationStore.js'
 import { useAuthStore } from '../../stores/useAuthStore.js'
-import { LayoutDashboard, FileText, Layers, Tag, Network, ArrowLeft, LogOut } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, Layers, Tag, Network, ArrowLeft, LogOut, FolderOpen, Cpu, Tags, Users, BarChart3 } from 'lucide-vue-next'
 import { cn } from '../../lib/utils.js'
 
 const navigationStore = useNavigationStore()
 const authStore = useAuthStore()
+
+const emit = defineEmits([
+  'open-docs', 'open-kb', 'open-models', 'open-tag-kb',
+  'open-graph', 'open-team', 'open-eval',
+])
 
 const navItems = [
   { key: 'overview', label: '概览', icon: LayoutDashboard },
@@ -13,6 +18,16 @@ const navItems = [
   { key: 'raptor', label: 'RAPTOR', icon: Layers },
   { key: 'tagging', label: '内容标签', icon: Tag },
   { key: 'graphrag', label: '知识图谱', icon: Network },
+]
+
+const toolEntries = [
+  { label: '文档管理', icon: FileText, event: 'open-docs' },
+  { label: '知识库管理', icon: FolderOpen, event: 'open-kb' },
+  { label: '模型管理', icon: Cpu, event: 'open-models' },
+  { label: '标签知识库', icon: Tags, event: 'open-tag-kb' },
+  { label: '知识图谱查看', icon: Network, event: 'open-graph' },
+  { label: '团队管理', icon: Users, event: 'open-team' },
+  { label: '评测看板', icon: BarChart3, event: 'open-eval' },
 ]
 
 function selectSection(key) {
@@ -58,6 +73,22 @@ function backToChat() {
         >
           <component :is="item.icon" class="h-4 w-4 flex-shrink-0" />
           <span>{{ item.label }}</span>
+        </button>
+      </div>
+
+      <!-- Divider -->
+      <div class="my-3 border-t border-border/45" />
+
+      <!-- Tool entries (open drawers) -->
+      <div class="flex flex-col gap-0.5">
+        <button
+          v-for="entry in toolEntries"
+          :key="entry.label"
+          @click="emit(entry.event)"
+          class="flex items-center gap-3 w-full px-3 py-2.5 rounded-[10px] text-sm text-muted-foreground hover:bg-muted/45 hover:text-foreground transition-colors"
+        >
+          <component :is="entry.icon" class="h-4 w-4 flex-shrink-0" />
+          <span>{{ entry.label }}</span>
         </button>
       </div>
     </nav>

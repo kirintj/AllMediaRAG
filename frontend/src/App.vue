@@ -25,7 +25,16 @@
 
       <!-- Main content -->
       <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
-        <SettingsView v-if="navigationStore.activeNav === 'settings'" />
+        <SettingsView
+          v-if="navigationStore.activeNav === 'settings'"
+          @open-docs="showDocs = true"
+          @open-eval="showEval = true"
+          @open-models="showModels = true"
+          @open-tag-kb="showTagKb = true"
+          @open-graph="showGraph = true"
+          @open-kb="showKb = true"
+          @open-team="showTeam = true"
+        />
         <ChatShell
           v-else
           @open-docs="showDocs = true"

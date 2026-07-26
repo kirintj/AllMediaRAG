@@ -17,6 +17,8 @@ const settingsStore = useSettingsStore()
 const navigationStore = useNavigationStore()
 const toast = useToastStore()
 
+defineEmits(['open-docs', 'open-kb', 'open-models', 'open-tag-kb', 'open-graph', 'open-team', 'open-eval'])
+
 const form = ref({
   auto_keywords: false,
   auto_questions: false,
@@ -86,7 +88,16 @@ onMounted(() => {
 <template>
   <div class="flex h-full w-full">
     <!-- Settings sidebar -->
-    <SettingsSidebar class="hidden lg:flex" />
+    <SettingsSidebar
+      class="hidden lg:flex"
+      @open-docs="$emit('open-docs')"
+      @open-kb="$emit('open-kb')"
+      @open-models="$emit('open-models')"
+      @open-tag-kb="$emit('open-tag-kb')"
+      @open-graph="$emit('open-graph')"
+      @open-team="$emit('open-team')"
+      @open-eval="$emit('open-eval')"
+    />
 
     <!-- Content area -->
     <main class="flex-1 min-w-0 overflow-hidden">
