@@ -48,8 +48,8 @@
       </button>
     </div>
 
-    <!-- Composer: pinned to bottom, safe-area padding for iPhone -->
-    <div v-if="chatStore.messages.length > 0" class="flex-shrink-0 bg-background px-4 sm:px-6 pt-3" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px))">
+    <!-- Composer: pinned to bottom, safe-area padding for iPhone (desktop only, mobile handled by bottom nav) -->
+    <div v-if="chatStore.messages.length > 0" class="flex-shrink-0 bg-background px-4 sm:px-6 pt-3 pb-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
       <div class="mx-auto max-w-[49.5rem]">
         <ChatComposer @send="handleSend" />
       </div>

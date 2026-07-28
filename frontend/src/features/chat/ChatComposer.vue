@@ -27,9 +27,9 @@
       <div class="flex items-center justify-between mt-1 -mb-1">
         <div class="flex items-center gap-1">
           <!-- Mode toggle -->
-          <div class="flex items-center h-7 rounded-full bg-muted p-0.5">
+          <div class="flex items-center h-9 sm:h-7 rounded-full bg-muted p-0.5">
             <button
-              class="h-6 px-2.5 rounded-full text-[11px] font-medium transition-colors"
+              class="h-8 sm:h-6 px-3 sm:px-2.5 rounded-full text-xs sm:text-[11px] font-medium transition-colors"
               :class="chatStore.mode === 'rag'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'"
@@ -38,7 +38,7 @@
               RAG
             </button>
             <button
-              class="h-6 px-2.5 rounded-full text-[11px] font-medium transition-colors"
+              class="h-8 sm:h-6 px-3 sm:px-2.5 rounded-full text-xs sm:text-[11px] font-medium transition-colors"
               :class="chatStore.mode === 'direct'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'"
@@ -52,7 +52,7 @@
         <!-- Send / Stop button -->
         <button
           v-if="chatStore.loading"
-          class="h-9 w-9 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+          class="h-10 w-10 sm:h-9 sm:w-9 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
           @click="handleStop"
           title="停止"
         >
@@ -60,7 +60,7 @@
         </button>
         <button
           v-else
-          class="h-9 w-9 flex items-center justify-center rounded-full transition-all"
+          class="h-10 w-10 sm:h-9 sm:w-9 flex items-center justify-center rounded-full transition-all"
           :class="inputMessage.trim()
             ? 'bg-foreground text-background hover:scale-105'
             : 'bg-muted text-muted-foreground cursor-not-allowed opacity-40'"

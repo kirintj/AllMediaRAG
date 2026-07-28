@@ -119,8 +119,23 @@
     @apply h-full;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior-y: none;
+  }
+
+  /* 防止移动端输入聚焦时自动缩放 */
+  @media (max-width: 1023px) {
+    input, select, textarea {
+      font-size: 16px;
+    }
   }
 
   * {
@@ -173,5 +188,36 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+
+  /* ===== 移动端适配工具类 ===== */
+
+  /* 安全区工具类 - 适配刘海屏/底部横条 */
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+  .pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+  .pt-safe-2 { padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem); }
+  .pb-safe-2 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); }
+
+  /* 移动端触摸目标最小尺寸（44x44 标准） */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 隐藏滚动条但保持可滚动（横向标签栏等） */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 移动端横向滚动容器 - 支持惯性滚动 */
+  .scroll-x {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
   }
 }

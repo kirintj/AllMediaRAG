@@ -1,9 +1,10 @@
 <template>
-  <header class="flex items-center justify-between h-11 px-4 border-b border-border bg-background/80 backdrop-blur-sm flex-shrink-0">
+  <header class="flex items-center justify-between h-12 lg:h-12 px-3 sm:px-4 border-b border-border bg-background/80 backdrop-blur-sm flex-shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <button
-        class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors lg:hidden"
+        class="h-9 w-9 lg:h-7 lg:w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors lg:hidden"
         @click="toggleMobileSidebar"
+        title="对话列表"
       >
         <PanelLeft class="h-4 w-4" />
       </button>
@@ -17,21 +18,7 @@
 
     <div class="flex items-center gap-0.5">
       <button
-        class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-        @click="$emit('open-docs')"
-        title="文档管理"
-      >
-        <FolderOpen class="h-4 w-4" />
-      </button>
-      <button
-        class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-        @click="$emit('open-eval')"
-        title="评测看板"
-      >
-        <BarChart3 class="h-4 w-4" />
-      </button>
-      <button
-        class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+        class="h-9 w-9 lg:h-7 lg:w-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
         @click="theme.toggle()"
         :title="theme.isDark.value ? '浅色模式' : '深色模式'"
       >

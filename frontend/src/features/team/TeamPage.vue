@@ -10,7 +10,7 @@ const authStore = useAuthStore()
 </script>
 
 <template>
-  <PageLayout>
+  <PageLayout title="团队管理">
     <template #sidebar>
       <div class="px-3 pt-3 pb-1">
         <button

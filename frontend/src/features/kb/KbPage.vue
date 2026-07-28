@@ -28,7 +28,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <PageLayout>
+  <PageLayout title="知识库">
     <template #sidebar>
       <div class="px-3 pt-3 pb-1">
         <button

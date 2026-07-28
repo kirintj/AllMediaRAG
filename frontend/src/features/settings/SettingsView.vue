@@ -3,7 +3,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useNavigationStore } from '../../stores/useNavigationStore.js'
 import { useToastStore } from '../../stores/useToastStore.js'
-import { Loader2, Save } from 'lucide-vue-next'
+import { Loader2, Save, LayoutDashboard, FileText, Layers, Tag, Network, Cpu, BarChart3, ArrowLeft } from 'lucide-vue-next'
 import Button from '../../components/ui/button.vue'
 import ScrollArea from '../../components/ui/scroll-area.vue'
 import SettingsSidebar from './SettingsSidebar.vue'
@@ -18,6 +18,16 @@ import EvalContent from '../eval/EvalContent.vue'
 const settingsStore = useSettingsStore()
 const navigationStore = useNavigationStore()
 const toast = useToastStore()
+
+const mobileNavItems = [
+  { key: 'overview', label: '概览', icon: LayoutDashboard },
+  { key: 'doc-parsing', label: '文档解析', icon: FileText },
+  { key: 'raptor', label: 'RAPTOR', icon: Layers },
+  { key: 'tagging', label: '内容标签', icon: Tag },
+  { key: 'graphrag', label: '知识图谱', icon: Network },
+  { key: 'models', label: '模型管理', icon: Cpu },
+  { key: 'eval', label: '评测看板', icon: BarChart3 },
+]
 
 const form = ref({
   auto_keywords: false,
@@ -88,15 +98,42 @@ onMounted(() => {
 
 <template>
   <div class="flex h-full w-full">
-    <!-- Settings sidebar -->
-    <SettingsSidebar
-      class="hidden lg:flex"
-    />
+    <!-- Settings sidebar (desktop) -->
+    <SettingsSidebar class="hidden lg:flex" />
 
     <!-- Content area -->
     <main class="flex-1 min-w-0 overflow-hidden">
+      <!-- 移动端顶部导航栏：返回 + 横向滚动分区标签 -->
+      <div class="lg:hidden flex-shrink-0 border-b border-border bg-background">
+        <div class="flex items-center gap-1 px-2 h-12">
+          <button
+            class="h-9 w-9 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            @click="navigationStore.setActiveNav('chat')"
+            title="返回"
+          >
+            <ArrowLeft class="h-4 w-4" />
+          </button>
+          <div class="flex-1 overflow-x-auto scroll-x scrollbar-none">
+            <div class="flex items-center gap-1 px-1">
+              <button
+                v-for="item in mobileNavItems"
+                :key="item.key"
+                class="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm whitespace-nowrap transition-colors flex-shrink-0"
+                :class="navigationStore.activeSettingsSection === item.key
+                  ? 'bg-muted text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+                @click="navigationStore.setActiveSettingsSection(item.key)"
+              >
+                <component :is="item.icon" class="h-3.5 w-3.5" />
+                <span>{{ item.label }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <ScrollArea class="h-full">
-        <div class="mx-auto max-w-[920px] px-6 py-6 sm:px-8 sm:py-8">
+        <div class="mx-auto max-w-[920px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
           <!-- Loading state -->
           <div v-if="settingsStore.loading" class="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 class="h-5 w-5 animate-spin" />
