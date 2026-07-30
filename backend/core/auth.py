@@ -169,6 +169,14 @@ def _user_exists(username: str) -> bool:
 def _resolve_tenant(username: str) -> dict | None:
     """Resolve a user's primary tenant.
 
+    Priority:
+    1. First active owner-level membership (user's own workspace)
+    2. First active normal-level membership (joined team)
+    3. Auto-create a tenant for pre-existing users (backward compat)
+
+    Only ``status="active"`` memberships are considered; ``pending``
+    invitations are **not** resolved to prevent premature access.
+
     Returns a dict with ``user_id``, ``tenant_id``, and ``role`` on success,
     or ``None`` when the database is unavailable or the user is not found.
     """
@@ -184,15 +192,27 @@ def _resolve_tenant(username: str) -> dict | None:
         if user is None:
             return None
 
-        # Look for an existing owner-level tenant membership
+        # 1. Look for an active owner-level membership
         user_tenant = (
             session.query(UserTenant)
-            .filter(UserTenant.user_id == user.id, UserTenant.role == "owner")
+            .filter(
+                UserTenant.user_id == user.id,
+                UserTenant.role == "owner",
+                UserTenant.status == "active",
+            )
             .first()
         )
 
+        # 2. Fallback: first active membership of any role
         if user_tenant is None:
-            # Backward compatibility: auto-create a tenant for pre-existing users
+            user_tenant = (
+                session.query(UserTenant)
+                .filter(UserTenant.user_id == user.id, UserTenant.status == "active")
+                .first()
+            )
+
+        # 3. Backward compatibility: auto-create a tenant for pre-existing users
+        if user_tenant is None:
             tenant = Tenant(id=user.id, name=f"{username}'s workspace")
             session.add(tenant)
             user_tenant = UserTenant(
@@ -205,9 +225,9 @@ def _resolve_tenant(username: str) -> dict | None:
             session.commit()
             session.refresh(tenant)
             session.refresh(user_tenant)
-            tenant_id = str(tenant.id)
-        else:
-            tenant_id = str(user_tenant.tenant_id)
+
+        tenant_id = str(user_tenant.tenant_id)
+        role = user_tenant.role
 
         # 必须在 session 关闭前读取 user.id，否则 ORM 对象脱离 session 会报 DetachedInstanceError
         user_id = str(user.id)
@@ -215,7 +235,7 @@ def _resolve_tenant(username: str) -> dict | None:
     return {
         "user_id": user_id,
         "tenant_id": tenant_id,
-        "role": "owner",
+        "role": role,
     }
 
 

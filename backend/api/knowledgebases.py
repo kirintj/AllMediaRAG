@@ -49,11 +49,11 @@ async def list_knowledgebases(current_user: dict = Depends(get_current_user)):
         if session is None:
             raise HTTPException(503, "Database not available")
 
-        # Collect all tenants the user belongs to
+        # Collect all tenants the user actively belongs to (pending members must not see KBs)
         tenant_ids = [
             str(r.tenant_id)
             for r in session.query(UserTenant)
-            .filter(UserTenant.user_id == user_id)
+            .filter(UserTenant.user_id == user_id, UserTenant.status == "active")
             .all()
         ]
 

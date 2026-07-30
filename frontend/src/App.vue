@@ -6,23 +6,24 @@
       <!-- L1: Icon sidebar (always visible on desktop) -->
       <L1Sidebar class="hidden lg:flex" @logout="handleLogout" />
 
-      <!-- L2: Content panel (visible only when chat is active) -->
+      <!-- L2: Content panel (visible for chat and team) -->
       <L2Sidebar
-        v-if="navigationStore.activeNav === 'chat'"
+        v-if="navigationStore.activeNav === 'chat' || navigationStore.activeNav === 'team'"
         class="hidden lg:block"
         :width="navigationStore.l2Width"
         :expanded="navigationStore.l2Expanded"
         @update:width="navigationStore.setL2Width($event)"
         @logout="handleLogout"
         @open-models="handleOpenModels"
+        @open-team="navigationStore.setActiveNav('team')"
       />
 
       <!-- Main content -->
       <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         <SettingsView v-if="navigationStore.activeNav === 'settings'" />
         <KbPage v-else-if="navigationStore.activeNav === 'kb'" />
-        <TeamPage v-else-if="navigationStore.activeNav === 'team'" />
-        <ChatShell v-else />
+        <ChatShell v-else-if="navigationStore.activeNav === 'chat'" />
+        <TeamDetail v-else-if="navigationStore.activeNav === 'team'" />
       </main>
     </div>
 
@@ -86,7 +87,7 @@ import L2Sidebar from './features/navigation/L2Sidebar.vue'
 import ChatShell from './features/chat/ChatShell.vue'
 import SettingsView from './features/settings/SettingsView.vue'
 import KbPage from './features/kb/KbPage.vue'
-import TeamPage from './features/team/TeamPage.vue'
+import TeamDetail from './features/team/TeamDetail.vue'
 import LoginView from './features/auth/LoginView.vue'
 import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 

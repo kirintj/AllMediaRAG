@@ -4,6 +4,41 @@
 多实例部署时建议替换为 Redis 后端。
 """
 import logging
+
+# --- Patch starlette Config to read .env with UTF-8 encoding ---
+# 中文 Windows 默认 GBK 编码无法解码含中文注释的 UTF-8 .env 文件，
+# 导致 slowapi.Limiter 初始化时 UnicodeDecodeError。
+# 在 slowapi 导入前打补丁，强制使用 UTF-8 读取 .env。
+import starlette.config as _sc
+
+
+def _read_file_utf8(self, path):
+    """Read .env with UTF-8 encoding instead of system default (fixes GBK error on Chinese Windows)."""
+    if not path:
+        return {}
+    try:
+        file_path = _sc.Path(path)
+    except Exception:
+        return {}
+    if not file_path.is_file():
+        return {}
+    result = {}
+    with open(file_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip("'\"")
+                result[key.lower()] = value
+    return result
+
+
+_sc.Config._read_file = _read_file_utf8
+# --- End patch ---
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 

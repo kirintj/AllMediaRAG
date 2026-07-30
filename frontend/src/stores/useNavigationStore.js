@@ -20,6 +20,10 @@ export const useNavigationStore = defineStore('navigation', () => {
   /** Active full-page view within a nav section */
   const activePage = ref('')
 
+  /** Selected team ID for team management (shared between L2 list and main detail) */
+  const selectedTeamId = ref(null)
+  const selectedTeamRole = ref(null)
+
   /** Minimum and maximum L2 width */
   const L2_MIN = 240
   const L2_MAX = 440
@@ -71,6 +75,11 @@ export const useNavigationStore = defineStore('navigation', () => {
     activePage.value = page
   }
 
+  function selectTeam(teamId, role) {
+    selectedTeamId.value = teamId
+    selectedTeamRole.value = role
+  }
+
   return {
     activeNav,
     l2Expanded,
@@ -78,6 +87,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     mobileSidebarOpen,
     activeSettingsSection,
     activePage,
+    selectedTeamId,
+    selectedTeamRole,
     L2_MIN,
     L2_MAX,
     setActiveNav,
@@ -90,5 +101,6 @@ export const useNavigationStore = defineStore('navigation', () => {
     closeMobileSidebar,
     setActiveSettingsSection,
     setActivePage,
+    selectTeam,
   }
 })
