@@ -61,6 +61,9 @@ backend/alembic/versions/__pycache__/
 *.pkl
 *.pickle
 
+# Eval backup reports
+backend/eval/_backup_eval_reports/
+
 # Index state
 index_state.json
 index_metadata.json
@@ -80,6 +83,9 @@ saved_model/
 redis_data/
 dump.rdb
 appendonly.aof
+
+# Vite cache
+.vite/
 
 # Claude Code
 .claude/
