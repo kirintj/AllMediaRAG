@@ -12,7 +12,8 @@ from core.auth import get_current_user
 from core.services import InfraBundle
 from core.services.retrieval_pipeline import RetrievalPipeline
 from core.services.generation_service import GenerationService
-from api.deps import get_infra, get_retrieval, get_generation
+from core.models.llm_bundle import LLMBundle
+from api.deps import get_infra, get_retrieval, get_generation, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +38,57 @@ class ChatRequest(BaseModel):
     mode: Literal["rag", "direct"] = Field("rag", description="对话模式")
     conversation_id: Optional[str] = Field(None, max_length=64, pattern=r"^[a-zA-Z0-9_-]*$")
     history: list[ChatMessage] = Field(default_factory=list, max_length=20, description="最近对话上下文")
+    model_id: Optional[int] = Field(None, description="指定模型 ID，留空使用默认模型")
 
 
 # ---------------------------------------------------------------------------
 # Chat endpoint (SSE streaming)
 # ---------------------------------------------------------------------------
+
+def _resolve_llm(body: ChatRequest, current_user: dict, infra: InfraBundle, db):
+    """从数据库解析 LLM Bundle，优先使用 model_id 或默认模型，fallback 到 infra.llm_client"""
+    if db is None:
+        logger.info("数据库不可用，使用 .env 配置的 LLM")
+        return infra.llm_client
+
+    from core.models.tenant_llm_service import TenantLLMService
+    service = TenantLLMService(db)
+    tenant_id = current_user.get("username", "default")
+
+    try:
+        if body.model_id:
+            # 指定了 model_id，直接查数据库
+            model_config = service.get_model(tenant_id, body.model_id)
+            if model_config:
+                bundle = LLMBundle.from_config(
+                    model_type=model_config["model_type"],
+                    llm_factory=model_config["llm_factory"],
+                    llm_name=model_config["llm_name"],
+                    api_key=model_config["api_key"],
+                    api_base=model_config.get("api_base", ""),
+                )
+                logger.info("使用指定模型 id=%s: %s/%s", body.model_id, model_config["llm_factory"], model_config["llm_name"])
+                return bundle
+
+        # 尝试获取默认 chat 模型
+        model_config = service.get_default_model(tenant_id, "chat")
+        if model_config:
+            bundle = LLMBundle.from_config(
+                model_type="chat",
+                llm_factory=model_config["llm_factory"],
+                llm_name=model_config["llm_name"],
+                api_key=model_config["api_key"],
+                api_base=model_config.get("api_base", ""),
+            )
+            logger.info("使用默认 chat 模型: %s/%s", model_config["llm_factory"], model_config["llm_name"])
+            return bundle
+    except Exception as e:
+        logger.warning("从数据库获取模型失败，fallback 到 .env 配置: %s", e)
+
+    # fallback 到 .env 配置
+    logger.info("数据库无默认 chat 模型，使用 .env 配置的 LLM")
+    return infra.llm_client
+
 
 @router.post("/chat")
 @limiter.limit(RATE_LIMIT_CHAT)
@@ -52,8 +99,12 @@ async def chat(
     infra: InfraBundle = Depends(get_infra),
     retrieval: RetrievalPipeline = Depends(get_retrieval),
     generation: GenerationService = Depends(get_generation),
+    db = Depends(get_db),
 ):
     """流式对话接口"""
+    # 从数据库解析 LLM（优先默认模型，fallback 到 .env）
+    llm = _resolve_llm(body, current_user, infra, db)
+
     # 将前端传来的 history 转为 build_prompt 需要的格式
     history_dicts = [{"role": m.role, "content": m.content} for m in body.history]
 
@@ -64,7 +115,7 @@ async def chat(
     def generate_in_thread(prompt):
         """在线程池中运行的同步生成器，将结果放入队列"""
         try:
-            for chunk in infra.llm_client.stream_generate(prompt):
+            for chunk in llm.stream_generate(prompt):
                 asyncio.run_coroutine_threadsafe(
                     queue.put(chunk), loop
                 )

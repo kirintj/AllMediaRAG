@@ -126,6 +126,81 @@ class TenantLLMService:
             for r in rows
         ]
 
+    def get_defaults(self, tenant_id: str) -> dict:
+        """获取租户所有类型的默认模型 ID 映射"""
+        default = self._db.get(TenantDefaultModel, tenant_id)
+        if not default:
+            return {}
+        return {
+            "chat": default.llm_id,
+            "embedding": default.embd_id,
+            "rerank": default.rerank_id,
+            "cv": default.img2txt_id,
+            "ocr": default.ocr_id,
+            "tts": default.tts_id,
+            "asr": default.asr_id,
+        }
+
+    def get_model(self, tenant_id: str, model_id: int) -> dict | None:
+        """获取租户的某条模型配置详情"""
+        row = (
+            self._db.query(TenantLLM)
+            .filter(TenantLLM.tenant_id == tenant_id, TenantLLM.id == model_id)
+            .first()
+        )
+        if not row:
+            return None
+        return {
+            "id": row.id,
+            "llm_factory": row.llm_factory,
+            "model_type": row.model_type,
+            "llm_name": row.llm_name,
+            "api_key": row.api_key,
+            "api_base": row.api_base,
+            "max_tokens": row.max_tokens,
+            "used_tokens": row.used_tokens,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        }
+
+    def update_model(
+        self,
+        tenant_id: str,
+        model_id: int,
+        llm_factory: str | None = None,
+        model_type: str | None = None,
+        llm_name: str | None = None,
+        api_key: str | None = None,
+        api_base: str | None = None,
+        max_tokens: int | None = None,
+    ) -> dict | None:
+        """更新租户的某条模型配置"""
+        row = (
+            self._db.query(TenantLLM)
+            .filter(TenantLLM.tenant_id == tenant_id, TenantLLM.id == model_id)
+            .first()
+        )
+        if not row:
+            return None
+
+        if llm_factory is not None:
+            row.llm_factory = llm_factory
+        if model_type is not None:
+            row.model_type = model_type
+        if llm_name is not None:
+            row.llm_name = llm_name
+        if api_key is not None:
+            row.api_key = api_key
+        if api_base is not None:
+            row.api_base = api_base
+        if max_tokens is not None:
+            row.max_tokens = max_tokens
+
+        self._db.commit()
+        self._db.refresh(row)
+        return self.get_model(tenant_id, model_id)
+
     def increment_tokens(self, model_id: int, tokens: int):
         """累加模型已用 token 数"""
         self._db.query(TenantLLM).filter(TenantLLM.id == model_id).update(
@@ -140,7 +215,10 @@ class TenantLLMService:
             "llm_factory": row.llm_factory,
             "model_type": row.model_type,
             "llm_name": row.llm_name,
+            "api_key": row.api_key,
             "api_base": row.api_base,
+            "max_tokens": row.max_tokens,
             "used_tokens": row.used_tokens,
             "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
         }

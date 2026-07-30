@@ -85,7 +85,7 @@ start "ALLRAG - Backend" cmd /k "cd /d %~dp0backend && python main.py"
 
 :: Start worker in new window
 echo   Starting Worker ...
-start "ALLRAG - Worker" cmd /k "cd /d %~dp0backend && python worker.py"
+start "ALLRAG - Worker" cmd /k "cd /d %~dp0 && python backend\worker.py"
 
 :: Start frontend in new window
 echo   Starting Frontend (http://localhost:5173) ...

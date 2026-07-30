@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from core.auth import get_current_user
 from core.db.engine import get_db
 from core.models.tenant_llm_service import TenantLLMService
+from core.models import _infer_factory
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,11 +21,20 @@ router = APIRouter()
 
 
 class AddModelRequest(BaseModel):
-    llm_factory: str
+    llm_factory: str | None = None  # 自动推断，留空即可
     model_type: str  # chat/embedding/rerank/cv/ocr/tts/asr
     llm_name: str
     api_key: str
     api_base: str = ""
+
+
+class UpdateModelRequest(BaseModel):
+    llm_factory: str | None = None
+    model_type: str | None = None
+    llm_name: str | None = None
+    api_key: str | None = None
+    api_base: str | None = None
+    max_tokens: int | None = None
 
 
 class SetDefaultRequest(BaseModel):
@@ -89,17 +99,40 @@ async def add_model(
     current_user: dict = Depends(get_current_user),
     service: TenantLLMService = Depends(_get_service),
 ):
-    """新增模型配置"""
+    """新增模型配置（llm_factory 留空则自动推断）"""
     tenant_id = current_user.get("username", "default")
+    llm_factory = body.llm_factory or _infer_factory(body.api_base or "", body.model_type)
     model = service.add_model(
         tenant_id,
-        body.llm_factory,
+        llm_factory,
         body.model_type,
         body.llm_name,
         body.api_key,
         body.api_base,
     )
     return {"message": "模型添加成功", "model": model}
+
+
+@router.get("/models/defaults")
+async def get_default_models(
+    current_user: dict = Depends(get_current_user),
+    service: TenantLLMService = Depends(_get_service),
+):
+    """获取当前租户所有类型的默认模型 ID"""
+    tenant_id = current_user.get("username", "default")
+    return {"defaults": service.get_defaults(tenant_id)}
+
+
+@router.post("/models/default")
+async def set_default_model(
+    body: SetDefaultRequest,
+    current_user: dict = Depends(get_current_user),
+    service: TenantLLMService = Depends(_get_service),
+):
+    """设置默认模型"""
+    tenant_id = current_user.get("username", "default")
+    service.set_default(tenant_id, body.model_type, body.model_id)
+    return {"message": f"默认 {body.model_type} 模型已设置"}
 
 
 @router.delete("/models/{model_id}")
@@ -114,13 +147,39 @@ async def delete_model(
     return {"message": "模型已删除"}
 
 
-@router.post("/models/default")
-async def set_default_model(
-    body: SetDefaultRequest,
+@router.get("/models/{model_id}")
+async def get_model(
+    model_id: int,
     current_user: dict = Depends(get_current_user),
     service: TenantLLMService = Depends(_get_service),
 ):
-    """设置默认模型"""
+    """获取单条模型配置详情"""
     tenant_id = current_user.get("username", "default")
-    service.set_default(tenant_id, body.model_type, body.model_id)
-    return {"message": f"默认 {body.model_type} 模型已设置"}
+    model = service.get_model(tenant_id, model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return {"model": model}
+
+
+@router.put("/models/{model_id}")
+async def update_model(
+    model_id: int,
+    body: UpdateModelRequest,
+    current_user: dict = Depends(get_current_user),
+    service: TenantLLMService = Depends(_get_service),
+):
+    """更新模型配置"""
+    tenant_id = current_user.get("username", "default")
+    model = service.update_model(
+        tenant_id,
+        model_id,
+        llm_factory=body.llm_factory,
+        model_type=body.model_type,
+        llm_name=body.llm_name,
+        api_key=body.api_key,
+        api_base=body.api_base,
+        max_tokens=body.max_tokens,
+    )
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return {"message": "模型配置已更新", "model": model}

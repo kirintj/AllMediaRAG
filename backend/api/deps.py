@@ -44,10 +44,10 @@ def get_rag_engine(request: Request) -> RAGEngine:
     return request.app.state.rag_engine
 
 
-def get_db(request: Request):
-    """数据库会话（上下文管理器）"""
-    from core.db.engine import get_db_session
-    return get_db_session()
+def get_db():
+    """数据库会话（FastAPI 依赖注入用生成器）"""
+    from core.db.engine import get_db as _get_db
+    yield from _get_db()
 
 
 def get_task_queue(request: Request) -> TaskQueue:

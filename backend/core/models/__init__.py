@@ -25,6 +25,7 @@ __all__ = [
     "AsrModel",
     "get_registry",
     "list_registered_providers",
+    "_infer_factory",
 ]
 
 logger = logging.getLogger(__name__)
@@ -104,3 +105,36 @@ def get_registry(model_type: str) -> dict[str, type]:
 def list_registered_providers() -> dict[str, list[str]]:
     """列出所有已注册的 provider"""
     return {mt: list(reg.keys()) for mt, reg in _REGISTRY_MAP.items() if reg}
+
+
+# ── 厂商自动推断 ────────────────────────────────────────────────────────────
+# 根据 API Base URL 自动匹配厂商，无需用户手动选择
+
+_API_BASE_PATTERNS: list[tuple[str, str]] = [
+    ("deepseek.com", "DeepSeek"),
+    ("siliconflow.cn", "SILICONFLOW"),
+    ("dashscope.aliyuncs.com", "Tongyi-Qianwen"),
+    ("jina.ai", "Jina"),
+    ("cohere.ai", "Cohere"),
+    ("anthropic.com", "Anthropic"),
+    ("gemini", "Gemini"),
+    ("localhost", "Ollama"),       # Ollama local
+    ("11434", "Ollama"),           # Ollama default port
+    ("openai.com", "OpenAI"),
+]
+
+
+def _infer_factory(api_base: str, model_type: str = "") -> str:
+    """根据 API Base URL 自动推断厂商名。
+    如果 API Base 为空或匹配不到，默认用 OpenAI。
+    """
+    if not api_base:
+        return "OpenAI"
+
+    base = api_base.lower().strip().rstrip("/")
+    for pattern, factory in _API_BASE_PATTERNS:
+        if pattern in base:
+            return factory
+
+    # 默认兜底：OpenAI 兼容
+    return "OpenAI"

@@ -5,6 +5,8 @@ export const useModelStore = defineStore('model', () => {
   const factories = ref([])
   const models = ref([])
   const modelTypes = ref([])
+  const defaults = ref({})
+  const currentModel = ref(null)
   const loading = ref(false)
   const error = ref(null)
 
@@ -56,11 +58,47 @@ export const useModelStore = defineStore('model', () => {
   async function setDefault(modelType, modelId) {
     const { setDefaultModel } = await import('../api/models.js')
     await setDefaultModel(modelType, modelId)
+    await fetchDefaults()
+  }
+
+  async function fetchDefaults() {
+    try {
+      const { getDefaults } = await import('../api/models.js')
+      const data = await getDefaults()
+      defaults.value = data.defaults || {}
+    } catch (err) {
+      console.error('Failed to fetch defaults:', err)
+    }
+  }
+
+  async function fetchModel(modelId) {
+    loading.value = true
+    try {
+      const { getModel } = await import('../api/models.js')
+      const data = await getModel(modelId)
+      currentModel.value = data.model || null
+      return currentModel.value
+    } catch (err) {
+      error.value = err.message
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateModel(modelId, payload) {
+    const { updateModel } = await import('../api/models.js')
+    const data = await updateModel(modelId, payload)
+    currentModel.value = data.model || null
+    // Refresh the list to keep it in sync
+    await fetchModels()
+    return data.model
   }
 
   return {
-    factories, models, modelTypes, loading, error,
-    fetchFactories, fetchModels, fetchModelTypes,
+    factories, models, modelTypes, defaults, currentModel, loading, error,
+    fetchFactories, fetchModels, fetchModelTypes, fetchDefaults,
     addNewModel, removeModel, setDefault,
+    fetchModel, updateModel,
   }
 })

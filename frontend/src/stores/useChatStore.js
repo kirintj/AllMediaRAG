@@ -9,6 +9,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { chatStream } from '../api/chat.js'
 import { useConversationStore } from './useConversationStore.js'
+import { useModelStore } from './useModelStore.js'
 
 export const useChatStore = defineStore('chat', () => {
   // 状态
@@ -52,6 +53,13 @@ export const useChatStore = defineStore('chat', () => {
     const startTime = Date.now()
 
     try {
+      // 获取默认 chat 模型 ID
+      const modelStore = useModelStore()
+      if (!modelStore.defaults || !Object.keys(modelStore.defaults).length) {
+        await modelStore.fetchDefaults()
+      }
+      const chatModelId = modelStore.defaults?.chat || null
+
       await chatStream(content, mode.value, (data) => {
         const elapsed = Date.now() - startTime
         // 检查错误
@@ -91,7 +99,7 @@ export const useChatStore = defineStore('chat', () => {
         }
         // 使用 splice 确保响应式更新
         messages.value.splice(assistantIndex, 1, newMsg)
-      }, activeConversationId.value, history)
+      }, activeConversationId.value, history, chatModelId)
     } catch (error) {
       const elapsed = Date.now() - startTime
       // 如果已有回答内容（超时但回答已流式接收），保留内容而非覆盖为错误

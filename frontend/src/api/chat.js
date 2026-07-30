@@ -1,12 +1,13 @@
 import { getAuthHeaders } from './index.js'
 
-export async function chatStream(message, mode, onChunk, conversationId, history = []) {
+export async function chatStream(message, mode, onChunk, conversationId, history = [], modelId = null) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 120000)
 
   try {
     const body = { message, mode, history }
     if (conversationId) body.conversation_id = conversationId
+    if (modelId) body.model_id = modelId
 
     const response = await fetch('/api/chat', {
       method: 'POST',
