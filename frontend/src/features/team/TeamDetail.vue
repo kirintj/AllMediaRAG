@@ -216,11 +216,21 @@ const inviteUsername = ref('')
 
 const ROLE_LABELS = { owner: '管理员', normal: '成员' }
 
-async function fetchDetail() {
+// 请求序列号：用于竞态保护，防止快速切换团队时旧响应覆盖新数据
+let fetchSeq = 0
+
+async function fetchDetail(clearFirst = false) {
+  const seq = ++fetchSeq
   if (!navigationStore.selectedTeamId) {
-    members.value = []
-    teamName.value = ''
+    if (seq === fetchSeq) {
+      members.value = []
+      teamName.value = ''
+    }
     return
+  }
+  // 切换团队时立即清空旧成员列表，避免视觉上残留前一个团队的数据
+  if (clearFirst) {
+    members.value = []
   }
   try {
     // Fetch members + team name in parallel
@@ -228,11 +238,15 @@ async function fetchDetail() {
       listMembers(navigationStore.selectedTeamId),
       listTeams(),
     ])
+    // 竞态保护：仅最新请求可更新状态，丢弃因快速切换产生的过期响应
+    if (seq !== fetchSeq) return
     members.value = membersData.members || []
     const team = (teamsData.teams || []).find(t => t.tenant_id === navigationStore.selectedTeamId)
     teamName.value = team?.name || '未知团队'
   } catch (err) {
-    toast.error('加载团队信息失败: ' + (err.response?.data?.detail || err.message))
+    if (seq === fetchSeq) {
+      toast.error('加载团队信息失败: ' + (err.response?.data?.detail || err.message))
+    }
   }
 }
 
@@ -271,7 +285,7 @@ async function handleRemove(userId, username, status) {
 }
 
 // Re-fetch when selected team changes
-watch(() => navigationStore.selectedTeamId, () => fetchDetail())
+watch(() => navigationStore.selectedTeamId, () => fetchDetail(true))
 
 onMounted(() => fetchDetail())
 </script>

@@ -1,6 +1,6 @@
 # 双栏上下文感知侧边栏设计规格
 
-> **项目**: ALLRAG — RAG 智能问答平台  
+> **项目**: DataPilotAI — RAG 智能问答平台  
 > **日期**: 2026-07-26  
 > **状态**: 待审阅  
 > **技术栈**: Vue 3 + Tailwind CSS v4 + Pinia + Radix Vue + Vue Router 4（新增）
@@ -11,7 +11,7 @@
 
 ### 当前问题
 
-ALLRAG 的侧边栏（`AppSidebar.vue`）存在以下不足：
+DataPilotAI 的侧边栏（`AppSidebar.vue`）存在以下不足：
 
 1. **导航结构扁平**：底部 9 个功能按钮平铺无分组，视觉层级不清晰，用户需要扫描全部按钮才能找到目标功能。
 2. **响应式粗糙**：仅有一个 `lg`（1024px）断点，缺少平板适配；移动端 Sheet 交互单一。

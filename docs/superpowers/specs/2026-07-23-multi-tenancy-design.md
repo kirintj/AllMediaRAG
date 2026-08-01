@@ -2,7 +2,7 @@
 
 ## 概述
 
-为 ALLRAG 实现完整的多租户体系：User/Tenant/UserTenant 数据模型、每租户多个知识库、MinIO/S3 文件存储隔离、ES 索引按租户隔离、团队协作（邀请/角色）。参照 RAGFlow 的多租户架构对齐。
+为 DataPilotAI 实现完整的多租户体系：User/Tenant/UserTenant 数据模型、每租户多个知识库、MinIO/S3 文件存储隔离、ES 索引按租户隔离、团队协作（邀请/角色）。参照 RAGFlow 的多租户架构对齐。
 
 ## 决策记录
 

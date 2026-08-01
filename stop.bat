@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title ALLRAG - Stop
+title DataPilotAI - Stop
 
 echo Stopping all services ...
 docker compose down

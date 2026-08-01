@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title ALLRAG Dev - One Click Start
+title DataPilotAI Dev - One Click Start
 
 echo ============================================
-echo   ALLRAG Development Mode - One-Click Start
+echo   DataPilotAI Development Mode - One-Click Start
 echo ============================================
 echo.
 
@@ -81,15 +81,15 @@ echo.
 
 :: Start backend in new window
 echo   Starting Backend (http://localhost:8000) ...
-start "ALLRAG - Backend" cmd /k "cd /d %~dp0backend && python main.py"
+start "DataPilotAI - Backend" cmd /k "cd /d %~dp0backend && python main.py"
 
 :: Start worker in new window
 echo   Starting Worker ...
-start "ALLRAG - Worker" cmd /k "cd /d %~dp0 && python backend\worker.py"
+start "DataPilotAI - Worker" cmd /k "cd /d %~dp0 && python backend\worker.py"
 
 :: Start frontend in new window
 echo   Starting Frontend (http://localhost:5173) ...
-start "ALLRAG - Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
+start "DataPilotAI - Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
 
 echo.
 echo [4/4] Waiting for services to start ...

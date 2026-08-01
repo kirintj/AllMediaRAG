@@ -2,7 +2,7 @@
 
 ## 概述
 
-参照 RAGFlow 的 `LLMBundle` + `_FACTORY_NAME` 自动发现注册表，为 ALLRAG 构建统一模型抽象层。支持 7 种模型类型（Chat/Embedding/Rerank/CV/OCR/TTS/ASR），通过 `LLMBundle` 门面统一代理所有操作，使用 `litellm` 作为 Chat 模型的兜底方案覆盖 30+ 提供商，配置存储在数据库中支持多租户。
+参照 RAGFlow 的 `LLMBundle` + `_FACTORY_NAME` 自动发现注册表，为 DataPilotAI 构建统一模型抽象层。支持 7 种模型类型（Chat/Embedding/Rerank/CV/OCR/TTS/ASR），通过 `LLMBundle` 门面统一代理所有操作，使用 `litellm` 作为 Chat 模型的兜底方案覆盖 30+ 提供商，配置存储在数据库中支持多租户。
 
 ## 决策记录
 

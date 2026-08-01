@@ -34,7 +34,7 @@ class AppSettings(BaseSettings):
     ES_HOSTS: str = "http://localhost:9200"
     ES_USERNAME: str = ""
     ES_PASSWORD: str = ""
-    ES_INDEX_PREFIX: str = "allrag"
+    ES_INDEX_PREFIX: str = "datapilotai"
     ES_NUMBER_OF_SHARDS: int = 1
     ES_NUMBER_OF_REPLICAS: int = 0
     EMBEDDING_DIM: int = 1024
@@ -54,7 +54,7 @@ class AppSettings(BaseSettings):
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
-    MINIO_BUCKET: str = "allrag-files"
+    MINIO_BUCKET: str = "datapilotai-files"
     MINIO_SECURE: bool = False
 
     # -- RAG parameters -----------------------------------------------

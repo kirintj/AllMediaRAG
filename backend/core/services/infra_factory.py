@@ -72,7 +72,7 @@ def create_infra(settings) -> InfraBundle:
 
     vector_store = ElasticsearchStore(
         hosts=getattr(config, "ES_HOSTS", "http://localhost:9200"),
-        index_prefix=getattr(config, "ES_INDEX_PREFIX", "allrag"),
+        index_prefix=getattr(config, "ES_INDEX_PREFIX", "datapilotai"),
         tenant_id=getattr(config, "DEFAULT_TENANT_ID", "default"),
         username=getattr(config, "ES_USERNAME", ""),
         password=getattr(config, "ES_PASSWORD", ""),

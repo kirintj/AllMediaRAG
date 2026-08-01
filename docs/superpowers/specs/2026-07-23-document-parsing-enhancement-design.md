@@ -2,7 +2,7 @@
 
 ## 概述
 
-扩展 ALLRAG 的文档解析能力：新增 4 种文件格式（Excel/CSV、PPT、JSON、音频）、4 种 LLM 增强（自动关键词、自动问题、结构化元数据、TOC 提取）、RAPTOR 层级摘要。所有实现参照 RAGFlow 源码对齐，包括 LLM 缓存、并行处理、UMAP+GMM 聚类、Prompt 模板文件化。
+扩展 DataPilotAI 的文档解析能力：新增 4 种文件格式（Excel/CSV、PPT、JSON、音频）、4 种 LLM 增强（自动关键词、自动问题、结构化元数据、TOC 提取）、RAPTOR 层级摘要。所有实现参照 RAGFlow 源码对齐，包括 LLM 缓存、并行处理、UMAP+GMM 聚类、Prompt 模板文件化。
 
 ## 决策记录
 

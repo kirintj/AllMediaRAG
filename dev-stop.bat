@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title ALLRAG Dev - Stop
+title DataPilotAI Dev - Stop
 
 echo ============================================
-echo   ALLRAG Development Mode - Stop
+echo   DataPilotAI Development Mode - Stop
 echo ============================================
 echo.
 

@@ -22,13 +22,13 @@ logger = logging.getLogger(__name__)
 class ElasticsearchStore(VectorStoreProvider):
     """Elasticsearch 8.x 向量存储适配器。
 
-    索引命名：{index_prefix}_{tenant_id}（默认 allrag_default）。
+    索引命名：{index_prefix}_{tenant_id}（默认 datapilotai_default）。
     """
 
     def __init__(
         self,
         hosts: str = "http://localhost:9200",
-        index_prefix: str = "allrag",
+        index_prefix: str = "datapilotai",
         tenant_id: str = "default",
         username: str = "",
         password: str = "",

@@ -1,4 +1,4 @@
-# ALLRAG 多模态 RAG 智能问答系统
+# DataPilotAI 多模态 RAG 智能问答系统
 
 > 基于 RAG（检索增强生成）技术的企业级知识问答平台。多模态文档解析、混合检索、知识图谱增强、全链路评测与结构化可观测性。后端 FastAPI + SSE 流式，前端 Vue 3 + 自定义 UI，Docker Compose 一键部署。
 
@@ -74,7 +74,7 @@
 ## 目录结构
 
 ```
-ALLRAG/
+DataPilotAI/
 ├── backend/                              # FastAPI 后端
 │   ├── main.py                           # 应用入口（lifespan 生命周期、中间件、路由注册）
 │   ├── worker.py                         # 独立 Worker 进程（消费 Redis Stream 异步处理文档）
@@ -323,8 +323,8 @@ ALLRAG/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/your-username/allrag.git
-cd allrag
+git clone https://github.com/your-username/datapilotai.git
+cd datapilotai
 ```
 
 ### 2. 配置环境变量
@@ -540,10 +540,10 @@ docker compose up -d
 |------|------|--------|
 | `VECTOR_STORE_PROVIDER` | 向量存储（仅支持 `elasticsearch`） | `elasticsearch` |
 | `ES_HOSTS` | ES 地址 | `http://localhost:9200` |
-| `ES_INDEX_PREFIX` | 索引前缀 | `allrag` |
+| `ES_INDEX_PREFIX` | 索引前缀 | `datapilotai` |
 | `MINIO_ENDPOINT` | MinIO 地址 | `localhost:9000` |
 | `MINIO_ACCESS_KEY` | MinIO 访问密钥 | `minioadmin` |
-| `MINIO_BUCKET` | MinIO 存储桶 | `allrag-files` |
+| `MINIO_BUCKET` | MinIO 存储桶 | `datapilotai-files` |
 
 ### 任务队列
 

@@ -2,7 +2,7 @@
 
 ## 概述
 
-将 ALLRAG 的向量存储从 ChromaDB 单一实现重构为 Elasticsearch-only 架构，参照 RAGFlow 的 `DocStoreConnection` 设计重写 `VectorStoreProvider` 接口，实现表达式驱动的统一查询，将混合检索（向量 + 全文）下沉到存储层。
+将 DataPilotAI 的向量存储从 ChromaDB 单一实现重构为 Elasticsearch-only 架构，参照 RAGFlow 的 `DocStoreConnection` 设计重写 `VectorStoreProvider` 接口，实现表达式驱动的统一查询，将混合检索（向量 + 全文）下沉到存储层。
 
 ## 决策记录
 

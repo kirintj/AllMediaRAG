@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title ALLRAG - One Click Start
+title DataPilotAI - One Click Start
 
 echo ============================================
-echo   ALLRAG One-Click Startup
+echo   DataPilotAI One-Click Startup
 echo ============================================
 echo.
 

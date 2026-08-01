@@ -1,8 +1,8 @@
-# ALLRAG Frontend WebUI Redesign — Implementation Plan
+# DataPilotAI Frontend WebUI Redesign — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace Element Plus with Tailwind CSS + shadcn/vue, replicate Nanobot WebUI layout in ALLRAG's Vue 3 frontend.
+**Goal:** Replace Element Plus with Tailwind CSS + shadcn/vue, replicate Nanobot WebUI layout in DataPilotAI's Vue 3 frontend.
 
 **Architecture:** Keep all api/ and stores/ files unchanged. Rewrite all .vue components and styles. shadcn/vue components added manually (no CLI).
 

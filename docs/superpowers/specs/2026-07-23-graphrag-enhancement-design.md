@@ -2,7 +2,7 @@
 
 ## 概述
 
-增强 ALLRAG 的知识图谱能力：新增 3 种提取后端（General/Light/NER）、实体合并与验证、实体消歧、Leiden 社区检测、PageRank 计算、N-hop 路径扩展检索。基于现有 Neo4j 基础设施，参照 RAGFlow 的 GraphRAG 实现对齐。
+增强 DataPilotAI 的知识图谱能力：新增 3 种提取后端（General/Light/NER）、实体合并与验证、实体消歧、Leiden 社区检测、PageRank 计算、N-hop 路径扩展检索。基于现有 Neo4j 基础设施，参照 RAGFlow 的 GraphRAG 实现对齐。
 
 ## 决策记录
 

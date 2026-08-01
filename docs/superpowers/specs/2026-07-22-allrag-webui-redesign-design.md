@@ -1,4 +1,4 @@
-# ALLRAG Frontend WebUI Redesign
+# DataPilotAI Frontend WebUI Redesign
 
 **Date**: 2026-07-22
 **Status**: Approved
@@ -6,7 +6,7 @@
 
 ## Goal
 
-Replicate the Nanobot WebUI layout and visual style in ALLRAG's Vue 3 frontend. Replace Element Plus with Tailwind CSS + shadcn/vue. Keep existing API layer, Pinia stores, and SSE streaming logic unchanged.
+Replicate the Nanobot WebUI layout and visual style in DataPilotAI's Vue 3 frontend. Replace Element Plus with Tailwind CSS + shadcn/vue. Keep existing API layer, Pinia stores, and SSE streaming logic unchanged.
 
 ## Tech Stack
 
@@ -85,7 +85,7 @@ Font stacks:
 
 ## Component Map
 
-| Nanobot (React) | ALLRAG (Vue) | Notes |
+| Nanobot (React) | DataPilotAI (Vue) | Notes |
 |---|---|---|
 | `Sidebar.tsx` | `AppSidebar.vue` | Logo + new chat + conversation list + settings |
 | `ChatList.tsx` | `ConversationList.vue` | Sessions grouped by date, context menu |

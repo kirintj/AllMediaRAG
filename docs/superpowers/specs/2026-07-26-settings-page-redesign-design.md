@@ -8,7 +8,7 @@
 
 ## 1. Problem
 
-The current ALLRAG settings UX is fragmented: `SettingsPanel` (L2 sidebar) is just a menu list of 8 items, each opening a separate right-side Sheet drawer. The actual RAG settings form (`RagSettingsDrawer`) lives in a narrow drawer (400-540px) with no persistent navigation. This is inconsistent with the webui's full-page settings design and wastes screen space.
+The current DataPilotAI settings UX is fragmented: `SettingsPanel` (L2 sidebar) is just a menu list of 8 items, each opening a separate right-side Sheet drawer. The actual RAG settings form (`RagSettingsDrawer`) lives in a narrow drawer (400-540px) with no persistent navigation. This is inconsistent with the webui's full-page settings design and wastes screen space.
 
 Additionally, there is a **field name mismatch bug**: the frontend sends field names like `auto_keywords` and `raptor_enabled`, but the backend `RagSettings` Pydantic model expects `enable_auto_keywords` and `enable_raptor`. The save likely silently fails or uses defaults.
 
